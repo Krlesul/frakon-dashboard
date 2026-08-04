@@ -1,0 +1,7 @@
+{
+  "name": "FRAKON Dashboard",
+  "content_in_root": false,
+  "filename": "frakon-dashboard.js",
+  "render_readme": true,
+  "homeassistant": "2025.1.0"
+}
