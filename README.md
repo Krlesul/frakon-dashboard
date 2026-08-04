@@ -1,20 +1,25 @@
 # FRAKON Dashboard
 
-A premium, multilingual and fully customizable dashboard system for Home Assistant.
+A premium, multilingual and fully customizable dashboard system for Home Assistant, designed for later reuse in FRAKON OS.
 
-## Status
+## Alpha scope
 
-Early architecture bootstrap. The first milestone delivers a reusable design system, multilingual runtime and an initial Home Assistant card.
+The current alpha contains:
 
-## Languages
-
-English is the source language. Initial translations are available for Czech, German, Slovak and Polish.
+- reusable FRAKON design tokens
+- responsive mobile, tablet, desktop and wide layout contracts
+- English source language with Czech, German, Slovak and Polish runtime localization
+- `custom:frakon-card` for general entities
+- `custom:frakon-light-card` with toggle, brightness control and visual editor
+- `custom:frakon-sensor-card` for measurements and status values
+- TypeScript, Lit, Vite, Vitest, ESLint and GitHub Actions validation
+- HACS-compatible metadata and a single production bundle
 
 ## Development
 
 ```bash
 npm install
-npm run dev
+npm run lint
 npm test
 npm run build
 ```
@@ -27,15 +32,9 @@ dist/frakon-dashboard.js
 
 ## Home Assistant resource
 
-Add the built file as a JavaScript module resource and use:
+Add `frakon-dashboard.js` as a JavaScript module resource.
 
-```yaml
-type: custom:frakon-card
-entity: light.example
-name: Living room
-```
-
-Optional configuration:
+### General entity
 
 ```yaml
 type: custom:frakon-card
@@ -44,11 +43,36 @@ language: cs
 tap_action: toggle
 ```
 
+### Light
+
+```yaml
+type: custom:frakon-light-card
+entity: light.living_room
+name: Living room
+show_brightness: true
+show_color_temperature: true
+compact: false
+```
+
+### Sensor
+
+```yaml
+type: custom:frakon-sensor-card
+entity: sensor.living_room_temperature
+precision: 1
+unit: °C
+```
+
 ## Architecture
 
 - `src/design-system` — visual tokens and reusable UI foundations
-- `src/home-assistant` — Home Assistant adapter contracts
-- `src/i18n` — localization and fallback rules
-- `src/cards` — Home Assistant-compatible FRAKON cards
+- `src/home-assistant` — isolated Home Assistant adapter contracts
+- `src/i18n` — localization, language detection and English fallback
+- `src/layout` — responsive sizing contracts
+- `src/cards` — Home Assistant-compatible FRAKON cards and editors
 
-The UI core is intentionally kept separate from Home Assistant-specific contracts so it can later be reused by FRAKON OS.
+The UI core is intentionally separated from Home Assistant-specific contracts so the same components can later power the standalone FRAKON Dashboard and FRAKON OS applications.
+
+## Roadmap
+
+The next milestones are Room, Climate, Cover, Camera, Energy, Vehicle and Media cards, followed by the complete dashboard layout editor with drag-and-drop, resizing, breakpoints, undo/redo and import/export.
