@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from 'lit';
+import { LitElement, css, html, nothing, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { baseStyles } from '../../design-system/tokens';
 import type { HomeAssistant, LovelaceCardConfig } from '../../home-assistant/types';
@@ -18,7 +18,7 @@ export class FrakonLightCard extends LitElement {
   @state() private pending = false;
 
   static styles = css`
-    ${baseStyles}
+    ${unsafeCSS(baseStyles)}
     :host { display: block; height: 100%; }
     .card { position: relative; min-height: 168px; height: 100%; padding: 20px; overflow: hidden; border: 1px solid var(--frakon-border); border-radius: var(--frakon-radius-card); background: var(--frakon-surface); box-shadow: 0 18px 50px rgb(0 0 0 / 18%); backdrop-filter: blur(24px) saturate(130%); }
     .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
