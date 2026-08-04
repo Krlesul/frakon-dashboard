@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from 'lit';
+import { LitElement, css, html, nothing, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { baseStyles } from '../design-system/tokens';
 import { resolveLanguage, translate, type SupportedLanguage } from '../i18n';
@@ -10,7 +10,7 @@ export class FrakonCard extends LitElement {
   @state() private config?: LovelaceCardConfig;
 
   static styles = css`
-    ${baseStyles}
+    ${unsafeCSS(baseStyles)}
     .card {
       position: relative;
       min-height: 132px;
