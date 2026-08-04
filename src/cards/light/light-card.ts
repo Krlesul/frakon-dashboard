@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { baseStyles } from '../../design-system/tokens';
+import { resolveLanguage, translate } from '../../i18n';
 import type { HomeAssistant, LovelaceCardConfig } from '../../home-assistant/types';
 
 export interface FrakonLightCardConfig extends LovelaceCardConfig {
@@ -43,12 +44,8 @@ export class FrakonLightCard extends LitElement {
   }
 
   getCardSize(): number { return this.config?.compact ? 3 : 4; }
-
   static getConfigElement(): HTMLElement { return document.createElement('frakon-light-card-editor'); }
-
-  static getStubConfig(): FrakonLightCardConfig {
-    return { type: 'custom:frakon-light-card', entity: 'light.example', show_brightness: true, show_color_temperature: true };
-  }
+  static getStubConfig(): FrakonLightCardConfig { return { type: 'custom:frakon-light-card', entity: 'light.example', show_brightness: true, show_color_temperature: true }; }
 
   private async toggle(): Promise<void> {
     if (!this.hass || !this.config || this.pending) return;
@@ -66,12 +63,14 @@ export class FrakonLightCard extends LitElement {
   render() {
     if (!this.hass || !this.config) return nothing;
     const entity = this.hass.states[this.config.entity];
-    if (!entity) return html`<article class="card unavailable">Entity not found</article>`;
+    const language = resolveLanguage(this.config.language, this.hass.locale?.language, this.hass.language, navigator.language);
+    if (!entity) return html`<article class="card unavailable">${translate(language, 'entityMissing')}</article>`;
     const unavailable = entity.state === 'unavailable';
     const on = entity.state === 'on';
     const rawBrightness = typeof entity.attributes.brightness === 'number' ? entity.attributes.brightness : 0;
     const brightness = Math.round((rawBrightness / 255) * 100);
     const name = this.config.name ?? String(entity.attributes.friendly_name ?? this.config.entity);
+    const stateLabel = unavailable ? translate(language, 'unavailable') : translate(language, on ? 'on' : 'off');
 
     return html`
       <article class="card ${unavailable ? 'unavailable' : ''}">
@@ -80,8 +79,8 @@ export class FrakonLightCard extends LitElement {
           <div class="identity"><div class="eyebrow">FRAKON LIGHT</div><div class="name">${name}</div></div>
           <button aria-label="Toggle light" aria-pressed=${String(on)} ?disabled=${unavailable || this.pending} @click=${this.toggle}>${on ? '●' : '○'}</button>
         </div>
-        <div class="metrics"><div><div class="state">${unavailable ? 'Unavailable' : on ? 'On' : 'Off'}</div><div class="value">${on ? `${brightness}%` : '—'}</div></div></div>
-        ${this.config.show_brightness ? html`<input aria-label="Brightness" type="range" min="1" max="100" .value=${String(Math.max(brightness, 1))} ?disabled=${unavailable} @change=${this.setBrightness}>` : nothing}
+        <div class="metrics"><div><div class="state">${stateLabel}</div><div class="value">${on ? `${brightness}%` : '—'}</div></div></div>
+        ${this.config.show_brightness ? html`<input aria-label=${translate(language, 'brightness')} type="range" min="1" max="100" .value=${String(Math.max(brightness, 1))} ?disabled=${unavailable} @change=${this.setBrightness}>` : nothing}
       </article>
     `;
   }
