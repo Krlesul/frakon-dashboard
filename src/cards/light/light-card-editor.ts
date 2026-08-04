@@ -22,7 +22,7 @@ export class FrakonLightCardEditor extends LitElement {
 
   setConfig(config: FrakonLightCardConfig): void { this.config = { ...config }; }
 
-  private update<K extends keyof FrakonLightCardConfig>(key: K, value: FrakonLightCardConfig[K]): void {
+  private updateConfig<K extends keyof FrakonLightCardConfig>(key: K, value: FrakonLightCardConfig[K]): void {
     if (!this.config) return;
     this.config = { ...this.config, [key]: value };
     this.dispatchEvent(new CustomEvent<ConfigChangedEventDetail>('config-changed', {
@@ -41,19 +41,19 @@ export class FrakonLightCardEditor extends LitElement {
         <section class="section">
           <div class="title">Entity</div>
           <label>Light
-            <select .value=${this.config.entity} @change=${(event: Event) => this.update('entity', (event.target as HTMLSelectElement).value)}>
+            <select .value=${this.config.entity} @change=${(event: Event) => this.updateConfig('entity', (event.target as HTMLSelectElement).value)}>
               ${this.lightEntities().map((entityId) => html`<option value=${entityId}>${entityId}</option>`)}
             </select>
           </label>
           <label>Name
-            <input type="text" .value=${this.config.name ?? ''} placeholder="Use entity name" @input=${(event: Event) => this.update('name', (event.target as HTMLInputElement).value || undefined)}>
+            <input type="text" .value=${this.config.name ?? ''} placeholder="Use entity name" @input=${(event: Event) => this.updateConfig('name', (event.target as HTMLInputElement).value || undefined)}>
           </label>
         </section>
         <section class="section">
           <div class="title">Controls</div>
-          <label class="toggle"><span>Brightness slider</span><input type="checkbox" .checked=${this.config.show_brightness !== false} @change=${(event: Event) => this.update('show_brightness', (event.target as HTMLInputElement).checked)}></label>
-          <label class="toggle"><span>Color temperature</span><input type="checkbox" .checked=${this.config.show_color_temperature !== false} @change=${(event: Event) => this.update('show_color_temperature', (event.target as HTMLInputElement).checked)}></label>
-          <label class="toggle"><span>Compact layout</span><input type="checkbox" .checked=${this.config.compact === true} @change=${(event: Event) => this.update('compact', (event.target as HTMLInputElement).checked)}></label>
+          <label class="toggle"><span>Brightness slider</span><input type="checkbox" .checked=${this.config.show_brightness !== false} @change=${(event: Event) => this.updateConfig('show_brightness', (event.target as HTMLInputElement).checked)}></label>
+          <label class="toggle"><span>Color temperature</span><input type="checkbox" .checked=${this.config.show_color_temperature !== false} @change=${(event: Event) => this.updateConfig('show_color_temperature', (event.target as HTMLInputElement).checked)}></label>
+          <label class="toggle"><span>Compact layout</span><input type="checkbox" .checked=${this.config.compact === true} @change=${(event: Event) => this.updateConfig('compact', (event.target as HTMLInputElement).checked)}></label>
         </section>
       </div>
     `;
