@@ -59,6 +59,11 @@ export class FrakonDashboardCard extends LitElement {
     });
   }
 
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-dashboard-card-editor'); }
+  static getStubConfig(): FrakonDashboardCardConfig {
+    return { type:'custom:frakon-dashboard-card', entity:'sensor.placeholder', dashboard_id:'home', title:'FRAKON Dashboard', columns:12, row_height:48, gap:12, edit_mode:true, items:[] };
+  }
+
   getCardSize(): number { return 8; }
 
   private persist(document: FrakonDashboardDocument): void {
