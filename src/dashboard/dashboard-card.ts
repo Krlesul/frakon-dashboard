@@ -8,7 +8,9 @@ import type { FrakonCardTemplateSelectedDetail } from './card-palette';
 import { editorTranslate, resolveEditorLanguage } from './editor-i18n';
 import type { FrakonItemUpdateDetail } from './item-inspector';
 import { DashboardHistory } from './layout-history';
-import { LocalDashboardStore, exportDashboard, importDashboard } from './layout-store';
+import { exportDashboard, importDashboard } from './layout-store';
+import { DashboardStorageController, type DashboardStorageControllerState } from './dashboard-storage-controller';
+import { createDefaultDashboardStorage } from './dashboard-storage';
 import {
   addGridItem,
   normalizeAndCompactDashboard,
@@ -39,8 +41,6 @@ export interface FrakonDashboardCardConfig extends LovelaceCardConfig {
   items?: FrakonGridItem[];
 }
 
-const store = new LocalDashboardStore();
-
 @customElement('frakon-dashboard-card')
 export class FrakonDashboardCard extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
@@ -51,9 +51,12 @@ export class FrakonDashboardCard extends LitElement {
   @state() private message?: string;
   @state() private containerWidth = 1200;
   @state() private paletteOpen = false;
+  @state() private storageState: DashboardStorageControllerState = { loading:false, saving:false };
 
   private history?: DashboardHistory;
   private resizeObserver?: ResizeObserver;
+  private readonly storageController = new DashboardStorageController(createDefaultDashboardStorage());
+  private unsubscribeStorage?: () => void;
 
   static styles = css`
     :host { display:block; }
@@ -62,6 +65,7 @@ export class FrakonDashboardCard extends LitElement {
     h2 { margin:0; font-size:22px; }
     .actions,.controls { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
     .badge { padding:6px 10px; border-radius:999px; background:color-mix(in srgb,var(--primary-color) 16%,transparent); font-size:12px; }
+    .storage-badge { opacity:.7; }
     .grid { display:grid; position:relative; align-items:stretch; }
     .item { min-width:0; min-height:0; overflow:hidden; border-radius:20px; border:1px solid color-mix(in srgb,var(--primary-text-color) 10%,transparent); background:color-mix(in srgb,var(--card-background-color) 92%,var(--primary-color) 8%); }
     .item.selected { outline:2px solid var(--primary-color); outline-offset:2px; }
@@ -78,18 +82,27 @@ export class FrakonDashboardCard extends LitElement {
     .file-label input { display:none; }
     .empty { padding:32px; text-align:center; opacity:.62; }
     .message { margin:0 0 12px; padding:9px 12px; border-radius:12px; background:color-mix(in srgb,var(--primary-color) 12%,transparent); font-size:13px; }
+    .message.error { background:color-mix(in srgb,#ff4d67 16%,transparent); }
   `;
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.unsubscribeStorage ??= this.storageController.subscribe((state) => {
+      this.storageState = state;
+    });
+  }
 
   setConfig(config: FrakonDashboardCardConfig): void {
     const id = config.dashboard_id ?? 'default';
     this.config = config;
-    const document = store.load(id) ?? normalizeAndCompactDashboard({
+    const fallback = normalizeAndCompactDashboard({
       version:1, id, title:config.title ?? 'FRAKON Dashboard', breakpoint:'desktop',
       columns:config.columns ?? 12, rowHeight:config.row_height ?? 48, gap:config.gap ?? 12,
       items:config.items ?? [],
     });
-    this.document = document;
-    this.history = new DashboardHistory(document);
+    this.document = fallback;
+    this.history = new DashboardHistory(fallback);
+    void this.loadStoredDocument(id);
   }
 
   static getConfigElement(): HTMLElement { return document.createElement('frakon-dashboard-card-editor'); }
@@ -112,6 +125,8 @@ export class FrakonDashboardCard extends LitElement {
 
   disconnectedCallback(): void {
     this.resizeObserver?.disconnect();
+    this.unsubscribeStorage?.();
+    this.unsubscribeStorage = undefined;
     super.disconnectedCallback();
   }
 
@@ -121,10 +136,17 @@ export class FrakonDashboardCard extends LitElement {
     return resolveEditorLanguage(this.config?.language, this.hass?.locale?.language, this.hass?.language);
   }
 
+  private async loadStoredDocument(id: string): Promise<void> {
+    const stored = await this.storageController.load(id);
+    if (!stored || this.config?.dashboard_id && this.config.dashboard_id !== id) return;
+    this.document = stored;
+    this.history = new DashboardHistory(stored);
+  }
+
   private persist(document: FrakonDashboardDocument, recordHistory = true): void {
     const next = normalizeAndCompactDashboard(document);
     this.document = recordHistory && this.history ? this.history.push(next) : next;
-    store.save(this.document);
+    void this.storageController.save(this.document);
     this.dispatchEvent(new CustomEvent('frakon-layout-changed', {
       detail:{ document:this.document }, bubbles:true, composed:true,
     }));
@@ -235,11 +257,13 @@ export class FrakonDashboardCard extends LitElement {
     const doc = editMode ? canonical : normalizeDashboard(documentForBreakpoint(canonical, breakpoint, responsiveColumns));
     const selected = editMode ? canonical.items.find((item) => item.id === this.selectedId) : undefined;
     const style = `grid-template-columns:repeat(${doc.columns},minmax(0,1fr));grid-auto-rows:${doc.rowHeight}px;gap:${doc.gap}px`;
+    const storageActivity = this.storageState.loading ? 'loading' : this.storageState.saving ? 'saving' : this.storageController.adapterKind;
 
     return html`
       <section class="shell">
         <header><h2>${doc.title}</h2><div class="actions">
           <span class="badge">${editMode ? editorTranslate(lang,'editMode') : breakpoint.toUpperCase()}</span>
+          <span class="badge storage-badge">${storageActivity}</span>
           ${editMode ? html`
             <button ?disabled=${!this.history?.canUndo} @click=${this.undo}>${editorTranslate(lang,'undo')}</button>
             <button ?disabled=${!this.history?.canRedo} @click=${this.redo}>${editorTranslate(lang,'redo')}</button>
@@ -248,6 +272,7 @@ export class FrakonDashboardCard extends LitElement {
             <label class="file-label">${editorTranslate(lang,'import')}<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>
           ` : nothing}
         </div></header>
+        ${this.storageState.error ? html`<div class="message error">${this.storageState.error.message}</div>` : nothing}
         ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
         ${editMode && this.paletteOpen ? html`<frakon-card-palette .language=${lang} @frakon-card-template-selected=${this.addTemplate}></frakon-card-palette>` : nothing}
         ${selected ? html`<frakon-item-inspector .item=${selected} .hass=${this.hass} .language=${lang}
