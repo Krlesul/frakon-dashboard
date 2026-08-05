@@ -6,10 +6,11 @@ import { DashboardHistory } from './layout-history';
 import { LocalDashboardStore, exportDashboard, importDashboard } from './layout-store';
 import {
   addGridItem,
+  normalizeAndCompactDashboard,
   normalizeDashboard,
   removeGridItem,
   setGridItemLocked,
-  updateGridItem,
+  updateGridItemCollisionSafe,
   type FrakonDashboardDocument,
   type FrakonGridItem,
 } from './layout-model';
@@ -72,7 +73,7 @@ export class FrakonDashboardCard extends LitElement {
   setConfig(config: FrakonDashboardCardConfig): void {
     const id = config.dashboard_id ?? 'default';
     this.config = config;
-    const document = store.load(id) ?? normalizeDashboard({
+    const document = store.load(id) ?? normalizeAndCompactDashboard({
       version: 1,
       id,
       title: config.title ?? 'FRAKON Dashboard',
@@ -89,16 +90,9 @@ export class FrakonDashboardCard extends LitElement {
   static getConfigElement(): HTMLElement { return document.createElement('frakon-dashboard-card-editor'); }
   static getStubConfig(): FrakonDashboardCardConfig {
     return {
-      type:'custom:frakon-dashboard-card',
-      entity:'sensor.placeholder',
-      dashboard_id:'home',
-      title:'FRAKON Dashboard',
-      columns:12,
-      row_height:48,
-      gap:12,
-      edit_mode:true,
-      responsive_columns: defaultResponsiveColumns,
-      items:[],
+      type:'custom:frakon-dashboard-card', entity:'sensor.placeholder', dashboard_id:'home',
+      title:'FRAKON Dashboard', columns:12, row_height:48, gap:12, edit_mode:true,
+      responsive_columns: defaultResponsiveColumns, items:[],
     };
   }
 
@@ -119,13 +113,11 @@ export class FrakonDashboardCard extends LitElement {
   getCardSize(): number { return 8; }
 
   private persist(document: FrakonDashboardDocument, recordHistory = true): void {
-    const next = normalizeDashboard(document);
+    const next = normalizeAndCompactDashboard(document);
     this.document = recordHistory && this.history ? this.history.push(next) : next;
     store.save(this.document);
     this.dispatchEvent(new CustomEvent('frakon-layout-changed', {
-      detail: { document: this.document },
-      bubbles: true,
-      composed: true,
+      detail: { document: this.document }, bubbles: true, composed: true,
     }));
   }
 
@@ -143,7 +135,7 @@ export class FrakonDashboardCard extends LitElement {
 
   private resize(item: FrakonGridItem, dw: number, dh: number): void {
     if (!this.document) return;
-    this.persist(updateGridItem(this.document, item.id, { w: item.w + dw, h: item.h + dh }));
+    this.persist(updateGridItemCollisionSafe(this.document, item.id, { w: item.w + dw, h: item.h + dh }));
   }
 
   private addItem(): void {
@@ -151,12 +143,8 @@ export class FrakonDashboardCard extends LitElement {
     const id = `card-${Date.now().toString(36)}`;
     const y = this.document.items.reduce((maximum, item) => Math.max(maximum, item.y + item.h), 0);
     this.persist(addGridItem(this.document, {
-      id,
-      x: 0,
-      y,
-      w: Math.min(4, this.document.columns),
-      h: 3,
-      card: { type: 'custom:frakon-card', entity: this.config?.entity ?? 'sensor.placeholder', name: 'New card' },
+      id, x:0, y, w:Math.min(4, this.document.columns), h:3,
+      card:{ type:'custom:frakon-card', entity:this.config?.entity ?? 'sensor.placeholder', name:'New card' },
     }));
     this.message = `Added ${id}. Edit its card configuration in the exported JSON.`;
   }
@@ -177,17 +165,17 @@ export class FrakonDashboardCard extends LitElement {
     const target = this.document.items.find((item) => item.id === targetId);
     if (!source || !target || source.locked || target.locked) return;
     const next = this.document.items.map((item) => {
-      if (item.id === source.id) return { ...item, x: target.x, y: target.y };
-      if (item.id === target.id) return { ...item, x: source.x, y: source.y };
+      if (item.id === source.id) return { ...item, x:target.x, y:target.y };
+      if (item.id === target.id) return { ...item, x:source.x, y:source.y };
       return item;
     });
-    this.persist(normalizeDashboard({ ...this.document, items: next }));
+    this.persist(normalizeAndCompactDashboard({ ...this.document, items:next }));
     this.draggingId = undefined;
   }
 
   private downloadExport(): void {
     if (!this.document) return;
-    const blob = new Blob([exportDashboard(this.document)], { type: 'application/json' });
+    const blob = new Blob([exportDashboard(this.document)], { type:'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -201,7 +189,7 @@ export class FrakonDashboardCard extends LitElement {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     try {
-      const imported = importDashboard(await file.text());
+      const imported = normalizeAndCompactDashboard(importDashboard(await file.text()));
       this.history = new DashboardHistory(imported);
       this.persist(imported, false);
       this.message = 'Dashboard imported.';
@@ -217,13 +205,8 @@ export class FrakonDashboardCard extends LitElement {
     if (!canonical) return nothing;
     const editMode = this.config?.edit_mode === true;
     const breakpoint = detectBreakpoint(this.containerWidth);
-    const responsiveColumns: ResponsiveColumns = {
-      ...defaultResponsiveColumns,
-      ...this.config?.responsive_columns,
-    };
-    const doc = editMode
-      ? canonical
-      : normalizeDashboard(documentForBreakpoint(canonical, breakpoint, responsiveColumns));
+    const responsiveColumns: ResponsiveColumns = { ...defaultResponsiveColumns, ...this.config?.responsive_columns };
+    const doc = editMode ? canonical : normalizeDashboard(documentForBreakpoint(canonical, breakpoint, responsiveColumns));
     const style = `grid-template-columns:repeat(${doc.columns},minmax(0,1fr));grid-auto-rows:${doc.rowHeight}px;gap:${doc.gap}px`;
 
     return html`
@@ -244,33 +227,25 @@ export class FrakonDashboardCard extends LitElement {
         ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
         <div class="grid" style=${style}>
           ${doc.items.length === 0 ? html`<div class="empty" style="grid-column:1/-1">No dashboard items yet.</div>` : doc.items.map((item) => html`
-            <article
-              class="item ${this.draggingId === item.id ? 'dragging' : ''}"
+            <article class="item ${this.draggingId === item.id ? 'dragging' : ''}"
               style=${`grid-column:${item.x + 1}/span ${item.w};grid-row:${item.y + 1}/span ${item.h}`}
               draggable=${String(editMode && !item.locked)}
               @dragstart=${() => { this.draggingId = item.id; }}
-              @dragover=${(event: DragEvent) => event.preventDefault()}
-              @drop=${() => this.onDrop(item.id)}
-            >
+              @dragover=${(event:DragEvent) => event.preventDefault()}
+              @drop=${() => this.onDrop(item.id)}>
               ${editMode ? html`
-                <div class="item-head">
-                  <span>${item.id}${item.locked ? ' · locked' : ''}</span>
-                  <div class="controls">
-                    <button @click=${() => this.toggleLock(item)}>${item.locked ? 'Unlock' : 'Lock'}</button>
-                    <button ?disabled=${item.locked} @click=${() => this.resize(item,-1,0)}>−W</button>
-                    <button ?disabled=${item.locked} @click=${() => this.resize(item,1,0)}>+W</button>
-                    <button ?disabled=${item.locked} @click=${() => this.resize(item,0,-1)}>−H</button>
-                    <button ?disabled=${item.locked} @click=${() => this.resize(item,0,1)}>+H</button>
-                    <button class="danger" ?disabled=${item.locked} @click=${() => this.removeItem(item)}>Remove</button>
-                  </div>
-                </div>
-              ` : nothing}
+                <div class="item-head"><span>${item.id}${item.locked ? ' · locked' : ''}</span><div class="controls">
+                  <button @click=${() => this.toggleLock(item)}>${item.locked ? 'Unlock' : 'Lock'}</button>
+                  <button ?disabled=${item.locked} @click=${() => this.resize(item,-1,0)}>−W</button>
+                  <button ?disabled=${item.locked} @click=${() => this.resize(item,1,0)}>+W</button>
+                  <button ?disabled=${item.locked} @click=${() => this.resize(item,0,-1)}>−H</button>
+                  <button ?disabled=${item.locked} @click=${() => this.resize(item,0,1)}>+H</button>
+                  <button class="danger" ?disabled=${item.locked} @click=${() => this.removeItem(item)}>Remove</button>
+                </div></div>` : nothing}
               <div class="content"><frakon-card-host .hass=${this.hass} .config=${item.card}></frakon-card-host></div>
-            </article>
-          `)}
+            </article>`)}
         </div>
-      </section>
-    `;
+      </section>`;
   }
 }
 
