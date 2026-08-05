@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from 'lit';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { FrakonGridItem } from './layout-model';
 
@@ -26,7 +26,7 @@ export class FrakonItemInspector extends LitElement {
     .error { padding:9px 11px; border-radius:10px; background:color-mix(in srgb,#ff4d67 16%,transparent); font-size:13px; }
   `;
 
-  protected willUpdate(changed: Map<PropertyKey, unknown>): void {
+  protected willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('item')) {
       this.draft = this.item ? JSON.stringify(this.item.card, null, 2) : '';
       this.error = undefined;
@@ -47,7 +47,7 @@ export class FrakonItemInspector extends LitElement {
       if (typeof card.type !== 'string' || !card.type) throw new Error('Card configuration requires a type.');
       this.error = undefined;
       this.dispatchEvent(new CustomEvent<FrakonItemUpdateDetail>('frakon-item-config-changed', {
-        detail: { id: this.item.id, card }, bubbles:true, composed:true,
+        detail:{ id:this.item.id, card }, bubbles:true, composed:true,
       }));
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Invalid card configuration.';
@@ -62,10 +62,7 @@ export class FrakonItemInspector extends LitElement {
     if (!this.item) return nothing;
     return html`
       <section class="panel">
-        <header>
-          <div><h3>Card configuration</h3><div class="meta">${this.item.id} · ${this.item.w} × ${this.item.h}</div></div>
-          <button @click=${this.close}>Close</button>
-        </header>
+        <header><div><h3>Card configuration</h3><div class="meta">${this.item.id} · ${this.item.w} × ${this.item.h}</div></div><button @click=${this.close}>Close</button></header>
         ${this.error ? html`<div class="error">${this.error}</div>` : nothing}
         <textarea .value=${this.draft} @input=${(event:Event) => { this.draft = (event.target as HTMLTextAreaElement).value; }}></textarea>
         <div class="actions"><button @click=${this.reset}>Reset</button><button class="primary" @click=${this.apply}>Apply</button></div>
