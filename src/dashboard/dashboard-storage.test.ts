@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   MemoryDashboardStorageAdapter,
   RemoteDashboardStorageAdapter,
@@ -53,18 +53,23 @@ describe('dashboard storage adapters', () => {
   });
 
   it('maps remote operations to transport commands', async () => {
-    const request = vi.fn(async <T>(command: string): Promise<T> => {
-      return (command.endsWith('/load') ? document : undefined) as T;
-    });
-    const transport: DashboardStorageTransport = { request };
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    const transport: DashboardStorageTransport = {
+      async request<T>(command: string, payload: Record<string, unknown>): Promise<T> {
+        calls.push({ command, payload });
+        return (command.endsWith('/load') ? document : undefined) as T;
+      },
+    };
     const storage = new RemoteDashboardStorageAdapter(transport);
 
     await storage.load('home');
     await storage.save(document);
     await storage.remove('home');
 
-    expect(request).toHaveBeenNthCalledWith(1, 'frakon/dashboard/load', { id: 'home' });
-    expect(request).toHaveBeenNthCalledWith(2, 'frakon/dashboard/save', { document });
-    expect(request).toHaveBeenNthCalledWith(3, 'frakon/dashboard/remove', { id: 'home' });
+    expect(calls).toEqual([
+      { command: 'frakon/dashboard/load', payload: { id: 'home' } },
+      { command: 'frakon/dashboard/save', payload: { document } },
+      { command: 'frakon/dashboard/remove', payload: { id: 'home' } },
+    ]);
   });
 });
