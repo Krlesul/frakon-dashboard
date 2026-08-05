@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addGridItem,
+  duplicateGridItem,
   findCollisions,
   itemsOverlap,
   normalizeAndCompactDashboard,
@@ -48,8 +49,22 @@ describe('dashboard layout model', () => {
     expect(removeGridItem(unlocked, 'b').items).toHaveLength(0);
   });
 
+  it('duplicates a card with independent configuration and a free position', () => {
+    const source = {
+      ...base,
+      columns: 6,
+      items: [{ id: 'a', card: { type: 'custom:frakon-card', name: 'Original' }, x: 0, y: 0, w: 3, h: 2, locked: true }],
+    };
+    const duplicated = duplicateGridItem(source, 'a', 'a-copy');
+    const copy = duplicated.items.find((item) => item.id === 'a-copy');
+    expect(copy).toMatchObject({ id: 'a-copy', locked: false, x: 3, y: 0, w: 3, h: 2 });
+    expect(copy?.card).toEqual(source.items[0].card);
+    expect(copy?.card).not.toBe(source.items[0].card);
+  });
+
   it('rejects duplicate item ids', () => {
     expect(() => addGridItem(base, { ...base.items[0] })).toThrow(/Duplicate dashboard item id/);
+    expect(() => duplicateGridItem(base, 'a', 'a')).toThrow(/Duplicate dashboard item id/);
   });
 
   it('detects overlapping rectangles', () => {
