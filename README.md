@@ -18,7 +18,9 @@ The project currently includes:
 - width and height controls
 - locked items
 - undo and redo history
-- versioned local persistence
+- asynchronous storage controller with ordered writes and error reporting
+- local browser storage adapter
+- remote storage adapter and Home Assistant WebSocket transport foundation
 - JSON import and export
 - visual dashboard configuration editor
 - visual per-card form editor with an advanced JSON mode
@@ -173,16 +175,26 @@ charging_switch_entity: switch.vehicle_charging
 
 ## Persistence and backups
 
-The current alpha stores edited dashboard documents in the browser's `localStorage`. This means layouts are browser-profile specific until Home Assistant server-side storage is implemented.
+The dashboard runtime now talks to an asynchronous storage controller. The default adapter still stores documents in the browser's `localStorage`, so layouts remain browser-profile specific in the current alpha.
+
+A remote adapter, Home Assistant `callWS` transport and backend factory are implemented and tested. They expect these WebSocket commands:
+
+```text
+frakon/dashboard/load
+frakon/dashboard/save
+frakon/dashboard/remove
+```
+
+The matching Home Assistant backend handlers are not part of this frontend repository yet. Until an integration provides them, the runtime continues to use local browser storage.
 
 Use Export after important changes. Import validates the document version and normalizes the layout before saving it.
 
 ## Architecture
 
 - `src/design-system` — visual tokens and reusable UI foundations
-- `src/home-assistant` — isolated Home Assistant adapter contracts
+- `src/home-assistant` — isolated Home Assistant adapter contracts and WebSocket storage transport
 - `src/i18n` — card localization and language detection
-- `src/dashboard` — layout engine, persistence, history, palette, inspectors and editor localization
+- `src/dashboard` — layout engine, storage adapters, runtime controller, history, palette, inspectors and editor localization
 - `src/layout` — shared responsive sizing contracts
 - `src/cards` — Home Assistant-compatible FRAKON cards
 
@@ -200,7 +212,8 @@ GitHub Actions validates every push and pull request with:
 
 ## Known alpha limitations
 
-- dashboard persistence is currently local to each browser profile
+- the default dashboard persistence is currently local to each browser profile
+- Home Assistant remote storage requires backend WebSocket handlers that are not implemented in this frontend repository
 - drag-and-drop currently exchanges card positions rather than providing free pointer-based grid placement
 - not every specialized card has its own full visual editor yet
 - camera behavior depends on the entity image exposed by Home Assistant
@@ -209,7 +222,7 @@ GitHub Actions validates every push and pull request with:
 
 ## Planned next milestones
 
-- Home Assistant server-side dashboard storage
+- Home Assistant integration implementing server-side dashboard storage handlers
 - free drag placement and resize handles
 - broader visual editors for specialized cards
 - Energy, Alarm, Graph, Weather and Floorplan cards
