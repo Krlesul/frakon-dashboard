@@ -3,5 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Standalone FRAKON Dashboard Studio shell. Implementation will consume the platform-neutral studio engine."
+  "description": "Standalone FRAKON Dashboard Studio shell consuming the platform-neutral Studio engine.",
+  "exports": {
+    ".": "./src/index.ts"
+  }
 }
