@@ -10,6 +10,7 @@ import './card-palette';
 import './item-inspector';
 import type { FrakonCardTemplateSelectedDetail } from './card-palette';
 import { editorTranslate, resolveEditorLanguage } from './editor-i18n';
+import { autoLayoutTranslate } from './auto-layout-i18n';
 import type { FrakonItemUpdateDetail } from './item-inspector';
 import { DashboardHistory } from './layout-history';
 import { exportDashboard, importDashboard } from './layout-store';
@@ -18,6 +19,8 @@ import {
   dashboardStorageStatusLabel,
   resolveDashboardStorageStatus,
 } from './storage-status';
+import { DashboardAutoLayoutSession, type DashboardAutoLayoutPreview } from './auto-layout-session';
+import { scoreDashboardItemPriority } from './auto-layout-priority';
 import {
   addGridItem,
   normalizeAndCompactDashboard,
@@ -60,21 +63,25 @@ export class FrakonDashboardCard extends LitElement {
   @state() private containerWidth = 1200;
   @state() private paletteOpen = false;
   @state() private storageState: DashboardStorageControllerState = { loading:false, saving:false };
+  @state() private autoLayoutPreview?: DashboardAutoLayoutPreview;
 
   private history?: DashboardHistory;
   private resizeObserver?: ResizeObserver;
   private storageController = new DashboardStorageController(createHomeAssistantDashboardStorage('local'));
   private unsubscribeStorage?: () => void;
+  private autoLayoutSession?: DashboardAutoLayoutSession;
 
   static styles = css`
     :host { display:block; }
     .shell { padding:16px; border-radius:24px; background:var(--card-background-color); }
     header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
     h2 { margin:0; font-size:22px; }
-    .actions,.controls { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .actions,.controls,.preview-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
     .badge { padding:6px 10px; border-radius:999px; background:color-mix(in srgb,var(--primary-color) 16%,transparent); font-size:12px; }
     .storage-badge { opacity:.78; }
     .storage-badge.fallback { background:color-mix(in srgb,#f0a85a 18%,transparent); }
+    .preview-bar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 12px; padding:10px 12px; border-radius:14px; background:color-mix(in srgb,var(--primary-color) 14%,transparent); }
+    .preview-label { font-size:13px; font-weight:600; }
     .grid { display:grid; position:relative; align-items:stretch; }
     .item { min-width:0; min-height:0; overflow:hidden; border-radius:20px; border:1px solid color-mix(in srgb,var(--primary-text-color) 10%,transparent); background:color-mix(in srgb,var(--card-background-color) 92%,var(--primary-color) 8%); }
     .item.selected { outline:2px solid var(--primary-color); outline-offset:2px; }
@@ -110,6 +117,7 @@ export class FrakonDashboardCard extends LitElement {
     });
     this.document = fallback;
     this.history = new DashboardHistory(fallback);
+    this.clearAutoLayoutPreview();
     void this.loadStoredDocument(id);
   }
 
@@ -170,6 +178,7 @@ export class FrakonDashboardCard extends LitElement {
     if (!stored || this.config?.dashboard_id && this.config.dashboard_id !== id) return;
     this.document = stored;
     this.history = new DashboardHistory(stored);
+    this.clearAutoLayoutPreview();
   }
 
   private persist(document: FrakonDashboardDocument, recordHistory = true): void {
@@ -183,30 +192,32 @@ export class FrakonDashboardCard extends LitElement {
 
   private undo(): void {
     if (!this.history?.canUndo) return;
+    this.clearAutoLayoutPreview();
     this.persist(this.history.undo(), false);
     this.message = editorTranslate(this.language(), 'layoutUndone');
   }
 
   private redo(): void {
     if (!this.history?.canRedo) return;
+    this.clearAutoLayoutPreview();
     this.persist(this.history.redo(), false);
     this.message = editorTranslate(this.language(), 'layoutRestored');
   }
 
   private resize(item: FrakonGridItem, dw: number, dh: number): void {
     if (!this.document) return;
+    this.clearAutoLayoutPreview();
     this.persist(updateGridItemCollisionSafe(this.document, item.id, { w:item.w + dw, h:item.h + dh }));
   }
 
   private addTemplate(event: CustomEvent<FrakonCardTemplateSelectedDetail>): void {
     if (!this.document) return;
+    this.clearAutoLayoutPreview();
     const { template } = event.detail;
     const id = `${template.name.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString(36)}`;
     const y = this.document.items.reduce((maximum, item) => Math.max(maximum, item.y + item.h), 0);
     this.persist(addGridItem(this.document, {
-      id,
-      x:0,
-      y,
+      id, x:0, y,
       w:Math.min(template.defaultWidth, this.document.columns),
       h:template.defaultHeight,
       card:template.createConfig(),
@@ -218,17 +229,20 @@ export class FrakonDashboardCard extends LitElement {
 
   private removeItem(item: FrakonGridItem): void {
     if (!this.document) return;
+    this.clearAutoLayoutPreview();
     this.persist(removeGridItem(this.document, item.id));
     if (this.selectedId === item.id) this.selectedId = undefined;
   }
 
   private toggleLock(item: FrakonGridItem): void {
     if (!this.document) return;
+    this.clearAutoLayoutPreview();
     this.persist(setGridItemLocked(this.document, item.id, !item.locked));
   }
 
   private updateItemCard(event: CustomEvent<FrakonItemUpdateDetail>): void {
     if (!this.document) return;
+    this.clearAutoLayoutPreview();
     const { id, card } = event.detail;
     this.persist({ ...this.document, items:this.document.items.map((item) => item.id === id ? { ...item, card } : item) });
     this.message = editorTranslate(this.language(), 'cardUpdated');
@@ -236,6 +250,7 @@ export class FrakonDashboardCard extends LitElement {
 
   private onDrop(targetId: string): void {
     if (!this.document || !this.draggingId || this.draggingId === targetId) return;
+    this.clearAutoLayoutPreview();
     const source = this.document.items.find((item) => item.id === this.draggingId);
     const target = this.document.items.find((item) => item.id === targetId);
     if (!source || !target || source.locked || target.locked) return;
@@ -246,6 +261,42 @@ export class FrakonDashboardCard extends LitElement {
     });
     this.persist(normalizeAndCompactDashboard({ ...this.document, items:next }));
     this.draggingId = undefined;
+  }
+
+  private beginAutoLayout(): void {
+    if (!this.document || this.document.items.length === 0) return;
+    this.autoLayoutSession = new DashboardAutoLayoutSession(this.document, scoreDashboardItemPriority);
+    this.autoLayoutPreview = this.autoLayoutSession.next();
+    this.message = autoLayoutTranslate(this.language(), 'autoLayoutPreviewReady');
+  }
+
+  private nextAutoLayout(): void {
+    if (!this.autoLayoutSession) {
+      this.beginAutoLayout();
+      return;
+    }
+    this.autoLayoutPreview = this.autoLayoutSession.next();
+    this.message = autoLayoutTranslate(this.language(), 'autoLayoutPreviewReady');
+  }
+
+  private applyAutoLayout(): void {
+    if (!this.autoLayoutSession || !this.autoLayoutPreview) return;
+    const applied = this.autoLayoutSession.apply(this.autoLayoutPreview);
+    this.clearAutoLayoutPreview();
+    this.persist(applied);
+    this.message = autoLayoutTranslate(this.language(), 'autoLayoutApplied');
+  }
+
+  private revertAutoLayout(): void {
+    if (!this.autoLayoutSession) return;
+    this.document = this.autoLayoutSession.revert();
+    this.clearAutoLayoutPreview();
+    this.message = autoLayoutTranslate(this.language(), 'autoLayoutReverted');
+  }
+
+  private clearAutoLayoutPreview(): void {
+    this.autoLayoutSession = undefined;
+    this.autoLayoutPreview = undefined;
   }
 
   private downloadExport(): void {
@@ -267,6 +318,7 @@ export class FrakonDashboardCard extends LitElement {
       const imported = normalizeAndCompactDashboard(importDashboard(await file.text()));
       this.history = new DashboardHistory(imported);
       this.selectedId = undefined;
+      this.clearAutoLayoutPreview();
       this.persist(imported, false);
       this.message = editorTranslate(this.language(), 'dashboardImported');
     } catch {
@@ -277,7 +329,7 @@ export class FrakonDashboardCard extends LitElement {
   }
 
   render() {
-    const canonical = this.document;
+    const canonical = this.autoLayoutPreview?.proposal ?? this.document;
     if (!canonical) return nothing;
     const lang = this.language();
     const editMode = this.config?.edit_mode === true;
@@ -292,6 +344,7 @@ export class FrakonDashboardCard extends LitElement {
       this.config?.storage ?? 'local',
     );
     const storageActivity = dashboardStorageStatusLabel(lang, storageStatus);
+    const preview = this.autoLayoutPreview;
 
     return html`
       <section class="shell">
@@ -299,28 +352,39 @@ export class FrakonDashboardCard extends LitElement {
           <span class="badge">${editMode ? editorTranslate(lang,'editMode') : breakpoint.toUpperCase()}</span>
           <span class="badge storage-badge ${storageStatus === 'fallback' ? 'fallback' : ''}">${storageActivity}</span>
           ${editMode ? html`
-            <button ?disabled=${!this.history?.canUndo} @click=${this.undo}>${editorTranslate(lang,'undo')}</button>
-            <button ?disabled=${!this.history?.canRedo} @click=${this.redo}>${editorTranslate(lang,'redo')}</button>
+            <button ?disabled=${!this.history?.canUndo || Boolean(preview)} @click=${this.undo}>${editorTranslate(lang,'undo')}</button>
+            <button ?disabled=${!this.history?.canRedo || Boolean(preview)} @click=${this.redo}>${editorTranslate(lang,'redo')}</button>
             <button class="primary" @click=${() => { this.paletteOpen = !this.paletteOpen; }}>${editorTranslate(lang,this.paletteOpen ? 'closePalette' : 'addCard')}</button>
+            <button ?disabled=${doc.items.length === 0 || Boolean(preview)} @click=${this.beginAutoLayout}>${autoLayoutTranslate(lang,'autoLayout')}</button>
             <button @click=${this.downloadExport}>${editorTranslate(lang,'export')}</button>
             <label class="file-label">${editorTranslate(lang,'import')}<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>
           ` : nothing}
         </div></header>
+        ${preview ? html`
+          <div class="preview-bar">
+            <span class="preview-label">${autoLayoutTranslate(lang,'autoLayoutPreview')} · ${preview.strategy} · #${preview.variant + 1}</span>
+            <div class="preview-actions">
+              <button @click=${this.nextAutoLayout}>${autoLayoutTranslate(lang,'nextProposal')}</button>
+              <button class="primary" @click=${this.applyAutoLayout}>${autoLayoutTranslate(lang,'applyProposal')}</button>
+              <button @click=${this.revertAutoLayout}>${autoLayoutTranslate(lang,'revertOriginal')}</button>
+            </div>
+          </div>
+        ` : nothing}
         ${this.storageState.error ? html`<div class="message error">${this.storageState.error.message}</div>` : nothing}
         ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
         ${editMode && this.paletteOpen ? html`<frakon-card-palette .language=${lang} @frakon-card-template-selected=${this.addTemplate}></frakon-card-palette>` : nothing}
-        ${selected ? html`<frakon-item-inspector .item=${selected} .hass=${this.hass} .language=${lang}
+        ${selected && !preview ? html`<frakon-item-inspector .item=${selected} .hass=${this.hass} .language=${lang}
           @frakon-item-config-changed=${this.updateItemCard}
           @frakon-item-inspector-close=${() => { this.selectedId = undefined; }}></frakon-item-inspector>` : nothing}
         <div class="grid" style=${style}>
           ${doc.items.length === 0 ? html`<div class="empty" style="grid-column:1/-1">${editorTranslate(lang,'noItems')}</div>` : doc.items.map((item) => html`
             <article class="item ${this.draggingId === item.id ? 'dragging' : ''} ${this.selectedId === item.id ? 'selected' : ''}"
               style=${`grid-column:${item.x + 1}/span ${item.w};grid-row:${item.y + 1}/span ${item.h}`}
-              draggable=${String(editMode && !item.locked)}
+              draggable=${String(editMode && !item.locked && !preview)}
               @dragstart=${() => { this.draggingId = item.id; }}
               @dragover=${(event:DragEvent) => event.preventDefault()}
               @drop=${() => this.onDrop(item.id)}>
-              ${editMode ? html`<div class="item-head">
+              ${editMode && !preview ? html`<div class="item-head">
                 <button class="item-id" @click=${() => { this.selectedId = item.id; }}>${item.id}${item.locked ? ` · ${editorTranslate(lang,'locked')}` : ''}</button>
                 <div class="controls">
                   <button @click=${() => this.toggleLock(item)}>${editorTranslate(lang,item.locked ? 'unlock' : 'lock')}</button>
