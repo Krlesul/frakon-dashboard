@@ -33,6 +33,28 @@ export function normalizeViewport(viewport: ViewportTransform): ViewportTransfor
   };
 }
 
+export function resetViewport(): ViewportTransform {
+  return { ...DEFAULT_VIEWPORT };
+}
+
+export function serializeViewport(viewport: ViewportTransform): string {
+  return JSON.stringify(normalizeViewport(viewport));
+}
+
+export function deserializeViewport(value: string | null | undefined): ViewportTransform {
+  if (!value) return resetViewport();
+  try {
+    const parsed = JSON.parse(value) as Partial<ViewportTransform>;
+    return normalizeViewport({
+      x: Number(parsed.x),
+      y: Number(parsed.y),
+      zoom: Number(parsed.zoom),
+    });
+  } catch {
+    return resetViewport();
+  }
+}
+
 export function canvasToScreen(point: Point, viewport: ViewportTransform): Point {
   const normalized = normalizeViewport(viewport);
   return {
