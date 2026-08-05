@@ -1,0 +1,7 @@
+{
+  "name": "@frakon/dashboard-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Serializable dashboard document, responsive layout, collision handling and persistence contracts."
+}
