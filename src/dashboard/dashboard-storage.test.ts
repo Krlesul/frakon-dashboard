@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { MemoryDashboardStorageAdapter } from './dashboard-storage';
+import { describe, expect, it, vi } from 'vitest';
+import { MemoryDashboardStorageAdapter, RemoteDashboardStorageAdapter } from './dashboard-storage';
 import type { FrakonDashboardDocument } from './layout-model';
 
 const document: FrakonDashboardDocument = {
@@ -26,9 +26,7 @@ describe('dashboard storage adapters', () => {
   it('stores and loads normalized documents', async () => {
     const storage = new MemoryDashboardStorageAdapter();
     await storage.save({ ...document, rowHeight: 10, gap: -2 });
-
     const loaded = await storage.load('home');
-
     expect(loaded).toMatchObject({ rowHeight: 24, gap: 0 });
     expect(loaded?.items).toHaveLength(1);
   });
@@ -36,11 +34,9 @@ describe('dashboard storage adapters', () => {
   it('returns defensive copies', async () => {
     const storage = new MemoryDashboardStorageAdapter();
     await storage.save(document);
-
     const first = await storage.load('home');
     if (!first) throw new Error('Expected stored dashboard.');
     first.items[0].w = 10;
-
     const second = await storage.load('home');
     expect(second?.items[0].w).toBe(4);
   });
@@ -49,7 +45,19 @@ describe('dashboard storage adapters', () => {
     const storage = new MemoryDashboardStorageAdapter();
     await storage.save(document);
     await storage.remove('home');
-
     expect(await storage.load('home')).toBeUndefined();
+  });
+
+  it('maps remote operations to transport commands', async () => {
+    const request = vi.fn(async (command: string) => command.endsWith('/load') ? document : undefined);
+    const storage = new RemoteDashboardStorageAdapter({ request });
+
+    await storage.load('home');
+    await storage.save(document);
+    await storage.remove('home');
+
+    expect(request).toHaveBeenNthCalledWith(1, 'frakon/dashboard/load', { id: 'home' });
+    expect(request).toHaveBeenNthCalledWith(2, 'frakon/dashboard/save', { document });
+    expect(request).toHaveBeenNthCalledWith(3, 'frakon/dashboard/remove', { id: 'home' });
   });
 });
