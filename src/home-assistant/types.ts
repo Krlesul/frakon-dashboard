@@ -11,6 +11,7 @@ export interface HomeAssistant {
   locale?: { language?: string };
   states: Record<string, HassEntityState>;
   callService(domain: string, service: string, data?: Record<string, unknown>): Promise<unknown>;
+  callWS?<T>(message: Record<string, unknown>): Promise<T>;
   hassUrl?(path: string): string;
 }
 
