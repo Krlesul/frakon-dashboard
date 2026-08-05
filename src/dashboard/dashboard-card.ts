@@ -2,7 +2,9 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types';
 import './card-host';
+import './card-palette';
 import './item-inspector';
+import type { FrakonCardTemplateSelectedDetail } from './card-palette';
 import type { FrakonItemUpdateDetail } from './item-inspector';
 import { DashboardHistory } from './layout-history';
 import { LocalDashboardStore, exportDashboard, importDashboard } from './layout-store';
@@ -47,6 +49,7 @@ export class FrakonDashboardCard extends LitElement {
   @state() private selectedId?: string;
   @state() private message?: string;
   @state() private containerWidth = 1200;
+  @state() private paletteOpen = false;
 
   private history?: DashboardHistory;
   private resizeObserver?: ResizeObserver;
@@ -69,6 +72,7 @@ export class FrakonDashboardCard extends LitElement {
     .item:has(.item-head) .content { height:calc(100% - 39px); }
     button,.file-label { border:0; border-radius:9px; padding:6px 9px; color:inherit; background:color-mix(in srgb,var(--primary-text-color) 9%,transparent); cursor:pointer; font:inherit; }
     button:disabled { opacity:.42; cursor:not-allowed; }
+    button.primary { background:var(--primary-color); color:var(--text-primary-color,#fff); }
     button.danger { background:color-mix(in srgb,#ff4d67 18%,transparent); }
     .file-label input { display:none; }
     .empty { padding:32px; text-align:center; opacity:.62; }
@@ -138,16 +142,22 @@ export class FrakonDashboardCard extends LitElement {
     this.persist(updateGridItemCollisionSafe(this.document, item.id, { w:item.w + dw, h:item.h + dh }));
   }
 
-  private addItem(): void {
+  private addTemplate(event: CustomEvent<FrakonCardTemplateSelectedDetail>): void {
     if (!this.document) return;
-    const id = `card-${Date.now().toString(36)}`;
+    const { template } = event.detail;
+    const id = `${template.name.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString(36)}`;
     const y = this.document.items.reduce((maximum, item) => Math.max(maximum, item.y + item.h), 0);
     this.persist(addGridItem(this.document, {
-      id, x:0, y, w:Math.min(4, this.document.columns), h:3,
-      card:{ type:'custom:frakon-card', entity:this.config?.entity ?? 'sensor.placeholder', name:'New card' },
+      id,
+      x:0,
+      y,
+      w:Math.min(template.defaultWidth, this.document.columns),
+      h:template.defaultHeight,
+      card:template.createConfig(),
     }));
     this.selectedId = id;
-    this.message = `Added ${id}.`;
+    this.paletteOpen = false;
+    this.message = `Added ${template.name}.`;
   }
 
   private removeItem(item: FrakonGridItem): void {
@@ -164,10 +174,7 @@ export class FrakonDashboardCard extends LitElement {
   private updateItemCard(event: CustomEvent<FrakonItemUpdateDetail>): void {
     if (!this.document) return;
     const { id, card } = event.detail;
-    this.persist({
-      ...this.document,
-      items:this.document.items.map((item) => item.id === id ? { ...item, card } : item),
-    });
+    this.persist({ ...this.document, items:this.document.items.map((item) => item.id === id ? { ...item, card } : item) });
     this.message = `Updated ${id}.`;
   }
 
@@ -230,12 +237,13 @@ export class FrakonDashboardCard extends LitElement {
           ${editMode ? html`
             <button ?disabled=${!this.history?.canUndo} @click=${this.undo}>Undo</button>
             <button ?disabled=${!this.history?.canRedo} @click=${this.redo}>Redo</button>
-            <button @click=${this.addItem}>Add card</button>
+            <button class="primary" @click=${() => { this.paletteOpen = !this.paletteOpen; }}>${this.paletteOpen ? 'Close palette' : 'Add card'}</button>
             <button @click=${this.downloadExport}>Export</button>
             <label class="file-label">Import<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>
           ` : nothing}
         </div></header>
         ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
+        ${editMode && this.paletteOpen ? html`<frakon-card-palette @frakon-card-template-selected=${this.addTemplate}></frakon-card-palette>` : nothing}
         ${selected ? html`<frakon-item-inspector .item=${selected}
           @frakon-item-config-changed=${this.updateItemCard}
           @frakon-item-inspector-close=${() => { this.selectedId = undefined; }}></frakon-item-inspector>` : nothing}
