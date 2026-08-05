@@ -118,6 +118,24 @@ export function addGridItem(document: FrakonDashboardDocument, item: FrakonGridI
   return normalizeDashboard({ ...document, items: [...document.items, item] });
 }
 
+export function duplicateGridItem(
+  document: FrakonDashboardDocument,
+  sourceId: string,
+  duplicateId: string,
+): FrakonDashboardDocument {
+  if (document.items.some((item) => item.id === duplicateId)) throw new Error(`Duplicate dashboard item id: ${duplicateId}`);
+  const source = document.items.find((item) => item.id === sourceId);
+  if (!source) return document;
+  const duplicate: FrakonGridItem = {
+    ...structuredClone(source),
+    id: duplicateId,
+    x: source.x,
+    y: source.y,
+    locked: false,
+  };
+  return normalizeAndCompactDashboard({ ...document, items: [...document.items, duplicate] });
+}
+
 export function removeGridItem(document: FrakonDashboardDocument, id: string): FrakonDashboardDocument {
   const target = document.items.find((item) => item.id === id);
   if (target?.locked) return document;
