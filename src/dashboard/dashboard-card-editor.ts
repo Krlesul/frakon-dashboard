@@ -1,9 +1,24 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from '../home-assistant/types';
+import type { DashboardStorageMode } from '../home-assistant/dashboard-storage-factory';
+import type { SupportedLanguage } from '../i18n';
 import type { FrakonDashboardCardConfig } from './dashboard-card';
 import { editorTranslate, resolveEditorLanguage } from './editor-i18n';
 import { defaultResponsiveColumns, type ResponsiveColumns } from './responsive-layout';
+
+const storageMessages: Record<SupportedLanguage, {
+  title: string;
+  local: string;
+  homeAssistant: string;
+  hint: string;
+}> = {
+  en: { title:'Storage', local:'This browser', homeAssistant:'Home Assistant server', hint:'Server storage requires the FRAKON Dashboard Home Assistant backend. Without it, the card falls back to browser storage.' },
+  cs: { title:'Úložiště', local:'Tento prohlížeč', homeAssistant:'Server Home Assistantu', hint:'Serverové ukládání vyžaduje backend FRAKON Dashboard pro Home Assistant. Bez něj karta bezpečně použije úložiště prohlížeče.' },
+  de: { title:'Speicher', local:'Dieser Browser', homeAssistant:'Home-Assistant-Server', hint:'Serverspeicherung benötigt das FRAKON-Dashboard-Backend für Home Assistant. Ohne Backend wird der Browserspeicher verwendet.' },
+  sk: { title:'Úložisko', local:'Tento prehliadač', homeAssistant:'Server Home Assistantu', hint:'Serverové ukladanie vyžaduje backend FRAKON Dashboard pre Home Assistant. Bez neho karta bezpečne použije úložisko prehliadača.' },
+  pl: { title:'Pamięć', local:'Ta przeglądarka', homeAssistant:'Serwer Home Assistant', hint:'Zapisywanie na serwerze wymaga backendu FRAKON Dashboard dla Home Assistant. Bez niego karta użyje pamięci przeglądarki.' },
+};
 
 @customElement('frakon-dashboard-card-editor')
 export class FrakonDashboardCardEditor extends LitElement {
@@ -15,8 +30,9 @@ export class FrakonDashboardCardEditor extends LitElement {
     .editor{display:grid;gap:16px}.section{display:grid;gap:12px;padding:16px;border:1px solid var(--divider-color);border-radius:16px}
     .title{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.68}
     label{display:grid;gap:6px;font-size:13px}.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    input{box-sizing:border-box;width:100%;min-height:42px;padding:0 12px;border:1px solid var(--divider-color);border-radius:10px;color:inherit;background:var(--card-background-color)}
+    input,select{box-sizing:border-box;width:100%;min-height:42px;padding:0 12px;border:1px solid var(--divider-color);border-radius:10px;color:inherit;background:var(--card-background-color)}
     input[type='checkbox']{width:auto;min-height:auto;justify-self:start}
+    .hint{margin:0;color:var(--secondary-text-color);font-size:12px;line-height:1.5}
     @media (max-width:700px){.row{grid-template-columns:1fr}}
   `;
 
@@ -47,6 +63,7 @@ export class FrakonDashboardCardEditor extends LitElement {
     const language = resolveEditorLanguage(this.config.language, this.hass?.language, this.hass?.locale?.language);
     const t = (key: Parameters<typeof editorTranslate>[1]) => editorTranslate(language, key);
     const responsive = { ...defaultResponsiveColumns, ...this.config.responsive_columns };
+    const storage = storageMessages[language];
     return html`<div class="editor">
       <section class="section">
         <div class="title">${t('dashboard')}</div>
@@ -60,6 +77,16 @@ export class FrakonDashboardCardEditor extends LitElement {
           <label>${t('gap')}<input type="number" min="0" max="48" .value=${String(this.config.gap ?? 12)} @input=${(e:Event)=>this.updateConfig('gap',Number((e.target as HTMLInputElement).value))}></label>
           <label>${t('editMode')}<input type="checkbox" .checked=${this.config.edit_mode === true} @change=${(e:Event)=>this.updateConfig('edit_mode',(e.target as HTMLInputElement).checked)}></label>
         </div>
+      </section>
+      <section class="section">
+        <div class="title">${storage.title}</div>
+        <label>${storage.title}
+          <select .value=${this.config.storage ?? 'local'} @change=${(event:Event)=>this.updateConfig('storage',(event.target as HTMLSelectElement).value as DashboardStorageMode)}>
+            <option value="local">${storage.local}</option>
+            <option value="home-assistant">${storage.homeAssistant}</option>
+          </select>
+        </label>
+        <p class="hint">${storage.hint}</p>
       </section>
       <section class="section">
         <div class="title">${t('responsiveColumns')}</div>
