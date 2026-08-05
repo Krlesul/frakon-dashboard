@@ -30,10 +30,13 @@ describe('DashboardStorageController', () => {
   });
 
   it('ignores an older load that resolves after a newer request', async () => {
-    const resolvers = new Map<string, (document: FrakonDashboardDocument) => void>();
+    const resolvers = new Map<string, (document: FrakonDashboardDocument | undefined) => void>();
+    const load = vi.fn((id: string): Promise<FrakonDashboardDocument | undefined> => (
+      new Promise<FrakonDashboardDocument | undefined>((resolve) => resolvers.set(id, resolve))
+    ));
     const adapter: DashboardStorageAdapter = {
       kind: 'delayed',
-      load: vi.fn((id: string) => new Promise((resolve) => resolvers.set(id, resolve))),
+      load,
       save: vi.fn(async () => undefined),
       remove: vi.fn(async () => undefined),
     };
@@ -51,7 +54,7 @@ describe('DashboardStorageController', () => {
     const order: string[] = [];
     const adapter: DashboardStorageAdapter = {
       kind: 'ordered',
-      load: vi.fn(async () => undefined),
+      load: vi.fn(async (): Promise<FrakonDashboardDocument | undefined> => undefined),
       save: vi.fn(async (document) => {
         await Promise.resolve();
         order.push(document.id);
@@ -69,7 +72,7 @@ describe('DashboardStorageController', () => {
   it('captures adapter errors without rejecting editor operations', async () => {
     const adapter: DashboardStorageAdapter = {
       kind: 'failing',
-      load: vi.fn(async () => { throw new Error('load failed'); }),
+      load: vi.fn(async (): Promise<FrakonDashboardDocument | undefined> => { throw new Error('load failed'); }),
       save: vi.fn(async () => { throw new Error('save failed'); }),
       remove: vi.fn(async () => { throw new Error('remove failed'); }),
     };
