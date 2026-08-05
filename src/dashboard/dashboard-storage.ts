@@ -9,6 +9,10 @@ export interface DashboardStorageAdapter {
   remove(id: string): Promise<void>;
 }
 
+export interface DashboardStorageTransport {
+  request<T>(command: string, payload: Record<string, unknown>): Promise<T>;
+}
+
 export class LocalStorageDashboardAdapter implements DashboardStorageAdapter {
   readonly kind = 'local-storage';
 
@@ -50,6 +54,28 @@ export class MemoryDashboardStorageAdapter implements DashboardStorageAdapter {
 
   async remove(id: string): Promise<void> {
     this.documents.delete(id);
+  }
+}
+
+export class RemoteDashboardStorageAdapter implements DashboardStorageAdapter {
+  readonly kind = 'remote';
+
+  constructor(
+    private readonly transport: DashboardStorageTransport,
+    private readonly namespace = 'frakon/dashboard',
+  ) {}
+
+  async load(id: string): Promise<FrakonDashboardDocument | undefined> {
+    const document = await this.transport.request<FrakonDashboardDocument | undefined>(`${this.namespace}/load`, { id });
+    return document ? normalizeDashboard(document) : undefined;
+  }
+
+  async save(document: FrakonDashboardDocument): Promise<void> {
+    await this.transport.request(`${this.namespace}/save`, { document: normalizeDashboard(document) });
+  }
+
+  async remove(id: string): Promise<void> {
+    await this.transport.request(`${this.namespace}/remove`, { id });
   }
 }
 
