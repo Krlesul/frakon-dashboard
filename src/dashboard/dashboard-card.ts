@@ -1,7 +1,8 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types';
-import { LocalDashboardStore } from './layout-store';
+import './card-host';
+import { LocalDashboardStore, exportDashboard, importDashboard } from './layout-store';
 import { normalizeDashboard, updateGridItem, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
 
 export interface FrakonDashboardCardConfig extends LovelaceCardConfig {
@@ -24,24 +25,26 @@ export class FrakonDashboardCard extends LitElement {
   @state() private config?: FrakonDashboardCardConfig;
   @state() private document?: FrakonDashboardDocument;
   @state() private draggingId?: string;
+  @state() private message?: string;
 
   static styles = css`
     :host { display:block; }
     .shell { padding:16px; border-radius:24px; background:var(--card-background-color); }
     header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; }
     h2 { margin:0; font-size:22px; }
+    .actions,.controls { display:flex; gap:6px; align-items:center; }
     .badge { padding:6px 10px; border-radius:999px; background:color-mix(in srgb,var(--primary-color) 16%,transparent); font-size:12px; }
     .grid { display:grid; position:relative; align-items:stretch; }
-    .item { min-width:0; overflow:hidden; border-radius:20px; border:1px solid color-mix(in srgb,var(--primary-text-color) 10%,transparent); background:color-mix(in srgb,var(--card-background-color) 92%,var(--primary-color) 8%); }
+    .item { min-width:0; min-height:0; overflow:hidden; border-radius:20px; border:1px solid color-mix(in srgb,var(--primary-text-color) 10%,transparent); background:color-mix(in srgb,var(--card-background-color) 92%,var(--primary-color) 8%); }
     .item[draggable='true'] { cursor:grab; }
     .item.dragging { opacity:.45; }
     .item-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 11px; border-bottom:1px solid color-mix(in srgb,var(--primary-text-color) 8%,transparent); font-size:12px; }
-    .preview { display:grid; place-items:center; min-height:80px; padding:14px; text-align:center; }
-    .type { font-weight:700; }
-    .entity { margin-top:6px; opacity:.62; font-size:12px; word-break:break-all; }
-    .controls { display:flex; gap:4px; }
-    button { border:0; border-radius:9px; padding:5px 8px; color:inherit; background:color-mix(in srgb,var(--primary-text-color) 9%,transparent); cursor:pointer; }
+    .content { height:100%; min-height:0; }
+    .item:has(.item-head) .content { height:calc(100% - 39px); }
+    button,.file-label { border:0; border-radius:9px; padding:6px 9px; color:inherit; background:color-mix(in srgb,var(--primary-text-color) 9%,transparent); cursor:pointer; font:inherit; }
+    .file-label input { display:none; }
     .empty { padding:32px; text-align:center; opacity:.62; }
+    .message { margin:0 0 12px; padding:9px 12px; border-radius:12px; background:color-mix(in srgb,var(--primary-color) 12%,transparent); font-size:13px; }
   `;
 
   setConfig(config: FrakonDashboardCardConfig): void {
@@ -91,6 +94,32 @@ export class FrakonDashboardCard extends LitElement {
     this.draggingId = undefined;
   }
 
+  private downloadExport(): void {
+    if (!this.document) return;
+    const blob = new Blob([exportDashboard(this.document)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${this.document.id}.frakon-dashboard.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    this.message = 'Dashboard exported.';
+  }
+
+  private async uploadImport(event: Event): Promise<void> {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    try {
+      const document = importDashboard(await file.text());
+      this.persist(document);
+      this.message = 'Dashboard imported.';
+    } catch (error) {
+      this.message = error instanceof Error ? error.message : 'Dashboard import failed.';
+    } finally {
+      (event.target as HTMLInputElement).value = '';
+    }
+  }
+
   render() {
     const doc = this.document;
     if (!doc) return nothing;
@@ -98,7 +127,13 @@ export class FrakonDashboardCard extends LitElement {
     const style = `grid-template-columns:repeat(${doc.columns},minmax(0,1fr));grid-auto-rows:${doc.rowHeight}px;gap:${doc.gap}px`;
     return html`
       <section class="shell">
-        <header><h2>${doc.title}</h2>${editMode ? html`<span class="badge">EDIT MODE</span>` : nothing}</header>
+        <header>
+          <h2>${doc.title}</h2>
+          <div class="actions">
+            ${editMode ? html`<span class="badge">EDIT MODE</span><button @click=${this.downloadExport}>Export</button><label class="file-label">Import<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>` : nothing}
+          </div>
+        </header>
+        ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
         <div class="grid" style=${style}>
           ${doc.items.length === 0 ? html`<div class="empty" style="grid-column:1/-1">No dashboard items yet.</div>` : doc.items.map((item) => html`
             <article
@@ -109,8 +144,8 @@ export class FrakonDashboardCard extends LitElement {
               @dragover=${(event: DragEvent) => event.preventDefault()}
               @drop=${() => this.onDrop(item.id)}
             >
-              ${editMode ? html`<div class="item-head"><span>${item.id}</span><div class="controls"><button @click=${() => this.resize(item,-1,0)}>−W</button><button @click=${() => this.resize(item,1,0)}>+W</button><button @click=${() => this.resize(item,0,-1)}>−H</button><button @click=${() => this.resize(item,0,1)}>+H</button></div></div>` : nothing}
-              <div class="preview"><div><div class="type">${String(item.card.type ?? 'Card')}</div><div class="entity">${String(item.card.entity ?? '')}</div></div></div>
+              ${editMode ? html`<div class="item-head"><span>${item.id}${item.locked ? ' · locked' : ''}</span><div class="controls"><button @click=${() => this.resize(item,-1,0)}>−W</button><button @click=${() => this.resize(item,1,0)}>+W</button><button @click=${() => this.resize(item,0,-1)}>−H</button><button @click=${() => this.resize(item,0,1)}>+H</button></div></div>` : nothing}
+              <div class="content"><frakon-card-host .hass=${this.hass} .config=${item.card}></frakon-card-host></div>
             </article>
           `)}
         </div>
