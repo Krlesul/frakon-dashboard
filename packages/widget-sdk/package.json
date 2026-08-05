@@ -1,0 +1,7 @@
+{
+  "name": "@frakon/widget-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Stable widget contracts, metadata and editor integration for official and community FRAKON widgets."
+}
