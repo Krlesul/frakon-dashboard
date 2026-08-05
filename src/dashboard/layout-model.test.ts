@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { addGridItem, normalizeDashboard, removeGridItem, setGridItemLocked, updateGridItem, type FrakonDashboardDocument } from './layout-model';
+import {
+  addGridItem,
+  findCollisions,
+  itemsOverlap,
+  normalizeAndCompactDashboard,
+  normalizeDashboard,
+  removeGridItem,
+  setGridItemLocked,
+  updateGridItem,
+  updateGridItemCollisionSafe,
+  type FrakonDashboardDocument,
+} from './layout-model';
 
 const base: FrakonDashboardDocument = {
   version: 1,
@@ -39,5 +50,51 @@ describe('dashboard layout model', () => {
 
   it('rejects duplicate item ids', () => {
     expect(() => addGridItem(base, { ...base.items[0] })).toThrow(/Duplicate dashboard item id/);
+  });
+
+  it('detects overlapping rectangles', () => {
+    const a = { ...base.items[0], x: 0, y: 0, w: 4, h: 3 };
+    const b = { ...base.items[0], id: 'b', x: 3, y: 2, w: 4, h: 3 };
+    expect(itemsOverlap(a, b)).toBe(true);
+    expect(findCollisions([a, b])).toEqual([['a', 'b']]);
+  });
+
+  it('compacts overlapping cards into free positions', () => {
+    const document = normalizeAndCompactDashboard({
+      ...base,
+      columns: 6,
+      items: [
+        { ...base.items[0], x: 0, y: 0, w: 3, h: 2 },
+        { ...base.items[0], id: 'b', x: 0, y: 0, w: 3, h: 2 },
+      ],
+    });
+    expect(findCollisions(document.items)).toHaveLength(0);
+    expect(document.items[1]).toMatchObject({ x: 3, y: 0 });
+  });
+
+  it('keeps locked cards fixed while resolving collisions', () => {
+    const document = normalizeAndCompactDashboard({
+      ...base,
+      columns: 6,
+      items: [
+        { ...base.items[0], id: 'locked', locked: true, x: 0, y: 0, w: 3, h: 2 },
+        { ...base.items[0], id: 'movable', x: 0, y: 0, w: 3, h: 2 },
+      ],
+    });
+    expect(document.items.find((item) => item.id === 'locked')).toMatchObject({ x: 0, y: 0 });
+    expect(document.items.find((item) => item.id === 'movable')).toMatchObject({ x: 3, y: 0 });
+  });
+
+  it('resolves collisions after resizing', () => {
+    const document: FrakonDashboardDocument = {
+      ...base,
+      columns: 6,
+      items: [
+        { ...base.items[0], x: 0, y: 0, w: 2, h: 2 },
+        { ...base.items[0], id: 'b', x: 2, y: 0, w: 2, h: 2 },
+      ],
+    };
+    const updated = updateGridItemCollisionSafe(document, 'a', { w: 4 });
+    expect(findCollisions(updated.items)).toHaveLength(0);
   });
 });
