@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HomeAssistantDashboardStorageTransport } from './dashboard-storage-transport';
 
- describe('HomeAssistantDashboardStorageTransport', () => {
+describe('HomeAssistantDashboardStorageTransport', () => {
   it('maps transport commands to hass.callWS messages', async () => {
     const callWS = vi.fn(async <T>(message: Record<string, unknown>): Promise<T> => {
       return { ok: true, message } as T;
