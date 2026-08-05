@@ -5,6 +5,7 @@ import './card-host';
 import './card-palette';
 import './item-inspector';
 import type { FrakonCardTemplateSelectedDetail } from './card-palette';
+import { editorTranslate, resolveEditorLanguage } from './editor-i18n';
 import type { FrakonItemUpdateDetail } from './item-inspector';
 import { DashboardHistory } from './layout-history';
 import { LocalDashboardStore, exportDashboard, importDashboard } from './layout-store';
@@ -116,6 +117,10 @@ export class FrakonDashboardCard extends LitElement {
 
   getCardSize(): number { return 8; }
 
+  private language() {
+    return resolveEditorLanguage(this.config?.language, this.hass?.locale?.language, this.hass?.language);
+  }
+
   private persist(document: FrakonDashboardDocument, recordHistory = true): void {
     const next = normalizeAndCompactDashboard(document);
     this.document = recordHistory && this.history ? this.history.push(next) : next;
@@ -128,13 +133,13 @@ export class FrakonDashboardCard extends LitElement {
   private undo(): void {
     if (!this.history?.canUndo) return;
     this.persist(this.history.undo(), false);
-    this.message = 'Last layout change undone.';
+    this.message = editorTranslate(this.language(), 'layoutUndone');
   }
 
   private redo(): void {
     if (!this.history?.canRedo) return;
     this.persist(this.history.redo(), false);
-    this.message = 'Layout change restored.';
+    this.message = editorTranslate(this.language(), 'layoutRestored');
   }
 
   private resize(item: FrakonGridItem, dw: number, dh: number): void {
@@ -157,7 +162,7 @@ export class FrakonDashboardCard extends LitElement {
     }));
     this.selectedId = id;
     this.paletteOpen = false;
-    this.message = `Added ${template.name}.`;
+    this.message = editorTranslate(this.language(), 'cardAdded');
   }
 
   private removeItem(item: FrakonGridItem): void {
@@ -175,7 +180,7 @@ export class FrakonDashboardCard extends LitElement {
     if (!this.document) return;
     const { id, card } = event.detail;
     this.persist({ ...this.document, items:this.document.items.map((item) => item.id === id ? { ...item, card } : item) });
-    this.message = `Updated ${id}.`;
+    this.message = editorTranslate(this.language(), 'cardUpdated');
   }
 
   private onDrop(targetId: string): void {
@@ -201,7 +206,7 @@ export class FrakonDashboardCard extends LitElement {
     link.download = `${this.document.id}.frakon-dashboard.json`;
     link.click();
     URL.revokeObjectURL(url);
-    this.message = 'Dashboard exported.';
+    this.message = editorTranslate(this.language(), 'dashboardExported');
   }
 
   private async uploadImport(event: Event): Promise<void> {
@@ -212,9 +217,9 @@ export class FrakonDashboardCard extends LitElement {
       this.history = new DashboardHistory(imported);
       this.selectedId = undefined;
       this.persist(imported, false);
-      this.message = 'Dashboard imported.';
-    } catch (error) {
-      this.message = error instanceof Error ? error.message : 'Dashboard import failed.';
+      this.message = editorTranslate(this.language(), 'dashboardImported');
+    } catch {
+      this.message = editorTranslate(this.language(), 'dashboardImportFailed');
     } finally {
       (event.target as HTMLInputElement).value = '';
     }
@@ -223,6 +228,7 @@ export class FrakonDashboardCard extends LitElement {
   render() {
     const canonical = this.document;
     if (!canonical) return nothing;
+    const lang = this.language();
     const editMode = this.config?.edit_mode === true;
     const breakpoint = detectBreakpoint(this.containerWidth);
     const responsiveColumns: ResponsiveColumns = { ...defaultResponsiveColumns, ...this.config?.responsive_columns };
@@ -233,22 +239,22 @@ export class FrakonDashboardCard extends LitElement {
     return html`
       <section class="shell">
         <header><h2>${doc.title}</h2><div class="actions">
-          <span class="badge">${editMode ? 'EDIT MODE' : breakpoint.toUpperCase()}</span>
+          <span class="badge">${editMode ? editorTranslate(lang,'editMode') : breakpoint.toUpperCase()}</span>
           ${editMode ? html`
-            <button ?disabled=${!this.history?.canUndo} @click=${this.undo}>Undo</button>
-            <button ?disabled=${!this.history?.canRedo} @click=${this.redo}>Redo</button>
-            <button class="primary" @click=${() => { this.paletteOpen = !this.paletteOpen; }}>${this.paletteOpen ? 'Close palette' : 'Add card'}</button>
-            <button @click=${this.downloadExport}>Export</button>
-            <label class="file-label">Import<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>
+            <button ?disabled=${!this.history?.canUndo} @click=${this.undo}>${editorTranslate(lang,'undo')}</button>
+            <button ?disabled=${!this.history?.canRedo} @click=${this.redo}>${editorTranslate(lang,'redo')}</button>
+            <button class="primary" @click=${() => { this.paletteOpen = !this.paletteOpen; }}>${editorTranslate(lang,this.paletteOpen ? 'closePalette' : 'addCard')}</button>
+            <button @click=${this.downloadExport}>${editorTranslate(lang,'export')}</button>
+            <label class="file-label">${editorTranslate(lang,'import')}<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>
           ` : nothing}
         </div></header>
         ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
-        ${editMode && this.paletteOpen ? html`<frakon-card-palette @frakon-card-template-selected=${this.addTemplate}></frakon-card-palette>` : nothing}
-        ${selected ? html`<frakon-item-inspector .item=${selected}
+        ${editMode && this.paletteOpen ? html`<frakon-card-palette .language=${lang} @frakon-card-template-selected=${this.addTemplate}></frakon-card-palette>` : nothing}
+        ${selected ? html`<frakon-item-inspector .item=${selected} .hass=${this.hass} .language=${lang}
           @frakon-item-config-changed=${this.updateItemCard}
           @frakon-item-inspector-close=${() => { this.selectedId = undefined; }}></frakon-item-inspector>` : nothing}
         <div class="grid" style=${style}>
-          ${doc.items.length === 0 ? html`<div class="empty" style="grid-column:1/-1">No dashboard items yet.</div>` : doc.items.map((item) => html`
+          ${doc.items.length === 0 ? html`<div class="empty" style="grid-column:1/-1">${editorTranslate(lang,'noItems')}</div>` : doc.items.map((item) => html`
             <article class="item ${this.draggingId === item.id ? 'dragging' : ''} ${this.selectedId === item.id ? 'selected' : ''}"
               style=${`grid-column:${item.x + 1}/span ${item.w};grid-row:${item.y + 1}/span ${item.h}`}
               draggable=${String(editMode && !item.locked)}
@@ -256,14 +262,14 @@ export class FrakonDashboardCard extends LitElement {
               @dragover=${(event:DragEvent) => event.preventDefault()}
               @drop=${() => this.onDrop(item.id)}>
               ${editMode ? html`<div class="item-head">
-                <button class="item-id" @click=${() => { this.selectedId = item.id; }}>${item.id}${item.locked ? ' · locked' : ''}</button>
+                <button class="item-id" @click=${() => { this.selectedId = item.id; }}>${item.id}${item.locked ? ` · ${editorTranslate(lang,'locked')}` : ''}</button>
                 <div class="controls">
-                  <button @click=${() => this.toggleLock(item)}>${item.locked ? 'Unlock' : 'Lock'}</button>
+                  <button @click=${() => this.toggleLock(item)}>${editorTranslate(lang,item.locked ? 'unlock' : 'lock')}</button>
                   <button ?disabled=${item.locked} @click=${() => this.resize(item,-1,0)}>−W</button>
                   <button ?disabled=${item.locked} @click=${() => this.resize(item,1,0)}>+W</button>
                   <button ?disabled=${item.locked} @click=${() => this.resize(item,0,-1)}>−H</button>
                   <button ?disabled=${item.locked} @click=${() => this.resize(item,0,1)}>+H</button>
-                  <button class="danger" ?disabled=${item.locked} @click=${() => this.removeItem(item)}>Remove</button>
+                  <button class="danger" ?disabled=${item.locked} @click=${() => this.removeItem(item)}>${editorTranslate(lang,'remove')}</button>
                 </div></div>` : nothing}
               <div class="content"><frakon-card-host .hass=${this.hass} .config=${item.card}></frakon-card-host></div>
             </article>`)}
