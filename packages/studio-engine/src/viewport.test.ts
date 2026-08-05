@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_VIEWPORT,
   MAX_VIEWPORT_ZOOM,
   MIN_VIEWPORT_ZOOM,
   canvasToScreen,
   clampZoom,
+  deserializeViewport,
   fitRectToViewport,
   panViewport,
+  resetViewport,
   screenToCanvas,
+  serializeViewport,
   zoomViewportAt,
 } from './viewport';
 
@@ -50,5 +54,24 @@ describe('Studio viewport transforms', () => {
     expect(topLeft.y).toBeGreaterThanOrEqual(100);
     expect(bottomRight.x).toBeLessThanOrEqual(1100);
     expect(bottomRight.y).toBeLessThanOrEqual(700);
+  });
+
+  it('returns an independent default viewport on reset', () => {
+    const first = resetViewport();
+    const second = resetViewport();
+    expect(first).toEqual(DEFAULT_VIEWPORT);
+    expect(first).not.toBe(second);
+  });
+
+  it('serializes a normalized viewport deterministically', () => {
+    expect(serializeViewport({ x: Number.NaN, y: 12, zoom: 99 }))
+      .toBe(JSON.stringify({ x: 0, y: 12, zoom: MAX_VIEWPORT_ZOOM }));
+  });
+
+  it('restores serialized viewport state and falls back safely', () => {
+    expect(deserializeViewport('{"x":40,"y":-10,"zoom":1.5}'))
+      .toEqual({ x: 40, y: -10, zoom: 1.5 });
+    expect(deserializeViewport('invalid')).toEqual(DEFAULT_VIEWPORT);
+    expect(deserializeViewport(undefined)).toEqual(DEFAULT_VIEWPORT);
   });
 });
