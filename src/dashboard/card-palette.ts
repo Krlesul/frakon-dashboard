@@ -1,24 +1,26 @@
 import { LitElement, css, html } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import { filterCardCatalog, type FrakonCardCategory, type FrakonCardTemplate } from './card-catalog';
+import { editorTranslate, resolveEditorLanguage } from './editor-i18n';
 
 export interface FrakonCardTemplateSelectedDetail {
   template: FrakonCardTemplate;
 }
 
-const categories: Array<{ value: FrakonCardCategory | 'all'; label: string }> = [
-  { value:'all', label:'All' },
-  { value:'general', label:'General' },
-  { value:'lighting', label:'Lighting' },
-  { value:'climate', label:'Climate' },
-  { value:'security', label:'Security' },
-  { value:'media', label:'Media' },
-  { value:'energy', label:'Energy' },
-  { value:'vehicle', label:'Vehicle' },
+const categoryKeys: Array<{ value: FrakonCardCategory | 'all'; key: 'all' | 'general' | 'lighting' | 'climate' | 'security' | 'media' | 'energy' | 'vehicle' }> = [
+  { value:'all', key:'all' },
+  { value:'general', key:'general' },
+  { value:'lighting', key:'lighting' },
+  { value:'climate', key:'climate' },
+  { value:'security', key:'security' },
+  { value:'media', key:'media' },
+  { value:'energy', key:'energy' },
+  { value:'vehicle', key:'vehicle' },
 ];
 
 @customElement('frakon-card-palette')
 export class FrakonCardPalette extends LitElement {
+  @property() language?: string;
   @state() private query = '';
   @state() private category: FrakonCardCategory | 'all' = 'all';
 
@@ -45,24 +47,25 @@ export class FrakonCardPalette extends LitElement {
   }
 
   render() {
+    const lang = resolveEditorLanguage(this.language);
     const templates = filterCardCatalog(this.query, this.category);
     return html`
       <section class="palette">
-        <header><h3>Add FRAKON card</h3><span>${templates.length} available</span></header>
+        <header><h3>${editorTranslate(lang,'addCard')}</h3><span>${templates.length} ${editorTranslate(lang,'available')}</span></header>
         <div class="filters">
-          <input placeholder="Search cards" .value=${this.query} @input=${(event:Event) => { this.query = (event.target as HTMLInputElement).value; }}>
+          <input placeholder=${editorTranslate(lang,'searchCards')} .value=${this.query} @input=${(event:Event) => { this.query = (event.target as HTMLInputElement).value; }}>
           <select .value=${this.category} @change=${(event:Event) => { this.category = (event.target as HTMLSelectElement).value as FrakonCardCategory | 'all'; }}>
-            ${categories.map((category) => html`<option value=${category.value}>${category.label}</option>`)}
+            ${categoryKeys.map((category) => html`<option value=${category.value}>${editorTranslate(lang,category.key)}</option>`)}
           </select>
         </div>
         <div class="cards">
           ${templates.map((template) => html`<button @click=${() => this.selectTemplate(template)}>
             <strong>${template.name}</strong>
             <span class="description">${template.description}</span>
-            <span class="meta">${template.category} · ${template.defaultWidth} × ${template.defaultHeight}</span>
+            <span class="meta">${editorTranslate(lang,template.category)} · ${template.defaultWidth} × ${template.defaultHeight}</span>
           </button>`)}
         </div>
-        ${templates.length === 0 ? html`<div class="empty">No matching cards.</div>` : ''}
+        ${templates.length === 0 ? html`<div class="empty">${editorTranslate(lang,'noMatchingCards')}</div>` : ''}
       </section>`;
   }
 }
