@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createHomeAssistantDashboardStorage } from './dashboard-storage-factory';
 
- describe('createHomeAssistantDashboardStorage', () => {
+describe('createHomeAssistantDashboardStorage', () => {
   it('uses local storage by default', () => {
     expect(createHomeAssistantDashboardStorage('local').kind).toBe('local-storage');
   });
