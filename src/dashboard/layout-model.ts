@@ -59,3 +59,18 @@ export function updateGridItem(
     items: document.items.map((item) => item.id === id && !item.locked ? { ...item, ...patch } : item),
   });
 }
+
+export function addGridItem(document: FrakonDashboardDocument, item: FrakonGridItem): FrakonDashboardDocument {
+  if (document.items.some((existing) => existing.id === item.id)) throw new Error(`Duplicate dashboard item id: ${item.id}`);
+  return normalizeDashboard({ ...document, items: [...document.items, item] });
+}
+
+export function removeGridItem(document: FrakonDashboardDocument, id: string): FrakonDashboardDocument {
+  const target = document.items.find((item) => item.id === id);
+  if (target?.locked) return document;
+  return { ...document, items: document.items.filter((item) => item.id !== id) };
+}
+
+export function setGridItemLocked(document: FrakonDashboardDocument, id: string, locked: boolean): FrakonDashboardDocument {
+  return { ...document, items: document.items.map((item) => item.id === id ? { ...item, locked } : item) };
+}
