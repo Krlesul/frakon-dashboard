@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MemoryDashboardStorageAdapter, RemoteDashboardStorageAdapter } from './dashboard-storage';
+import {
+  MemoryDashboardStorageAdapter,
+  RemoteDashboardStorageAdapter,
+  type DashboardStorageTransport,
+} from './dashboard-storage';
 import type { FrakonDashboardDocument } from './layout-model';
 
 const document: FrakonDashboardDocument = {
@@ -49,8 +53,11 @@ describe('dashboard storage adapters', () => {
   });
 
   it('maps remote operations to transport commands', async () => {
-    const request = vi.fn(async (command: string) => command.endsWith('/load') ? document : undefined);
-    const storage = new RemoteDashboardStorageAdapter({ request });
+    const request = vi.fn(async <T>(command: string): Promise<T> => {
+      return (command.endsWith('/load') ? document : undefined) as T;
+    });
+    const transport: DashboardStorageTransport = { request };
+    const storage = new RemoteDashboardStorageAdapter(transport);
 
     await storage.load('home');
     await storage.save(document);
