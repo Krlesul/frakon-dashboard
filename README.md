@@ -24,6 +24,11 @@ The project currently includes:
 - JSON import and export
 - visual dashboard configuration editor
 - visual per-card form editor with an advanced JSON mode
+- intelligent automatic layout previews with priority-first, balanced, compact and focus strategies
+- preview, next-proposal, apply and restore workflow for automatic layout
+- explainable card priority scoring with manual overrides
+- initial `apps/*` and `packages/*` monorepo boundaries for Dashboard Studio
+- platform-neutral Studio viewport engine with zoom, pan, coordinate transforms, fit-to-content and persistence
 
 ### Included cards
 
@@ -66,35 +71,20 @@ dist/frakon-dashboard.js
 
 ## Manual installation in Home Assistant
 
-Until the first public release is published, build the project and copy:
+The current development build can be tested from a successful GitHub Actions artifact. Follow the complete checklist:
 
 ```text
-dist/frakon-dashboard.js
+docs/home-assistant-alpha-test.md
 ```
 
-into:
+The short installation path is:
 
-```text
-/config/www/frakon-dashboard/frakon-dashboard.js
-```
+1. Download the `frakon-dashboard` artifact from the latest successful CI run.
+2. Copy `frakon-dashboard.js` to `/config/www/frakon-dashboard/frakon-dashboard.js`.
+3. Register `/local/frakon-dashboard/frakon-dashboard.js?v=alpha-1` as a JavaScript module resource.
+4. Add the Manual card configuration below.
 
-Then add this resource in Home Assistant:
-
-```text
-/local/frakon-dashboard/frakon-dashboard.js
-```
-
-Resource type:
-
-```text
-JavaScript module
-```
-
-After changing the bundle, clear the browser cache or increment the resource URL temporarily:
-
-```text
-/local/frakon-dashboard/frakon-dashboard.js?v=1
-```
+After changing the bundle, change the query suffix to avoid browser and service-worker cache confusion.
 
 ## First dashboard
 
@@ -110,6 +100,7 @@ columns: 12
 row_height: 48
 gap: 12
 edit_mode: true
+storage: local
 responsive_columns:
   mobile: 4
   tablet: 8
@@ -126,9 +117,27 @@ In edit mode you can:
 4. change its name, icon and advanced configuration,
 5. resize, lock, remove or move the card,
 6. undo and redo layout changes,
-7. export the dashboard as a backup JSON file.
+7. preview several automatic layout proposals,
+8. apply a proposal or restore the original layout,
+9. export the dashboard as a backup JSON file.
 
 Set `edit_mode: false` when the layout is ready for normal use.
+
+## Automatic layout
+
+Automatic layout can resize and reposition unlocked cards according to their explainable priority metadata. It supports multiple deterministic proposals and preserves the original dashboard until a proposal is applied.
+
+See:
+
+```text
+docs/auto-layout.md
+```
+
+A manual priority can be set in a card configuration:
+
+```yaml
+priority: 92
+```
 
 ## Card examples
 
@@ -160,6 +169,7 @@ entity: camera.front_door
 name: Front door
 aspect_ratio: 16 / 9
 show_state: true
+priority: 90
 ```
 
 ### Vehicle
@@ -175,7 +185,7 @@ charging_switch_entity: switch.vehicle_charging
 
 ## Persistence and backups
 
-The dashboard runtime now talks to an asynchronous storage controller. The default adapter still stores documents in the browser's `localStorage`, so layouts remain browser-profile specific in the current alpha.
+The dashboard runtime talks to an asynchronous storage controller. The default adapter stores documents in the browser's `localStorage`, so layouts remain browser-profile specific in the current alpha.
 
 A remote adapter, Home Assistant `callWS` transport and backend factory are implemented and tested. They expect these WebSocket commands:
 
@@ -185,18 +195,21 @@ frakon/dashboard/save
 frakon/dashboard/remove
 ```
 
-The matching Home Assistant backend handlers are not part of this frontend repository yet. Until an integration provides them, the runtime continues to use local browser storage.
+The matching Home Assistant backend handlers are not part of this frontend repository yet. Until an integration provides them, use `storage: local`.
 
 Use Export after important changes. Import validates the document version and normalizes the layout before saving it.
 
 ## Architecture
 
-- `src/design-system` — visual tokens and reusable UI foundations
-- `src/home-assistant` — isolated Home Assistant adapter contracts and WebSocket storage transport
-- `src/i18n` — card localization and language detection
-- `src/dashboard` — layout engine, storage adapters, runtime controller, history, palette, inspectors and editor localization
-- `src/layout` — shared responsive sizing contracts
-- `src/cards` — Home Assistant-compatible FRAKON cards
+- `apps/home-assistant` — future Home Assistant application boundary
+- `apps/studio` — future standalone Dashboard Studio boundary
+- `packages/studio-engine` — platform-neutral viewport and automatic layout engine
+- `packages/dashboard-engine` — planned platform-neutral dashboard document operations
+- `packages/design-system` — planned reusable FRAKON design system package
+- `packages/widget-sdk` — planned widget authoring contracts
+- `packages/localization` — planned shared localization package
+- `packages/ha-adapter` — planned Home Assistant-only adapter package
+- `src` — current production Home Assistant runtime retained during incremental migration
 
 Home Assistant is treated as the first adapter, not as the permanent owner of the FRAKON UI architecture.
 
@@ -214,16 +227,20 @@ GitHub Actions validates every push and pull request with:
 
 - the default dashboard persistence is currently local to each browser profile
 - Home Assistant remote storage requires backend WebSocket handlers that are not implemented in this frontend repository
-- drag-and-drop currently exchanges card positions rather than providing free pointer-based grid placement
+- drag-and-drop currently exchanges card positions rather than providing final free-canvas pointer placement
 - not every specialized card has its own full visual editor yet
+- automatic importance scoring is currently based on card type and optional manual priority, not live AI context
 - camera behavior depends on the entity image exposed by Home Assistant
-- release packaging and public HACS installation are not finished
+- public HACS release installation is not finished; current testing uses the CI artifact
 - real-device testing across multiple Home Assistant installations is still required
 
 ## Planned next milestones
 
+- perform the first real Home Assistant alpha installation test
+- free canvas, zoom and pan Studio UI
+- selection engine and multi-select
+- pointer resize handles and smart guidelines
 - Home Assistant integration implementing server-side dashboard storage handlers
-- free drag placement and resize handles
 - broader visual editors for specialized cards
 - Energy, Alarm, Graph, Weather and Floorplan cards
 - screenshot and browser interaction tests
