@@ -15,6 +15,10 @@ import { DashboardHistory } from './layout-history';
 import { exportDashboard, importDashboard } from './layout-store';
 import { DashboardStorageController, type DashboardStorageControllerState } from './dashboard-storage-controller';
 import {
+  dashboardStorageStatusLabel,
+  resolveDashboardStorageStatus,
+} from './storage-status';
+import {
   addGridItem,
   normalizeAndCompactDashboard,
   normalizeDashboard,
@@ -69,7 +73,8 @@ export class FrakonDashboardCard extends LitElement {
     h2 { margin:0; font-size:22px; }
     .actions,.controls { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
     .badge { padding:6px 10px; border-radius:999px; background:color-mix(in srgb,var(--primary-color) 16%,transparent); font-size:12px; }
-    .storage-badge { opacity:.7; }
+    .storage-badge { opacity:.78; }
+    .storage-badge.fallback { background:color-mix(in srgb,#f0a85a 18%,transparent); }
     .grid { display:grid; position:relative; align-items:stretch; }
     .item { min-width:0; min-height:0; overflow:hidden; border-radius:20px; border:1px solid color-mix(in srgb,var(--primary-text-color) 10%,transparent); background:color-mix(in srgb,var(--card-background-color) 92%,var(--primary-color) 8%); }
     .item.selected { outline:2px solid var(--primary-color); outline-offset:2px; }
@@ -281,13 +286,18 @@ export class FrakonDashboardCard extends LitElement {
     const doc = editMode ? canonical : normalizeDashboard(documentForBreakpoint(canonical, breakpoint, responsiveColumns));
     const selected = editMode ? canonical.items.find((item) => item.id === this.selectedId) : undefined;
     const style = `grid-template-columns:repeat(${doc.columns},minmax(0,1fr));grid-auto-rows:${doc.rowHeight}px;gap:${doc.gap}px`;
-    const storageActivity = this.storageState.loading ? 'loading' : this.storageState.saving ? 'saving' : this.storageController.adapterKind;
+    const storageStatus = resolveDashboardStorageStatus(
+      this.storageState,
+      this.storageController.adapterKind,
+      this.config?.storage ?? 'local',
+    );
+    const storageActivity = dashboardStorageStatusLabel(lang, storageStatus);
 
     return html`
       <section class="shell">
         <header><h2>${doc.title}</h2><div class="actions">
           <span class="badge">${editMode ? editorTranslate(lang,'editMode') : breakpoint.toUpperCase()}</span>
-          <span class="badge storage-badge">${storageActivity}</span>
+          <span class="badge storage-badge ${storageStatus === 'fallback' ? 'fallback' : ''}">${storageActivity}</span>
           ${editMode ? html`
             <button ?disabled=${!this.history?.canUndo} @click=${this.undo}>${editorTranslate(lang,'undo')}</button>
             <button ?disabled=${!this.history?.canRedo} @click=${this.redo}>${editorTranslate(lang,'redo')}</button>
