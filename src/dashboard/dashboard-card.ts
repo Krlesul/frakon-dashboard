@@ -1,6 +1,10 @@
-import { LitElement, css, html, nothing } from 'lit';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types';
+import {
+  createHomeAssistantDashboardStorage,
+  type DashboardStorageMode,
+} from '../home-assistant/dashboard-storage-factory';
 import './card-host';
 import './card-palette';
 import './item-inspector';
@@ -10,7 +14,6 @@ import type { FrakonItemUpdateDetail } from './item-inspector';
 import { DashboardHistory } from './layout-history';
 import { exportDashboard, importDashboard } from './layout-store';
 import { DashboardStorageController, type DashboardStorageControllerState } from './dashboard-storage-controller';
-import { createDefaultDashboardStorage } from './dashboard-storage';
 import {
   addGridItem,
   normalizeAndCompactDashboard,
@@ -37,6 +40,7 @@ export interface FrakonDashboardCardConfig extends LovelaceCardConfig {
   row_height?: number;
   gap?: number;
   edit_mode?: boolean;
+  storage?: DashboardStorageMode;
   responsive_columns?: Partial<ResponsiveColumns>;
   items?: FrakonGridItem[];
 }
@@ -55,7 +59,7 @@ export class FrakonDashboardCard extends LitElement {
 
   private history?: DashboardHistory;
   private resizeObserver?: ResizeObserver;
-  private readonly storageController = new DashboardStorageController(createDefaultDashboardStorage());
+  private storageController = new DashboardStorageController(createHomeAssistantDashboardStorage('local'));
   private unsubscribeStorage?: () => void;
 
   static styles = css`
@@ -87,14 +91,13 @@ export class FrakonDashboardCard extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.unsubscribeStorage ??= this.storageController.subscribe((state) => {
-      this.storageState = state;
-    });
+    this.subscribeToStorage();
   }
 
   setConfig(config: FrakonDashboardCardConfig): void {
     const id = config.dashboard_id ?? 'default';
     this.config = config;
+    this.configureStorage(config.storage ?? 'local');
     const fallback = normalizeAndCompactDashboard({
       version:1, id, title:config.title ?? 'FRAKON Dashboard', breakpoint:'desktop',
       columns:config.columns ?? 12, rowHeight:config.row_height ?? 48, gap:config.gap ?? 12,
@@ -110,7 +113,7 @@ export class FrakonDashboardCard extends LitElement {
     return {
       type:'custom:frakon-dashboard-card', entity:'sensor.placeholder', dashboard_id:'home',
       title:'FRAKON Dashboard', columns:12, row_height:48, gap:12, edit_mode:true,
-      responsive_columns:defaultResponsiveColumns, items:[],
+      storage:'local', responsive_columns:defaultResponsiveColumns, items:[],
     };
   }
 
@@ -121,6 +124,12 @@ export class FrakonDashboardCard extends LitElement {
       if (width && Math.abs(width - this.containerWidth) > 1) this.containerWidth = width;
     });
     this.resizeObserver.observe(this);
+  }
+
+  protected updated(changedProperties: PropertyValues<this>): void {
+    if (!changedProperties.has('hass') || !this.config) return;
+    const changed = this.configureStorage(this.config.storage ?? 'local');
+    if (changed) void this.loadStoredDocument(this.config.dashboard_id ?? 'default');
   }
 
   disconnectedCallback(): void {
@@ -134,6 +143,21 @@ export class FrakonDashboardCard extends LitElement {
 
   private language() {
     return resolveEditorLanguage(this.config?.language, this.hass?.locale?.language, this.hass?.language);
+  }
+
+  private subscribeToStorage(): void {
+    this.unsubscribeStorage?.();
+    this.unsubscribeStorage = this.storageController.subscribe((state) => {
+      this.storageState = state;
+    });
+  }
+
+  private configureStorage(mode: DashboardStorageMode): boolean {
+    const nextAdapter = createHomeAssistantDashboardStorage(mode, this.hass);
+    if (nextAdapter.kind === this.storageController.adapterKind) return false;
+    this.storageController = new DashboardStorageController(nextAdapter);
+    if (this.isConnected) this.subscribeToStorage();
+    return true;
   }
 
   private async loadStoredDocument(id: string): Promise<void> {
