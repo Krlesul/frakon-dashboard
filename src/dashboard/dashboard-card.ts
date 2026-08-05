@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types';
 import './card-host';
 import { LocalDashboardStore, exportDashboard, importDashboard } from './layout-store';
-import { normalizeDashboard, updateGridItem, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
+import { addGridItem, normalizeDashboard, removeGridItem, setGridItemLocked, updateGridItem, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
 
 export interface FrakonDashboardCardConfig extends LovelaceCardConfig {
   type: 'custom:frakon-dashboard-card';
@@ -30,9 +30,9 @@ export class FrakonDashboardCard extends LitElement {
   static styles = css`
     :host { display:block; }
     .shell { padding:16px; border-radius:24px; background:var(--card-background-color); }
-    header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
     h2 { margin:0; font-size:22px; }
-    .actions,.controls { display:flex; gap:6px; align-items:center; }
+    .actions,.controls { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
     .badge { padding:6px 10px; border-radius:999px; background:color-mix(in srgb,var(--primary-color) 16%,transparent); font-size:12px; }
     .grid { display:grid; position:relative; align-items:stretch; }
     .item { min-width:0; min-height:0; overflow:hidden; border-radius:20px; border:1px solid color-mix(in srgb,var(--primary-text-color) 10%,transparent); background:color-mix(in srgb,var(--card-background-color) 92%,var(--primary-color) 8%); }
@@ -42,6 +42,7 @@ export class FrakonDashboardCard extends LitElement {
     .content { height:100%; min-height:0; }
     .item:has(.item-head) .content { height:calc(100% - 39px); }
     button,.file-label { border:0; border-radius:9px; padding:6px 9px; color:inherit; background:color-mix(in srgb,var(--primary-text-color) 9%,transparent); cursor:pointer; font:inherit; }
+    button.danger { background:color-mix(in srgb,#ff4d67 18%,transparent); }
     .file-label input { display:none; }
     .empty { padding:32px; text-align:center; opacity:.62; }
     .message { margin:0 0 12px; padding:9px 12px; border-radius:12px; background:color-mix(in srgb,var(--primary-color) 12%,transparent); font-size:13px; }
@@ -80,11 +81,36 @@ export class FrakonDashboardCard extends LitElement {
     this.persist(updateGridItem(this.document, item.id, { w: item.w + dw, h: item.h + dh }));
   }
 
+  private addItem(): void {
+    if (!this.document) return;
+    const id = `card-${Date.now().toString(36)}`;
+    const y = this.document.items.reduce((maximum, item) => Math.max(maximum, item.y + item.h), 0);
+    this.persist(addGridItem(this.document, {
+      id,
+      x: 0,
+      y,
+      w: Math.min(4, this.document.columns),
+      h: 3,
+      card: { type: 'custom:frakon-card', entity: this.config?.entity ?? 'sensor.placeholder', name: 'New card' },
+    }));
+    this.message = `Added ${id}. Edit its card configuration in the exported JSON.`;
+  }
+
+  private removeItem(item: FrakonGridItem): void {
+    if (!this.document) return;
+    this.persist(removeGridItem(this.document, item.id));
+  }
+
+  private toggleLock(item: FrakonGridItem): void {
+    if (!this.document) return;
+    this.persist(setGridItemLocked(this.document, item.id, !item.locked));
+  }
+
   private onDrop(targetId: string): void {
     if (!this.document || !this.draggingId || this.draggingId === targetId) return;
     const source = this.document.items.find((item) => item.id === this.draggingId);
     const target = this.document.items.find((item) => item.id === targetId);
-    if (!source || !target || source.locked) return;
+    if (!source || !target || source.locked || target.locked) return;
     const next = this.document.items.map((item) => {
       if (item.id === source.id) return { ...item, x: target.x, y: target.y };
       if (item.id === target.id) return { ...item, x: source.x, y: source.y };
@@ -130,7 +156,7 @@ export class FrakonDashboardCard extends LitElement {
         <header>
           <h2>${doc.title}</h2>
           <div class="actions">
-            ${editMode ? html`<span class="badge">EDIT MODE</span><button @click=${this.downloadExport}>Export</button><label class="file-label">Import<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>` : nothing}
+            ${editMode ? html`<span class="badge">EDIT MODE</span><button @click=${this.addItem}>Add card</button><button @click=${this.downloadExport}>Export</button><label class="file-label">Import<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>` : nothing}
           </div>
         </header>
         ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
@@ -144,7 +170,7 @@ export class FrakonDashboardCard extends LitElement {
               @dragover=${(event: DragEvent) => event.preventDefault()}
               @drop=${() => this.onDrop(item.id)}
             >
-              ${editMode ? html`<div class="item-head"><span>${item.id}${item.locked ? ' · locked' : ''}</span><div class="controls"><button @click=${() => this.resize(item,-1,0)}>−W</button><button @click=${() => this.resize(item,1,0)}>+W</button><button @click=${() => this.resize(item,0,-1)}>−H</button><button @click=${() => this.resize(item,0,1)}>+H</button></div></div>` : nothing}
+              ${editMode ? html`<div class="item-head"><span>${item.id}${item.locked ? ' · locked' : ''}</span><div class="controls"><button @click=${() => this.toggleLock(item)}>${item.locked ? 'Unlock' : 'Lock'}</button><button @click=${() => this.resize(item,-1,0)}>−W</button><button @click=${() => this.resize(item,1,0)}>+W</button><button @click=${() => this.resize(item,0,-1)}>−H</button><button @click=${() => this.resize(item,0,1)}>+H</button><button class="danger" ?disabled=${item.locked} @click=${() => this.removeItem(item)}>Remove</button></div></div>` : nothing}
               <div class="content"><frakon-card-host .hass=${this.hass} .config=${item.card}></frakon-card-host></div>
             </article>
           `)}
