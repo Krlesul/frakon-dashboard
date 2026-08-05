@@ -47,6 +47,15 @@ export class FrakonItemInspector extends LitElement {
     @media (max-width:700px) { .form { grid-template-columns:1fr; } }
   `;
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    const root = this.getRootNode();
+    if (!this.hass && root instanceof ShadowRoot) {
+      const host = root.host as HTMLElement & { hass?: HomeAssistant };
+      this.hass = host.hass;
+    }
+  }
+
   protected willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('item')) {
       this.draft = this.item ? JSON.stringify(this.item.card, null, 2) : '';
