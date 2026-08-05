@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createHomeAssistantDashboardStorage } from './dashboard-storage-factory';
+import type { HomeAssistant } from './types';
 
 describe('createHomeAssistantDashboardStorage', () => {
   it('uses local storage by default', () => {
@@ -11,7 +12,7 @@ describe('createHomeAssistantDashboardStorage', () => {
   });
 
   it('creates remote storage when Home Assistant WebSocket is available', () => {
-    const callWS = vi.fn(async <T>(): Promise<T> => undefined as T);
+    const callWS: NonNullable<HomeAssistant['callWS']> = async <T>(): Promise<T> => undefined as T;
     expect(createHomeAssistantDashboardStorage('home-assistant', { callWS }).kind).toBe('remote');
   });
 });
