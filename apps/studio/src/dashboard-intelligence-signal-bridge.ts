@@ -1,7 +1,10 @@
 import { LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { DashboardDeviceContext, DashboardIntelligenceContext } from '../../../src/dashboard/dashboard-intelligence';
-import { DashboardIntelligenceStabilizer } from '../../../src/dashboard/dashboard-intelligence-stabilizer';
+import {
+  DashboardIntelligenceStabilizer,
+  type DashboardIntelligenceUrgencyDiagnostic,
+} from '../../../src/dashboard/dashboard-intelligence-stabilizer';
 import type { DashboardInteractionTracker } from '../../../src/dashboard/dashboard-interaction-tracker';
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 import {
@@ -11,6 +14,11 @@ import {
 
 export interface FrakonDashboardIntelligenceContextChangedDetail {
   context: DashboardIntelligenceContext;
+}
+
+export interface FrakonDashboardIntelligenceStabilizationStatusDetail {
+  diagnostics: DashboardIntelligenceUrgencyDiagnostic[];
+  nextEvaluationAt?: number;
 }
 
 @customElement('frakon-dashboard-intelligence-signal-bridge')
@@ -82,6 +90,17 @@ export class FrakonDashboardIntelligenceSignalBridge extends LitElement {
     }, delay);
   }
 
+  private emitStatus(diagnostics: DashboardIntelligenceUrgencyDiagnostic[], nextEvaluationAt?: number): void {
+    this.dispatchEvent(new CustomEvent<FrakonDashboardIntelligenceStabilizationStatusDetail>(
+      'frakon-dashboard-intelligence-stabilization-status',
+      {
+        detail: { diagnostics: structuredClone(diagnostics), nextEvaluationAt },
+        bubbles: true,
+        composed: true,
+      },
+    ));
+  }
+
   private emitContext(): void {
     if (!this.document) return;
     const now = Date.now();
@@ -92,6 +111,7 @@ export class FrakonDashboardIntelligenceSignalBridge extends LitElement {
     });
     const result = this.stabilizer.update(raw, now);
     this.scheduleEvaluation(result.nextEvaluationAt);
+    this.emitStatus(result.diagnostics, result.nextEvaluationAt);
     if (!result.changed) return;
 
     this.dispatchEvent(new CustomEvent<FrakonDashboardIntelligenceContextChangedDetail>(
