@@ -4,3 +4,4 @@ export * from './selection';
 export * from './selection-intent';
 export * from './resize';
 export * from './move';
+export * from './guidelines';
