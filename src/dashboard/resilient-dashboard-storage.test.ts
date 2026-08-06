@@ -10,7 +10,8 @@ function dashboard(revision: number): FrakonDashboardDocument {
   return {
     version: 1,
     id: 'home',
-    name: `Home ${revision}`,
+    title: `Home ${revision}`,
+    breakpoint: 'desktop',
     columns: 12,
     rowHeight: 80,
     gap: 12,
@@ -54,7 +55,7 @@ describe('ResilientDashboardStorageAdapter', () => {
     await storage.save(dashboard(1));
     await storage.save(dashboard(2));
 
-    expect((await fallback.load('home'))?.name).toBe('Home 2');
+    expect((await fallback.load('home'))?.title).toBe('Home 2');
     expect(await queue.list()).toHaveLength(1);
     expect(storage.currentState.mode).toBe('fallback');
     expect(storage.currentState.pending).toBe(1);
@@ -71,7 +72,7 @@ describe('ResilientDashboardStorageAdapter', () => {
     primary.online = true;
     await storage.synchronize();
 
-    expect((await primary.load('home'))?.name).toBe('Home 3');
+    expect((await primary.load('home'))?.title).toBe('Home 3');
     expect(await queue.list()).toHaveLength(0);
     expect(storage.currentState.mode).toBe('primary');
     expect(storage.currentState.pending).toBe(0);
@@ -102,7 +103,7 @@ describe('ResilientDashboardStorageAdapter', () => {
     await fallback.save(dashboard(5));
     primary.online = false;
 
-    expect((await storage.load('home'))?.name).toBe('Home 5');
+    expect((await storage.load('home'))?.title).toBe('Home 5');
     expect(storage.currentState.mode).toBe('fallback');
   });
 });
