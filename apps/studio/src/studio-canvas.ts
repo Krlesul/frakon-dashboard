@@ -19,6 +19,7 @@ import {
   selectOnly,
   toggleSelection,
   addToSelection,
+  replaceSelection,
   type SelectableItem,
   type SelectionRect,
   type SelectionState,
@@ -64,6 +65,11 @@ export class FrakonStudioCanvas extends LitElement {
       background: #111319;
       touch-action: none;
       user-select: none;
+      outline: none;
+    }
+
+    .studio:focus-visible {
+      box-shadow: 0 0 0 2px #69a7ff inset;
     }
 
     .toolbar {
@@ -252,8 +258,30 @@ export class FrakonStudioCanvas extends LitElement {
     this.emitViewport(zoomViewportAt(this.viewport, this.localPoint(event), this.viewport.zoom * factor));
   }
 
+  private onKeyDown(event: KeyboardEvent): void {
+    if (!this.interactive) return;
+    const target = event.composedPath()[0];
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable)) return;
+
+    if (event.key === 'Escape') {
+      if (this.selection.ids.length === 0) return;
+      event.preventDefault();
+      this.emitSelection(clearSelection());
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+      event.preventDefault();
+      const ids = this.selectableItems().filter((item) => item.selectable !== false).map((item) => item.id);
+      this.emitSelection(replaceSelection(ids, ids.at(-1)));
+    }
+  }
+
   private onPointerDown(event: PointerEvent): void {
     if (!this.interactive) return;
+    (event.currentTarget as HTMLElement).closest('.studio')?.dispatchEvent(new Event('focus-requested'));
+    const studio = this.renderRoot.querySelector<HTMLElement>('.studio');
+    studio?.focus({ preventScroll: true });
     const selectableId = this.selectableIdFromEvent(event);
     const additive = event.shiftKey || event.ctrlKey || event.metaKey;
 
@@ -330,7 +358,7 @@ export class FrakonStudioCanvas extends LitElement {
     const modeClass = this.gesture?.mode === 'pan' ? 'panning' : this.gesture?.mode === 'marquee' ? 'marquee-selecting' : '';
 
     return html`
-      <section class="studio">
+      <section class="studio" tabindex="0" @keydown=${this.onKeyDown}>
         <div class="toolbar" aria-label="Canvas zoom controls">
           <button @click=${() => this.zoomBy(0.8)} ?disabled=${this.viewport.zoom <= MIN_VIEWPORT_ZOOM}>−</button>
           <output>${zoomPercent}%</output>
