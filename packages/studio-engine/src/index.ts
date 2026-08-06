@@ -6,3 +6,4 @@ export * from './resize';
 export * from './move';
 export * from './guidelines';
 export * from './smart-move';
+export * from './constraints';
