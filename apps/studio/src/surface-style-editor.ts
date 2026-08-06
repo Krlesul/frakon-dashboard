@@ -20,7 +20,7 @@ export interface FrakonSurfaceStyleChangedDetail {
 
 @customElement('frakon-surface-style-editor')
 export class FrakonSurfaceStyleEditor extends LitElement {
-  @property({ attribute: false }) style: SurfaceStyle = {};
+  @property({ attribute: false }) surfaceStyle: SurfaceStyle = {};
   @property() target = 'Surface';
 
   static styles = css`
@@ -47,10 +47,10 @@ export class FrakonSurfaceStyleEditor extends LitElement {
   `;
 
   private emit(patch: Partial<SurfaceStyle>): void {
-    const style = normalizeSurfaceStyle({ ...this.style, ...patch });
-    this.style = style;
+    const nextStyle = normalizeSurfaceStyle({ ...this.surfaceStyle, ...patch });
+    this.surfaceStyle = nextStyle;
     this.dispatchEvent(new CustomEvent<FrakonSurfaceStyleChangedDetail>('frakon-surface-style-changed', {
-      detail: { style: structuredClone(style) },
+      detail: { style: structuredClone(nextStyle) },
       bubbles: true,
       composed: true,
     }));
@@ -65,17 +65,17 @@ export class FrakonSurfaceStyleEditor extends LitElement {
   }
 
   private applyPreset(id: SurfacePresetId): void {
-    const style = normalizeSurfaceStyle(surfacePreset(id));
-    this.style = style;
+    const nextStyle = normalizeSurfaceStyle(surfacePreset(id));
+    this.surfaceStyle = nextStyle;
     this.dispatchEvent(new CustomEvent<FrakonSurfaceStyleChangedDetail>('frakon-surface-style-changed', {
-      detail: { style: structuredClone(style) },
+      detail: { style: structuredClone(nextStyle) },
       bubbles: true,
       composed: true,
     }));
   }
 
   render() {
-    const style = normalizeSurfaceStyle(this.style);
+    const style = normalizeSurfaceStyle(this.surfaceStyle);
     const previewStyle = cssRecordToString(surfaceStyleToCss(style));
     return html`
       <section class="panel">
