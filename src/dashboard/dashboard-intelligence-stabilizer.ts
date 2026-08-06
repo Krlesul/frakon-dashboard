@@ -50,8 +50,12 @@ export class DashboardIntelligenceStabilizer {
     this.removeMissingSignals(new Set(usage.map((signal) => signal.itemId)));
     const context: DashboardIntelligenceContext = { ...structuredClone(input), now, usage };
     const contentChanged = !sameContext(this.lastContext, context);
-    const hasCriticalActivation = usage.some((signal) => signal.urgent && signal.severity === 'critical')
-      && !(this.lastContext?.usage ?? []).some((signal) => signal.itemId === signal.itemId && signal.urgent && signal.severity === 'critical');
+    const previousUsage = new Map((this.lastContext?.usage ?? []).map((signal) => [signal.itemId, signal]));
+    const hasCriticalActivation = usage.some((signal) => {
+      const previous = previousUsage.get(signal.itemId);
+      return signal.urgent && signal.severity === 'critical'
+        && !(previous?.urgent && previous.severity === 'critical');
+    });
     const intervalElapsed = now - this.lastEmissionAt >= this.minimumEmissionIntervalMs;
     const changed = contentChanged && (intervalElapsed || hasCriticalActivation);
 
@@ -86,9 +90,8 @@ export class DashboardIntelligenceStabilizer {
       state.severity = severity;
     }
 
-    if (observed && severity === 'critical') {
-      state.stable = true;
-    } else {
+    if (observed && severity === 'critical') state.stable = true;
+    else {
       const threshold = observed ? this.urgencyConfirmMs : this.urgencyReleaseMs;
       if (state.stable !== observed && now - state.observedSince >= threshold) state.stable = observed;
     }
