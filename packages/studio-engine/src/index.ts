@@ -5,3 +5,4 @@ export * from './selection-intent';
 export * from './resize';
 export * from './move';
 export * from './guidelines';
+export * from './smart-move';
