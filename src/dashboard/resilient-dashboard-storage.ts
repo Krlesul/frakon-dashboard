@@ -1,4 +1,4 @@
-import { normalizeAndCompactDashboard, type FrakonDashboardDocument } from './layout-model';
+import type { FrakonDashboardDocument } from './layout-model';
 import type { DashboardStorageAdapter } from './dashboard-storage';
 
 export type DashboardSyncOperation =
@@ -16,8 +16,8 @@ export class MemoryDashboardSyncQueue implements DashboardSyncQueue {
 
   async list(): Promise<DashboardSyncOperation[]> {
     return [...this.operations.values()]
-      .sort((left, right) => left.queuedAt - right.queuedAt)
-      .map((operation) => structuredClone(operation));
+      .map((operation) => structuredClone(operation))
+      .sort((a, b) => a.queuedAt - b.queuedAt);
   }
 
   async put(operation: DashboardSyncOperation): Promise<void> {
@@ -29,38 +29,36 @@ export class MemoryDashboardSyncQueue implements DashboardSyncQueue {
   }
 }
 
-const DEFAULT_QUEUE_KEY = 'frakon-dashboard:sync-queue';
-
 export class LocalStorageDashboardSyncQueue implements DashboardSyncQueue {
   constructor(
     private readonly storage: Storage | undefined = globalThis.localStorage,
-    private readonly key = DEFAULT_QUEUE_KEY,
+    private readonly key = 'frakon-dashboard:sync-queue',
   ) {}
 
   async list(): Promise<DashboardSyncOperation[]> {
     const raw = this.storage?.getItem(this.key);
     if (!raw) return [];
     try {
-      const parsed = JSON.parse(raw) as DashboardSyncOperation[];
-      return Array.isArray(parsed)
-        ? parsed.filter(isDashboardSyncOperation).sort((a, b) => a.queuedAt - b.queuedAt)
-        : [];
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(isDashboardSyncOperation).sort((a, b) => a.queuedAt - b.queuedAt);
     } catch {
       return [];
     }
   }
 
   async put(operation: DashboardSyncOperation): Promise<void> {
-    const operations = await this.list();
-    const next = operations.filter((entry) => entry.id !== operation.id);
-    next.push(structuredClone(operation));
-    this.storage?.setItem(this.key, JSON.stringify(next));
+    const operations = new Map((await this.list()).map((entry) => [entry.id, entry]));
+    operations.set(operation.id, structuredClone(operation));
+    this.write([...operations.values()]);
   }
 
   async delete(id: string): Promise<void> {
-    const next = (await this.list()).filter((operation) => operation.id !== id);
-    if (next.length === 0) this.storage?.removeItem(this.key);
-    else this.storage?.setItem(this.key, JSON.stringify(next));
+    this.write((await this.list()).filter((operation) => operation.id !== id));
+  }
+
+  private write(operations: DashboardSyncOperation[]): void {
+    this.storage?.setItem(this.key, JSON.stringify(operations));
   }
 }
 
@@ -77,7 +75,7 @@ export class ResilientDashboardStorageAdapter implements DashboardStorageAdapter
   readonly kind = 'resilient';
   private state: ResilientDashboardStorageState = { mode: 'primary', syncing: false, pending: 0 };
   private readonly listeners = new Set<ResilientDashboardStorageListener>();
-  private syncPromise?: Promise<void>;
+  private synchronizePromise?: Promise<void>;
 
   constructor(
     private readonly primary: DashboardStorageAdapter,
@@ -97,30 +95,35 @@ export class ResilientDashboardStorageAdapter implements DashboardStorageAdapter
 
   async load(id: string): Promise<FrakonDashboardDocument | undefined> {
     try {
-      const remote = await this.primary.load(id);
+      const document = await this.primary.load(id);
       this.patchState({ mode: 'primary', error: undefined });
-      if (remote) await this.fallback.save(remote);
-      await this.refreshPending();
-      return remote ?? this.fallback.load(id);
+      if (document) await this.fallback.save(document);
+      return document ?? this.fallback.load(id);
     } catch (error) {
       this.patchState({ mode: 'fallback', error: toError(error) });
-      await this.refreshPending();
       return this.fallback.load(id);
+    } finally {
+      await this.refreshPending();
     }
   }
 
   async save(document: FrakonDashboardDocument): Promise<void> {
-    const normalized = normalizeAndCompactDashboard(document);
-    await this.fallback.save(normalized);
+    await this.fallback.save(document);
     try {
-      await this.primary.save(normalized);
-      await this.queue.delete(normalized.id);
+      await this.primary.save(document);
+      await this.queue.delete(document.id);
       this.patchState({ mode: 'primary', error: undefined });
     } catch (error) {
-      await this.queue.put({ kind: 'save', id: normalized.id, document: normalized, queuedAt: Date.now() });
+      await this.queue.put({
+        kind: 'save',
+        id: document.id,
+        document: structuredClone(document),
+        queuedAt: Date.now(),
+      });
       this.patchState({ mode: 'fallback', error: toError(error) });
+    } finally {
+      await this.refreshPending();
     }
-    await this.refreshPending();
   }
 
   async remove(id: string): Promise<void> {
@@ -132,20 +135,21 @@ export class ResilientDashboardStorageAdapter implements DashboardStorageAdapter
     } catch (error) {
       await this.queue.put({ kind: 'remove', id, queuedAt: Date.now() });
       this.patchState({ mode: 'fallback', error: toError(error) });
+    } finally {
+      await this.refreshPending();
     }
-    await this.refreshPending();
   }
 
   synchronize(): Promise<void> {
-    if (this.syncPromise) return this.syncPromise;
-    this.syncPromise = this.runSynchronization().finally(() => {
-      this.syncPromise = undefined;
+    if (this.synchronizePromise) return this.synchronizePromise;
+    this.synchronizePromise = this.runSynchronization().finally(() => {
+      this.synchronizePromise = undefined;
     });
-    return this.syncPromise;
+    return this.synchronizePromise;
   }
 
   private async runSynchronization(): Promise<void> {
-    this.patchState({ syncing: true });
+    this.patchState({ syncing: true, error: undefined });
     try {
       for (const operation of await this.queue.list()) {
         if (operation.kind === 'save') await this.primary.save(operation.document);
@@ -173,10 +177,11 @@ export class ResilientDashboardStorageAdapter implements DashboardStorageAdapter
 
 function isDashboardSyncOperation(value: unknown): value is DashboardSyncOperation {
   if (!value || typeof value !== 'object') return false;
-  const operation = value as Partial<DashboardSyncOperation>;
+  const operation = value as Record<string, unknown>;
   if (operation.kind !== 'save' && operation.kind !== 'remove') return false;
   if (typeof operation.id !== 'string' || typeof operation.queuedAt !== 'number') return false;
-  return operation.kind === 'remove' || Boolean(operation.document);
+  if (operation.kind === 'remove') return true;
+  return Boolean(operation.document && typeof operation.document === 'object');
 }
 
 function toError(error: unknown): Error {
