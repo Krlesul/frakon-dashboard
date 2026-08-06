@@ -1,18 +1,29 @@
 export type StudioHistoryShortcut = 'undo' | 'redo';
 
+export interface StudioHistoryEventTarget {
+  tagName?: string;
+  isContentEditable?: boolean;
+  getAttribute?: (name: string) => string | null;
+}
+
 export interface StudioHistoryKeyboardEvent {
   key: string;
   ctrlKey?: boolean;
   metaKey?: boolean;
   shiftKey?: boolean;
   altKey?: boolean;
-  target?: EventTarget | null;
+  target?: EventTarget | StudioHistoryEventTarget | null;
 }
 
-function isEditableTarget(target: EventTarget | null | undefined): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-  return target.matches('input, textarea, select, [contenteditable="true"]');
+function isEditableTarget(
+  target: EventTarget | StudioHistoryEventTarget | null | undefined,
+): boolean {
+  if (!target || typeof target !== 'object') return false;
+  const candidate = target as StudioHistoryEventTarget;
+  if (candidate.isContentEditable === true) return true;
+  const tagName = candidate.tagName?.toLowerCase();
+  if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') return true;
+  return candidate.getAttribute?.('contenteditable') === 'true';
 }
 
 export function resolveStudioHistoryShortcut(
