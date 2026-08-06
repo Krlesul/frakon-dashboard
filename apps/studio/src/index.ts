@@ -12,6 +12,8 @@ export * from './dashboard-detailed-conflict-panel';
 export * from './dashboard-conflict-canvas-overlay';
 export * from './dashboard-conflict-canvas-bridge';
 export * from './dashboard-intelligence-panel';
+export * from './dashboard-intelligence-signal-bridge';
+export * from './dashboard-intelligence-live-panel';
 export * from './dashboard-interaction-observer';
 export * from './history-toolbar';
 export * from './guideline-overlay';
