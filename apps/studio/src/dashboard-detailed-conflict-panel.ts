@@ -36,7 +36,8 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
     .panel { display:grid; gap:12px; padding:14px; border:1px solid rgb(255 189 92 / 38%); border-radius:14px; background:rgb(255 189 92 / 8%); font:500 13px/1.45 Inter,system-ui,sans-serif; }
     h3,p { margin:0; }
     p { opacity:.72; }
-    .legend { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
+    .toolbar,.legend { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
+    .toolbar output { margin-right:auto; opacity:.72; font-variant-numeric:tabular-nums; }
     .legend strong { margin-right:2px; font-size:12px; }
     .legend button { display:inline-flex; align-items:center; gap:6px; }
     .swatch { width:10px; height:10px; border-radius:3px; box-sizing:border-box; }
@@ -63,7 +64,8 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
   protected willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (changed.has('merge')) {
       this.selections = {};
-      this.activePath = '';
+      this.activePath = this.merge?.conflicts[0]?.path ?? '';
+      this.focusToken += this.cardId(this.activePath) ? 1 : 0;
     }
   }
 
@@ -78,12 +80,35 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
         composed: true,
       },
     ));
+    this.focusActiveCard();
   }
 
   private focus(path: string): void {
-    if (!this.cardId(path)) return;
     this.activePath = path;
-    this.focusToken += 1;
+    this.focusActiveCard();
+  }
+
+  private focusActiveCard(): void {
+    if (this.cardId(this.activePath)) this.focusToken += 1;
+  }
+
+  private navigate(direction: -1 | 1): void {
+    const conflicts = this.merge?.conflicts ?? [];
+    if (conflicts.length === 0) return;
+    const current = Math.max(0, conflicts.findIndex((conflict) => conflict.path === this.activePath));
+    const next = (current + direction + conflicts.length) % conflicts.length;
+    this.activePath = conflicts[next]?.path ?? '';
+    this.focusActiveCard();
+  }
+
+  private nextUnresolved(): void {
+    const conflicts = this.merge?.conflicts ?? [];
+    const unresolved = conflicts.filter((conflict) => !this.selections[conflict.path]);
+    if (unresolved.length === 0) return;
+    const current = unresolved.findIndex((conflict) => conflict.path === this.activePath);
+    const next = unresolved[(current + 1 + unresolved.length) % unresolved.length];
+    this.activePath = next?.path ?? '';
+    this.focusActiveCard();
   }
 
   private cardId(path: string): string {
@@ -118,12 +143,20 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
     const resolved = this.merge.conflicts.filter((conflict) => this.selections[conflict.path]).length;
     const preview = createDashboardConflictPreview(session, this.selections);
     const activeId = this.cardId(this.activePath);
+    const activeIndex = Math.max(0, this.merge.conflicts.findIndex((conflict) => conflict.path === this.activePath));
+    const unresolved = this.merge.conflicts.length - resolved;
 
     return html`
       <section class="panel" role="alert">
         <div>
           <h3>Resolve dashboard changes individually</h3>
           <p>${resolved} of ${this.merge.conflicts.length} conflicts resolved. Card choices are previewed live on the canvas.</p>
+        </div>
+        <div class="toolbar" aria-label="Conflict navigation">
+          <output>Conflict ${activeIndex + 1} of ${this.merge.conflicts.length} · ${unresolved} unresolved</output>
+          <button @click=${() => this.navigate(-1)}>Previous</button>
+          <button @click=${() => this.navigate(1)}>Next</button>
+          <button ?disabled=${unresolved === 0} @click=${this.nextUnresolved}>Next unresolved</button>
         </div>
         <div class="legend" aria-label="Conflict preview layers">
           <strong>Canvas layers</strong>
