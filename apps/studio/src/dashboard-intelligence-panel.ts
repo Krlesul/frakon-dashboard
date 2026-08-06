@@ -28,8 +28,10 @@ export interface FrakonDashboardIntelligenceAppliedDetail {
 export class FrakonDashboardIntelligencePanel extends LitElement {
   @property({ attribute: false }) document?: FrakonDashboardDocument;
   @property({ attribute: false }) context: DashboardIntelligenceContext = { device: 'desktop' };
+  @property({ attribute: false }) automaticContext?: DashboardIntelligenceContext;
   @state() private selectedProfile?: DashboardIntelligenceProfile;
   @state() private previewVisible = true;
+  @state() private automaticSignals = true;
   @state() private device: DashboardDeviceContext = 'desktop';
   @state() private daypart: DashboardDaypart = 'day';
   @state() private usageById: Record<string, DashboardUsageSignal> = {};
@@ -40,14 +42,20 @@ export class FrakonDashboardIntelligencePanel extends LitElement {
     h3,p { margin:0; }
     p { opacity:.7; }
     .context { display:grid; gap:10px; padding:11px; border-radius:11px; background:rgb(255 255 255 / 5%); }
+    .context-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .mode { display:flex; gap:6px; }
+    .mode button { border:1px solid rgb(255 255 255 / 13%); border-radius:8px; padding:6px 9px; color:inherit; background:rgb(255 255 255 / 6%); cursor:pointer; font:inherit; }
+    .mode button.active { border-color:rgb(95 211 154 / 48%); background:rgb(95 211 154 / 15%); }
     .context-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
     label { display:grid; gap:5px; font-size:11px; opacity:.84; }
     select,input { width:100%; box-sizing:border-box; border:1px solid rgb(255 255 255 / 13%); border-radius:8px; padding:8px; color:inherit; background:rgb(17 20 28 / 88%); font:inherit; }
+    select:disabled,input:disabled { opacity:.58; cursor:not-allowed; }
     .signals { display:grid; gap:7px; max-height:220px; overflow:auto; }
     .signal { display:grid; grid-template-columns:minmax(0,1fr) 92px auto; gap:8px; align-items:center; padding:8px; border-radius:9px; background:rgb(255 255 255 / 4%); }
     .signal strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
     .urgent { display:flex; align-items:center; gap:5px; white-space:nowrap; }
     .urgent input { width:auto; }
+    .automatic-note { margin:0; font-size:11px; opacity:.62; }
     .profiles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
     .profile { display:grid; gap:5px; min-height:92px; padding:11px; text-align:left; border:1px solid rgb(255 255 255 / 11%); border-radius:11px; color:inherit; background:rgb(255 255 255 / 5%); cursor:pointer; font:inherit; }
     .profile:hover { background:rgb(255 255 255 / 8%); }
@@ -69,20 +77,35 @@ export class FrakonDashboardIntelligencePanel extends LitElement {
       this.previewVisible = true;
       this.usageById = Object.fromEntries((this.document?.items ?? []).map((item) => [item.id, { itemId: item.id, interactions30d: 0, urgent: false }]));
     }
-    if (changed.has('context')) {
-      this.device = this.context.device;
-      this.daypart = this.context.daypart ?? 'day';
-      this.usageById = Object.fromEntries((this.context.usage ?? []).map((signal) => [signal.itemId, { ...signal }]));
-    }
+    if (changed.has('context')) this.applyManualContext(this.context);
+    if (changed.has('automaticContext') && this.automaticContext) this.automaticSignals = true;
+  }
+
+  private applyManualContext(context: DashboardIntelligenceContext): void {
+    this.device = context.device;
+    this.daypart = context.daypart ?? 'day';
+    this.usageById = Object.fromEntries((context.usage ?? []).map((signal) => [signal.itemId, { ...signal }]));
   }
 
   private effectiveContext(): DashboardIntelligenceContext {
+    if (this.automaticSignals && this.automaticContext) return structuredClone(this.automaticContext);
     return {
       device: this.device,
       daypart: this.daypart,
       now: Date.now(),
       usage: Object.values(this.usageById),
     };
+  }
+
+  private effectiveSignal(itemId: string): DashboardUsageSignal {
+    const context = this.effectiveContext();
+    return context.usage?.find((signal) => signal.itemId === itemId)
+      ?? { itemId, interactions30d: 0, urgent: false };
+  }
+
+  private setAutomaticSignals(value: boolean): void {
+    this.automaticSignals = value && Boolean(this.automaticContext);
+    this.refreshPreview();
   }
 
   private proposals(): DashboardIntelligenceProposal[] {
@@ -159,6 +182,7 @@ export class FrakonDashboardIntelligencePanel extends LitElement {
     if (!this.document) return nothing;
     const proposals = this.proposals();
     const selected = this.selectedProposal(proposals);
+    const effective = this.effectiveContext();
 
     return html`
       <section class="panel">
@@ -167,27 +191,36 @@ export class FrakonDashboardIntelligencePanel extends LitElement {
           <p>Choose a layout profile. The proposal is previewed on the canvas and is not saved until you apply it.</p>
         </div>
         <div class="context">
-          <strong>Intelligence context</strong>
+          <div class="context-head">
+            <strong>Intelligence context</strong>
+            <div class="mode" aria-label="Intelligence signal mode">
+              <button class=${this.automaticSignals ? 'active' : ''} ?disabled=${!this.automaticContext} @click=${() => this.setAutomaticSignals(true)}>Automatic</button>
+              <button class=${!this.automaticSignals ? 'active' : ''} @click=${() => this.setAutomaticSignals(false)}>Manual</button>
+            </div>
+          </div>
+          ${this.automaticSignals && this.automaticContext
+            ? html`<p class="automatic-note">Using live daypart, interaction history and Home Assistant urgency signals.</p>`
+            : html`<p class="automatic-note">Manual values are used only for this proposal preview.</p>`}
           <div class="context-grid">
             <label>Target device
-              <select .value=${this.device} @change=${(event: Event) => { this.device = (event.target as HTMLSelectElement).value as DashboardDeviceContext; this.refreshPreview(); }}>
+              <select .value=${effective.device} ?disabled=${this.automaticSignals} @change=${(event: Event) => { this.device = (event.target as HTMLSelectElement).value as DashboardDeviceContext; this.refreshPreview(); }}>
                 <option value="mobile">Mobile</option><option value="tablet">Tablet</option><option value="desktop">Desktop</option><option value="wall">Wall display</option>
               </select>
             </label>
             <label>Daypart
-              <select .value=${this.daypart} @change=${(event: Event) => { this.daypart = (event.target as HTMLSelectElement).value as DashboardDaypart; this.refreshPreview(); }}>
+              <select .value=${effective.daypart ?? 'day'} ?disabled=${this.automaticSignals} @change=${(event: Event) => { this.daypart = (event.target as HTMLSelectElement).value as DashboardDaypart; this.refreshPreview(); }}>
                 <option value="morning">Morning</option><option value="day">Day</option><option value="evening">Evening</option><option value="night">Night</option>
               </select>
             </label>
           </div>
           <div class="signals">
             ${this.document.items.map((item) => {
-              const signal = this.usageById[item.id] ?? { itemId: item.id, interactions30d: 0, urgent: false };
+              const signal = this.effectiveSignal(item.id);
               const label = typeof item.card.name === 'string' ? item.card.name : item.id;
               return html`<div class="signal">
                 <strong title=${label}>${label}</strong>
-                <label>Uses / 30d<input type="number" min="0" .value=${String(signal.interactions30d ?? 0)} @input=${(event: Event) => this.setInteractions(item.id, (event.target as HTMLInputElement).value)}></label>
-                <label class="urgent"><input type="checkbox" .checked=${Boolean(signal.urgent)} @change=${(event: Event) => this.setUrgent(item.id, (event.target as HTMLInputElement).checked)}>Urgent</label>
+                <label>Uses / 30d<input type="number" min="0" ?disabled=${this.automaticSignals} .value=${String(signal.interactions30d ?? 0)} @input=${(event: Event) => this.setInteractions(item.id, (event.target as HTMLInputElement).value)}></label>
+                <label class="urgent"><input type="checkbox" ?disabled=${this.automaticSignals} .checked=${Boolean(signal.urgent)} @change=${(event: Event) => this.setUrgent(item.id, (event.target as HTMLInputElement).checked)}>Urgent</label>
               </div>`;
             })}
           </div>
