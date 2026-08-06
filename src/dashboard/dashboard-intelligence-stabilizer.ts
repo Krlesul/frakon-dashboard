@@ -1,4 +1,4 @@
-import type { DashboardIntelligenceContext, DashboardUsageSignal } from './dashboard-intelligence';
+import type { DashboardIntelligenceContext, DashboardUrgencySeverity, DashboardUsageSignal } from './dashboard-intelligence';
 
 export interface DashboardIntelligenceStabilizerOptions {
   urgencyConfirmMs?: number;
@@ -10,6 +10,7 @@ interface UrgencyState {
   observed: boolean;
   observedSince: number;
   stable: boolean;
+  severity: DashboardUrgencySeverity;
 }
 
 export type DashboardIntelligenceUrgencyPhase = 'stable' | 'confirming' | 'cooldown';
@@ -18,6 +19,7 @@ export interface DashboardIntelligenceUrgencyDiagnostic {
   itemId: string;
   observedUrgent: boolean;
   stableUrgent: boolean;
+  severity: DashboardUrgencySeverity;
   phase: DashboardIntelligenceUrgencyPhase;
   nextEvaluationAt?: number;
 }
@@ -46,15 +48,12 @@ export class DashboardIntelligenceStabilizer {
   update(input: DashboardIntelligenceContext, now = input.now ?? Date.now()): DashboardIntelligenceStabilizerResult {
     const usage = (input.usage ?? []).map((signal) => this.stabilizeSignal(signal, now));
     this.removeMissingSignals(new Set(usage.map((signal) => signal.itemId)));
-
-    const context: DashboardIntelligenceContext = {
-      ...structuredClone(input),
-      now,
-      usage,
-    };
+    const context: DashboardIntelligenceContext = { ...structuredClone(input), now, usage };
     const contentChanged = !sameContext(this.lastContext, context);
+    const hasCriticalActivation = usage.some((signal) => signal.urgent && signal.severity === 'critical')
+      && !(this.lastContext?.usage ?? []).some((signal) => signal.itemId === signal.itemId && signal.urgent && signal.severity === 'critical');
     const intervalElapsed = now - this.lastEmissionAt >= this.minimumEmissionIntervalMs;
-    const changed = contentChanged && intervalElapsed;
+    const changed = contentChanged && (intervalElapsed || hasCriticalActivation);
 
     if (changed) {
       this.lastContext = structuredClone(context);
@@ -77,53 +76,45 @@ export class DashboardIntelligenceStabilizer {
 
   private stabilizeSignal(signal: DashboardUsageSignal, now: number): DashboardUsageSignal {
     const observed = Boolean(signal.urgent);
+    const severity = signal.severity ?? (observed ? 'warning' : 'normal');
     const current = this.urgency.get(signal.itemId);
-    const state = current ?? { observed, observedSince: now, stable: false };
+    const state = current ?? { observed, observedSince: now, stable: false, severity };
 
-    if (state.observed !== observed) {
+    if (state.observed !== observed || state.severity !== severity) {
       state.observed = observed;
       state.observedSince = now;
+      state.severity = severity;
     }
 
-    const threshold = observed ? this.urgencyConfirmMs : this.urgencyReleaseMs;
-    if (state.stable !== observed && now - state.observedSince >= threshold) state.stable = observed;
+    if (observed && severity === 'critical') {
+      state.stable = true;
+    } else {
+      const threshold = observed ? this.urgencyConfirmMs : this.urgencyReleaseMs;
+      if (state.stable !== observed && now - state.observedSince >= threshold) state.stable = observed;
+    }
     this.urgency.set(signal.itemId, state);
-
-    return { ...signal, urgent: state.stable };
+    return { ...signal, urgent: state.stable, severity: state.stable ? severity : 'normal' };
   }
 
   private removeMissingSignals(present: Set<string>): void {
-    for (const itemId of this.urgency.keys()) {
-      if (!present.has(itemId)) this.urgency.delete(itemId);
-    }
+    for (const itemId of this.urgency.keys()) if (!present.has(itemId)) this.urgency.delete(itemId);
   }
 
   private diagnostics(now: number): DashboardIntelligenceUrgencyDiagnostic[] {
-    return [...this.urgency.entries()]
-      .map(([itemId, state]) => {
-        const phase: DashboardIntelligenceUrgencyPhase = state.stable === state.observed
-          ? 'stable'
-          : state.observed
-            ? 'confirming'
-            : 'cooldown';
-        const threshold = state.observed ? this.urgencyConfirmMs : this.urgencyReleaseMs;
-        const nextEvaluationAt = phase === 'stable' ? undefined : state.observedSince + threshold;
-        return {
-          itemId,
-          observedUrgent: state.observed,
-          stableUrgent: state.stable,
-          phase,
-          nextEvaluationAt: nextEvaluationAt && nextEvaluationAt > now ? nextEvaluationAt : undefined,
-        };
-      })
-      .sort((left, right) => left.itemId.localeCompare(right.itemId));
+    return [...this.urgency.entries()].map(([itemId, state]) => {
+      const phase: DashboardIntelligenceUrgencyPhase = state.stable === state.observed ? 'stable' : state.observed ? 'confirming' : 'cooldown';
+      const threshold = state.observed ? (state.severity === 'critical' ? 0 : this.urgencyConfirmMs) : this.urgencyReleaseMs;
+      const nextEvaluationAt = phase === 'stable' ? undefined : state.observedSince + threshold;
+      return { itemId, observedUrgent: state.observed, stableUrgent: state.stable, severity: state.severity, phase, nextEvaluationAt: nextEvaluationAt && nextEvaluationAt > now ? nextEvaluationAt : undefined };
+    }).sort((left, right) => left.itemId.localeCompare(right.itemId));
   }
 
   private nextEvaluationAt(now: number): number | undefined {
     let next: number | undefined;
     for (const state of this.urgency.values()) {
       if (state.stable === state.observed) continue;
-      const candidate = state.observedSince + (state.observed ? this.urgencyConfirmMs : this.urgencyReleaseMs);
+      const threshold = state.observed ? (state.severity === 'critical' ? 0 : this.urgencyConfirmMs) : this.urgencyReleaseMs;
+      const candidate = state.observedSince + threshold;
       if (candidate <= now) continue;
       next = next === undefined ? candidate : Math.min(next, candidate);
     }
@@ -141,11 +132,5 @@ function sameContext(left: DashboardIntelligenceContext | undefined, right: Dash
 }
 
 function normalizeContext(context: DashboardIntelligenceContext): DashboardIntelligenceContext {
-  return {
-    ...context,
-    now: undefined,
-    usage: [...(context.usage ?? [])]
-      .map((signal) => ({ ...signal }))
-      .sort((left, right) => left.itemId.localeCompare(right.itemId)),
-  };
+  return { ...context, now: undefined, usage: [...(context.usage ?? [])].map((signal) => ({ ...signal })).sort((left, right) => left.itemId.localeCompare(right.itemId)) };
 }
