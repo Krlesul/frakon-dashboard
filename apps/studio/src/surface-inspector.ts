@@ -8,7 +8,7 @@ import {
   clearItemSurfaceStyle,
   type DashboardSurfaceTarget,
 } from '../../../src/dashboard/surface-style-actions';
-import { resolveItemSurfaceStyle } from '../../../src/dashboard/surface-style-resolver';
+import { resolveGridItemSurface } from '../../../src/dashboard/surface-style-resolver';
 import type { FrakonSurfaceStyleChangedDetail } from './surface-style-editor';
 import './surface-style-editor';
 
@@ -53,7 +53,7 @@ export class FrakonSurfaceInspector extends LitElement {
     if (target.kind === 'dashboard') return this.document.surface ?? {};
     if (target.kind === 'card-defaults') return this.document.cardSurface ?? {};
     const first = this.document.items.find((item) => target.ids.includes(item.id));
-    return first ? resolveItemSurfaceStyle(this.document, first) : (this.document.cardSurface ?? {});
+    return first ? resolveGridItemSurface(this.document, first) : (this.document.cardSurface ?? {});
   }
 
   private emitDocument(document: FrakonDashboardDocument, target: DashboardSurfaceTarget): void {
