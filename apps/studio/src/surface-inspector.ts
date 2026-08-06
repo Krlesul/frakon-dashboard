@@ -51,21 +51,34 @@ export class FrakonSurfaceInspector extends LitElement {
       background:rgb(105 167 255 / 18%);
       border-color:rgb(105 167 255 / 45%);
     }
+    button.primary {
+      background:rgb(105 167 255 / 24%);
+      border-color:rgb(105 167 255 / 58%);
+      font-weight:700;
+    }
+    button:disabled { opacity:.45; cursor:not-allowed; }
     .tab {
       font-weight:650;
       letter-spacing:.01em;
     }
     .preview-toggle {
+      display:grid;
+      gap:10px;
+      padding:11px 12px;
+      border:1px solid rgb(105 167 255 / 18%);
+      border-radius:12px;
+      background:rgb(105 167 255 / 7%);
+    }
+    .preview-head,.preview-actions {
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:12px;
-      padding:10px 12px;
-      border:1px solid rgb(105 167 255 / 16%);
-      border-radius:12px;
-      background:rgb(105 167 255 / 6%);
+      gap:10px;
+      flex-wrap:wrap;
     }
     .preview-toggle span { font-size:12px; opacity:.72; }
+    .preview-count { font-weight:700; opacity:1 !important; }
+    .preview-actions { justify-content:flex-start; }
     .reset { justify-self:start; }
   `;
 
@@ -114,11 +127,26 @@ export class FrakonSurfaceInspector extends LitElement {
     this.emitDocument(event.detail.document, this.target(), 'constraints');
   }
 
+  private applyConstraintPreview(preview?: FrakonDashboardDocument): void {
+    if (!preview) return;
+    this.emitDocument(preview, this.target(), 'constraints');
+    this.canvasPreviewVisible = false;
+  }
+
   private clearOverrides(): void {
     if (!this.document) return;
     const target = this.target();
     if (target.kind !== 'items') return;
     this.emitDocument(clearItemSurfaceStyle(this.document, target.ids), target, 'surface');
+  }
+
+  private changedItemCount(source?: FrakonDashboardDocument, preview?: FrakonDashboardDocument): number {
+    if (!source || !preview) return 0;
+    const previewById = new Map(preview.items.map((item) => [item.id, item]));
+    return source.items.filter((item) => {
+      const next = previewById.get(item.id);
+      return next && (next.x !== item.x || next.y !== item.y || next.w !== item.w || next.h !== item.h);
+    }).length;
   }
 
   private renderAppearance() {
@@ -142,18 +170,36 @@ export class FrakonSurfaceInspector extends LitElement {
 
   private renderConstraints() {
     const preview = this.document ? solveDashboardConstraints(this.document).document : undefined;
+    const changedItems = this.changedItemCount(this.document, preview);
     return html`
       <div class="preview-toggle">
-        <span>Show proposed card positions directly on the canvas.</span>
-        <button
-          aria-pressed=${this.canvasPreviewVisible}
-          @click=${() => { this.canvasPreviewVisible = !this.canvasPreviewVisible; }}
-        >${this.canvasPreviewVisible ? 'Hide canvas preview' : 'Show canvas preview'}</button>
+        <div class="preview-head">
+          <div>
+            <strong>Canvas preview</strong><br>
+            <span>Proposed positions are shown without modifying the dashboard.</span>
+          </div>
+          <span class="preview-count">${changedItems} changed</span>
+        </div>
+        <div class="preview-actions">
+          <button
+            aria-pressed=${this.canvasPreviewVisible}
+            @click=${() => { this.canvasPreviewVisible = !this.canvasPreviewVisible; }}
+          >${this.canvasPreviewVisible ? 'Hide preview' : 'Show preview'}</button>
+          <button
+            class="primary"
+            ?disabled=${changedItems === 0}
+            @click=${() => this.applyConstraintPreview(preview)}
+          >Apply preview</button>
+          <button
+            ?disabled=${!this.canvasPreviewVisible}
+            @click=${() => { this.canvasPreviewVisible = false; }}
+          >Cancel preview</button>
+        </div>
       </div>
       <frakon-constraint-preview-bridge
         .source=${this.document}
         .preview=${preview}
-        .visible=${this.canvasPreviewVisible && this.activeTab === 'constraints'}
+        .visible=${this.canvasPreviewVisible && this.activeTab === 'constraints' && changedItems > 0}
       ></frakon-constraint-preview-bridge>
       <frakon-constraint-inspector
         .document=${this.document}
