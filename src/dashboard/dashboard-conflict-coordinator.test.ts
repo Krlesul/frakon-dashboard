@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createDashboardConflictSession, resolveDashboardConflictSession } from './dashboard-conflict-coordinator';
+import {
+  createDashboardConflictSession,
+  resolveDashboardConflictSelections,
+  resolveDashboardConflictSession,
+} from './dashboard-conflict-coordinator';
 import { compareDashboardRevisions, createDashboardRevision } from './dashboard-revision';
 import type { FrakonDashboardDocument } from './layout-model';
 
@@ -57,6 +61,30 @@ describe('dashboard conflict coordinator', () => {
     const resolved = resolveDashboardConflictSession(session, 'local', 'tablet', 40);
 
     expect(resolved.document.title).toBe('Local');
+    expect(resolved.parentRevision).toBe(remote.revision);
+  });
+
+  it('resolves conflicting paths independently and rebases the result', () => {
+    const base = createDashboardRevision(baseDocument, 'server', undefined, 10);
+    const local = createDashboardRevision({
+      ...baseDocument,
+      title: 'Local',
+      items: baseDocument.items.map((item) => item.id === 'light' ? { ...item, x: 1 } : item),
+    }, 'tablet', base, 20);
+    const remote = createDashboardRevision({
+      ...baseDocument,
+      title: 'Remote',
+      items: baseDocument.items.map((item) => item.id === 'light' ? { ...item, x: 2 } : item),
+    }, 'desktop', base, 30);
+    const session = createDashboardConflictSession(compareDashboardRevisions(local, remote), base);
+
+    const resolved = resolveDashboardConflictSelections(session, {
+      title: 'remote',
+      'items.light': 'local',
+    }, 'tablet', 40);
+
+    expect(resolved.document.title).toBe('Remote');
+    expect(resolved.document.items.find((item) => item.id === 'light')?.x).toBe(1);
     expect(resolved.parentRevision).toBe(remote.revision);
   });
 });
