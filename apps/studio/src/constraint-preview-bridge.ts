@@ -22,11 +22,14 @@ export class FrakonConstraintPreviewBridge extends LitElement {
   }
 
   private studioCanvas(): HTMLElement | undefined {
-    const root = this.getRootNode();
-    if (!(root instanceof ShadowRoot)) return undefined;
-    const studio = root.host;
-    const studioRoot = studio.shadowRoot;
-    return studioRoot?.querySelector<HTMLElement>('frakon-studio-canvas') ?? undefined;
+    let node: Node = this;
+    while (true) {
+      const root = node.getRootNode();
+      if (!(root instanceof ShadowRoot)) return undefined;
+      const canvas = root.querySelector<HTMLElement>('frakon-studio-canvas');
+      if (canvas) return canvas;
+      node = root.host;
+    }
   }
 
   private syncOverlay(): void {
