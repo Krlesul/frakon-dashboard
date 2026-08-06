@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { SurfaceStyle } from '../../../packages/design-system/src/surface-style';
 import type { SelectionState } from '../../../packages/studio-engine/src/selection';
 import { solveDashboardConstraints } from '../../../src/dashboard/constraint-solver';
+import type { DashboardIntelligenceContext } from '../../../src/dashboard/dashboard-intelligence';
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 import {
   applySurfaceStyleToTarget,
@@ -11,24 +12,27 @@ import {
 } from '../../../src/dashboard/surface-style-actions';
 import { resolveGridItemSurface } from '../../../src/dashboard/surface-style-resolver';
 import type { FrakonConstraintDocumentChangedDetail } from './constraint-inspector';
+import type { FrakonDashboardIntelligenceAppliedDetail } from './dashboard-intelligence-panel';
 import type { FrakonSurfaceStyleChangedDetail } from './surface-style-editor';
 import './constraint-inspector';
 import './constraint-preview-bridge';
+import './dashboard-intelligence-panel';
 import './surface-style-editor';
 
 export interface FrakonStudioDocumentChangedDetail {
   document: FrakonDashboardDocument;
   target: DashboardSurfaceTarget;
-  source?: 'surface' | 'constraints';
+  source?: 'surface' | 'constraints' | 'intelligence';
 }
 
 type InspectorMode = 'auto' | 'dashboard' | 'card-defaults';
-type InspectorTab = 'appearance' | 'constraints';
+type InspectorTab = 'appearance' | 'constraints' | 'intelligence';
 
 @customElement('frakon-surface-inspector')
 export class FrakonSurfaceInspector extends LitElement {
   @property({ attribute: false }) document?: FrakonDashboardDocument;
   @property({ attribute: false }) selection: SelectionState = { ids: [] };
+  @property({ attribute: false }) intelligenceContext: DashboardIntelligenceContext = { device: 'desktop' };
   @property() mode: InspectorMode = 'auto';
   @state() private activeTab: InspectorTab = 'appearance';
   @state() private canvasPreviewVisible = true;
@@ -37,7 +41,7 @@ export class FrakonSurfaceInspector extends LitElement {
     :host { display:block; }
     .shell { display:grid; gap:12px; }
     .tabs,.targets { display:grid; gap:6px; }
-    .tabs { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }
     .targets { grid-template-columns:repeat(3,minmax(0,1fr)); }
     button {
       border:1px solid rgb(255 255 255 / 10%);
@@ -58,6 +62,7 @@ export class FrakonSurfaceInspector extends LitElement {
     }
     button:disabled { opacity:.45; cursor:not-allowed; }
     .tab {
+      min-width:0;
       font-weight:650;
       letter-spacing:.01em;
     }
@@ -80,6 +85,7 @@ export class FrakonSurfaceInspector extends LitElement {
     .preview-count { font-weight:700; opacity:1 !important; }
     .preview-actions { justify-content:flex-start; }
     .reset { justify-self:start; }
+    @media (max-width:640px) { .tabs { grid-template-columns:1fr; } }
   `;
 
   private target(): DashboardSurfaceTarget {
@@ -107,7 +113,7 @@ export class FrakonSurfaceInspector extends LitElement {
   private emitDocument(
     document: FrakonDashboardDocument,
     target: DashboardSurfaceTarget,
-    source: 'surface' | 'constraints',
+    source: 'surface' | 'constraints' | 'intelligence',
   ): void {
     this.document = document;
     this.dispatchEvent(new CustomEvent<FrakonStudioDocumentChangedDetail>('frakon-studio-document-changed', {
@@ -125,6 +131,10 @@ export class FrakonSurfaceInspector extends LitElement {
 
   private onConstraintDocumentChanged(event: CustomEvent<FrakonConstraintDocumentChangedDetail>): void {
     this.emitDocument(event.detail.document, this.target(), 'constraints');
+  }
+
+  private onIntelligenceApplied(event: CustomEvent<FrakonDashboardIntelligenceAppliedDetail>): void {
+    this.emitDocument(event.detail.document, { kind: 'dashboard' }, 'intelligence');
   }
 
   private applyConstraintPreview(preview?: FrakonDashboardDocument): void {
@@ -209,6 +219,16 @@ export class FrakonSurfaceInspector extends LitElement {
     `;
   }
 
+  private renderIntelligence() {
+    return html`
+      <frakon-dashboard-intelligence-panel
+        .document=${this.document}
+        .context=${this.intelligenceContext}
+        @frakon-dashboard-intelligence-applied=${this.onIntelligenceApplied}
+      ></frakon-dashboard-intelligence-panel>
+    `;
+  }
+
   render() {
     return html`
       <section class="shell">
@@ -227,9 +247,20 @@ export class FrakonSurfaceInspector extends LitElement {
             aria-pressed=${this.activeTab === 'constraints'}
             @click=${() => { this.activeTab = 'constraints'; }}
           >Layout rules</button>
+          <button
+            class="tab"
+            role="tab"
+            aria-selected=${this.activeTab === 'intelligence'}
+            aria-pressed=${this.activeTab === 'intelligence'}
+            @click=${() => { this.activeTab = 'intelligence'; }}
+          >Intelligence</button>
         </div>
 
-        ${this.activeTab === 'appearance' ? this.renderAppearance() : this.renderConstraints()}
+        ${this.activeTab === 'appearance'
+          ? this.renderAppearance()
+          : this.activeTab === 'constraints'
+            ? this.renderConstraints()
+            : this.renderIntelligence()}
       </section>
     `;
   }
