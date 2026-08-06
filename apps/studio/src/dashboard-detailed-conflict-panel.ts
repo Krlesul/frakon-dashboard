@@ -1,14 +1,21 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { DashboardMergeResult } from '../../../src/dashboard/dashboard-conflict-resolver';
+import { createDashboardConflictPreview } from '../../../src/dashboard/dashboard-conflict-preview';
 import { presentDashboardConflict } from '../../../src/dashboard/dashboard-conflict-presentation';
+import type { DashboardConflictSession } from '../../../src/dashboard/dashboard-conflict-coordinator';
 import type {
   DashboardConflictSelections,
   DashboardConflictSide,
 } from '../../../src/dashboard/dashboard-selective-conflict-resolution';
 import type { DashboardRevisionEnvelope } from '../../../src/dashboard/dashboard-revision';
+import './dashboard-conflict-canvas-bridge';
 
 export interface FrakonDetailedConflictResolvedDetail {
+  selections: DashboardConflictSelections;
+}
+
+export interface FrakonDetailedConflictPreviewChangedDetail {
   selections: DashboardConflictSelections;
 }
 
@@ -26,22 +33,17 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
     p { opacity:.72; }
     .list { display:grid; gap:8px; max-height:420px; overflow:auto; }
     .row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:10px; border-radius:10px; background:rgb(255 255 255 / 5%); }
-    code { display:block; margin-top:2px; opacity:.56; font:600 11px/1.4 ui-monospace,SFMono-Regular,monospace; }
-    .label { font-weight:700; }
-    .values { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:8px; }
-    .value { min-width:0; padding:7px 8px; border-radius:8px; background:rgb(0 0 0 / 12%); }
-    .value strong,.value span { display:block; }
-    .value strong { font-size:10px; opacity:.58; text-transform:uppercase; letter-spacing:.04em; }
-    .value span { margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+    code { display:block; font:600 12px/1.4 ui-monospace,SFMono-Regular,monospace; }
+    small { display:block; margin-top:3px; opacity:.58; }
+    .values { display:grid; gap:3px; margin-top:7px; font-size:11px; }
+    .values span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .local-value { color:#9ec8ff; }
+    .remote-value { color:#ffc27a; }
     .choices,.actions { display:flex; gap:6px; flex-wrap:wrap; }
     button { border:1px solid rgb(255 255 255 / 14%); border-radius:9px; padding:7px 10px; color:inherit; background:rgb(255 255 255 / 7%); cursor:pointer; font:inherit; }
     button.selected { border-color:rgb(105 167 255 / 55%); background:rgb(105 167 255 / 20%); }
     button.primary { border-color:rgb(95 211 154 / 50%); background:rgb(95 211 154 / 16%); }
     button:disabled { opacity:.42; cursor:not-allowed; }
-    @media (max-width:720px) {
-      .row { grid-template-columns:1fr; }
-      .choices { justify-content:flex-start; }
-    }
   `;
 
   protected willUpdate(changed: Map<PropertyKey, unknown>): void {
@@ -50,6 +52,14 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
 
   private select(path: string, side: DashboardConflictSide): void {
     this.selections = { ...this.selections, [path]: side };
+    this.dispatchEvent(new CustomEvent<FrakonDetailedConflictPreviewChangedDetail>(
+      'frakon-dashboard-detailed-conflict-preview-changed',
+      {
+        detail: { selections: { ...this.selections } },
+        bubbles: true,
+        composed: true,
+      },
+    ));
   }
 
   private apply(): void {
@@ -61,14 +71,30 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
     }));
   }
 
+  private conflictSession(): DashboardConflictSession | undefined {
+    if (!this.local || !this.remote || !this.merge) return undefined;
+    return {
+      comparison: {
+        relation: 'conflict',
+        local: this.local,
+        remote: this.remote,
+      },
+      base: this.local,
+      merge: this.merge,
+    };
+  }
+
   render() {
-    if (!this.local || !this.remote || !this.merge || this.merge.conflicts.length === 0) return nothing;
+    const session = this.conflictSession();
+    if (!this.local || !this.remote || !this.merge || !session || this.merge.conflicts.length === 0) return nothing;
     const resolved = this.merge.conflicts.filter((conflict) => this.selections[conflict.path]).length;
+    const preview = createDashboardConflictPreview(session, this.selections);
+
     return html`
       <section class="panel" role="alert">
         <div>
           <h3>Resolve dashboard changes individually</h3>
-          <p>${resolved} of ${this.merge.conflicts.length} conflicts resolved</p>
+          <p>${resolved} of ${this.merge.conflicts.length} conflicts resolved. Card choices are previewed live on the canvas.</p>
         </div>
         <div class="list">
           ${this.merge.conflicts.map((conflict) => {
@@ -76,22 +102,16 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
             return html`
               <div class="row">
                 <div>
-                  <span class="label">${presentation.label}</span>
-                  <code>${conflict.path}</code>
+                  <code>${presentation.label}</code>
+                  <small>${conflict.path}</small>
                   <div class="values">
-                    <div class="value">
-                      <strong>Local</strong>
-                      <span title=${presentation.localSummary}>${presentation.localSummary}</span>
-                    </div>
-                    <div class="value">
-                      <strong>Home Assistant</strong>
-                      <span title=${presentation.remoteSummary}>${presentation.remoteSummary}</span>
-                    </div>
+                    <span class="local-value">Local: ${presentation.local}</span>
+                    <span class="remote-value">Home Assistant: ${presentation.remote}</span>
                   </div>
                 </div>
                 <div class="choices">
-                  <button class=${this.selections[conflict.path] === 'local' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'local')}>Use local</button>
-                  <button class=${this.selections[conflict.path] === 'remote' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'remote')}>Use Home Assistant</button>
+                  <button class=${this.selections[conflict.path] === 'local' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'local')}>Local</button>
+                  <button class=${this.selections[conflict.path] === 'remote' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'remote')}>Home Assistant</button>
                 </div>
               </div>
             `;
@@ -101,6 +121,11 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
           <button class="primary" ?disabled=${resolved !== this.merge.conflicts.length} @click=${this.apply}>Apply selected resolutions</button>
         </div>
       </section>
+      <frakon-dashboard-conflict-canvas-bridge
+        .preview=${preview}
+        .document=${this.local.document}
+        .visible=${true}
+      ></frakon-dashboard-conflict-canvas-bridge>
     `;
   }
 }
