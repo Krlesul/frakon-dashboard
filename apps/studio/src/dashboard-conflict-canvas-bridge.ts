@@ -10,6 +10,9 @@ export class FrakonDashboardConflictCanvasBridge extends LitElement {
   @property({ attribute: false }) preview?: DashboardConflictPreview;
   @property({ attribute: false }) document?: FrakonDashboardDocument;
   @property({ type: Boolean }) visible = false;
+  @property({ type: Boolean }) showLocal = true;
+  @property({ type: Boolean }) showRemote = true;
+  @property({ type: Boolean }) showResult = true;
 
   private overlay?: FrakonDashboardConflictCanvasOverlay;
 
@@ -43,6 +46,9 @@ export class FrakonDashboardConflictCanvasBridge extends LitElement {
     if (!this.overlay) this.overlay = document.createElement('frakon-dashboard-conflict-canvas-overlay');
     this.overlay.preview = this.preview;
     this.overlay.document = this.document;
+    this.overlay.showLocal = this.showLocal;
+    this.overlay.showRemote = this.showRemote;
+    this.overlay.showResult = this.showResult;
     if (this.overlay.parentElement !== canvas) canvas.append(this.overlay);
   }
 
