@@ -1,0 +1,68 @@
+import type { DashboardConflictSession } from './dashboard-conflict-coordinator';
+import {
+  resolveDashboardConflictSelections,
+  type DashboardConflictSelections,
+} from './dashboard-selective-conflict-resolution';
+import type { FrakonGridItem } from './layout-model';
+
+export interface DashboardConflictPreviewCard {
+  id: string;
+  local?: FrakonGridItem;
+  remote?: FrakonGridItem;
+  resolved?: FrakonGridItem;
+  selected?: 'local' | 'remote';
+  conflicted: boolean;
+}
+
+export interface DashboardConflictPreview {
+  cards: DashboardConflictPreviewCard[];
+  unresolved: number;
+  resolvedDocumentAvailable: boolean;
+}
+
+export function createDashboardConflictPreview(
+  session: DashboardConflictSession,
+  selections: DashboardConflictSelections = {},
+): DashboardConflictPreview {
+  const localById = new Map(session.comparison.local.document.items.map((item) => [item.id, item]));
+  const remoteById = new Map(session.comparison.remote.document.items.map((item) => [item.id, item]));
+  const conflictPaths = new Set(session.merge.conflicts.map((conflict) => conflict.path));
+  const itemIds = new Set<string>();
+
+  for (const path of conflictPaths) {
+    const match = /^items\.(.+)$/.exec(path);
+    if (match?.[1]) itemIds.add(match[1]);
+  }
+
+  let resolvedById = new Map<string, FrakonGridItem>();
+  let resolvedDocumentAvailable = false;
+  try {
+    const resolved = resolveDashboardConflictSelections(session.merge, selections);
+    resolvedById = new Map(resolved.items.map((item) => [item.id, item]));
+    resolvedDocumentAvailable = true;
+  } catch {
+    resolvedById = new Map(session.merge.document.items.map((item) => [item.id, item]));
+  }
+
+  const cards = [...itemIds].sort().map((id) => {
+    const path = `items.${id}`;
+    return {
+      id,
+      local: cloneItem(localById.get(id)),
+      remote: cloneItem(remoteById.get(id)),
+      resolved: cloneItem(resolvedById.get(id)),
+      selected: selections[path],
+      conflicted: conflictPaths.has(path),
+    } satisfies DashboardConflictPreviewCard;
+  });
+
+  return {
+    cards,
+    unresolved: session.merge.conflicts.filter((conflict) => !selections[conflict.path]).length,
+    resolvedDocumentAvailable,
+  };
+}
+
+function cloneItem(item: FrakonGridItem | undefined): FrakonGridItem | undefined {
+  return item ? structuredClone(item) : undefined;
+}
