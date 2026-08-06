@@ -1,5 +1,9 @@
 import { mergeDashboardDocuments, type DashboardMergeResult } from './dashboard-conflict-resolver';
 import {
+  resolveDashboardConflicts,
+  type DashboardConflictSelections,
+} from './dashboard-selective-conflict-resolution';
+import {
   createDashboardRevision,
   type DashboardRevisionComparison,
   type DashboardRevisionEnvelope,
@@ -40,6 +44,28 @@ export function resolveDashboardConflictSession(
       ? session.comparison.remote.document
       : resolveMergedDocument(session);
 
+  return createResolvedRevision(session, document, clientId, updatedAt);
+}
+
+export function resolveDashboardConflictSelections(
+  session: DashboardConflictSession,
+  selections: DashboardConflictSelections,
+  clientId: string,
+  updatedAt = Date.now(),
+): DashboardRevisionEnvelope {
+  const resolved = resolveDashboardConflicts(session.merge, selections);
+  if (!resolved.complete) {
+    throw new Error(`Dashboard conflict selections are incomplete: ${resolved.unresolved.map((entry) => entry.path).join(', ')}`);
+  }
+  return createResolvedRevision(session, resolved.document, clientId, updatedAt);
+}
+
+function createResolvedRevision(
+  session: DashboardConflictSession,
+  document: DashboardRevisionEnvelope['document'],
+  clientId: string,
+  updatedAt: number,
+): DashboardRevisionEnvelope {
   return createDashboardRevision(
     document,
     clientId,
