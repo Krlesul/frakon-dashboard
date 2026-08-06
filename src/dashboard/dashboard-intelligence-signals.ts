@@ -1,6 +1,7 @@
 import type {
   DashboardDaypart,
   DashboardIntelligenceContext,
+  DashboardUrgencySeverity,
   DashboardUsageSignal,
 } from './dashboard-intelligence';
 import type { FrakonDashboardDocument, FrakonGridItem } from './layout-model';
@@ -26,10 +27,12 @@ export interface DashboardIntelligenceSignalOptions {
 
 export interface DashboardUrgencyResult {
   urgent: boolean;
+  severity: DashboardUrgencySeverity;
   reasons: string[];
 }
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+const SEVERITY_RANK: Record<DashboardUrgencySeverity, number> = { normal: 0, warning: 1, critical: 2 };
 
 export function deriveDashboardDaypart(timestamp = Date.now()): DashboardDaypart {
   const hour = new Date(timestamp).getHours();
@@ -39,13 +42,9 @@ export function deriveDashboardDaypart(timestamp = Date.now()): DashboardDaypart
   return 'night';
 }
 
-export function countDashboardInteractions(
-  records: DashboardInteractionRecord[],
-  now = Date.now(),
-): DashboardUsageSignal[] {
+export function countDashboardInteractions(records: DashboardInteractionRecord[], now = Date.now()): DashboardUsageSignal[] {
   const cutoff = now - THIRTY_DAYS;
   const buckets = new Map<string, { count: number; lastUsedAt: number }>();
-
   for (const record of records) {
     if (!record.itemId || !Number.isFinite(record.timestamp) || record.timestamp < cutoff || record.timestamp > now) continue;
     const current = buckets.get(record.itemId) ?? { count: 0, lastUsedAt: 0 };
@@ -53,13 +52,7 @@ export function countDashboardInteractions(
     current.lastUsedAt = Math.max(current.lastUsedAt, record.timestamp);
     buckets.set(record.itemId, current);
   }
-
-  return [...buckets.entries()]
-    .map(([itemId, value]) => ({
-      itemId,
-      interactions30d: value.count,
-      lastUsedAt: value.lastUsedAt,
-    }))
+  return [...buckets.entries()].map(([itemId, value]) => ({ itemId, interactions30d: value.count, lastUsedAt: value.lastUsedAt }))
     .sort((left, right) => left.itemId.localeCompare(right.itemId));
 }
 
@@ -67,30 +60,32 @@ export function deriveDashboardItemUrgency(
   item: FrakonGridItem,
   states: Record<string, HomeAssistantStateLike | undefined>,
 ): DashboardUrgencyResult {
-  const entityIds = itemEntityIds(item);
   const reasons: string[] = [];
+  let severity: DashboardUrgencySeverity = 'normal';
+  const add = (next: DashboardUrgencySeverity, reason: string): void => {
+    reasons.push(reason);
+    if (SEVERITY_RANK[next] > SEVERITY_RANK[severity]) severity = next;
+  };
 
-  for (const entityId of entityIds) {
+  for (const entityId of itemEntityIds(item)) {
     const entity = states[entityId];
     if (!entity) continue;
     const state = entity.state.toLowerCase();
     const domain = entityId.split('.')[0] ?? '';
+    const deviceClass = String(entity.attributes?.device_class ?? '');
 
-    if (state === 'unavailable' || state === 'unknown') reasons.push(`${entityId} is ${state}`);
-    if (domain === 'binary_sensor' && state === 'on' && urgentBinaryDeviceClass(entity.attributes?.device_class)) {
-      reasons.push(`${entityId} reports an active ${String(entity.attributes?.device_class)} condition`);
+    if (state === 'unavailable' || state === 'unknown') add('warning', `${entityId} is ${state}`);
+    if (domain === 'binary_sensor' && state === 'on') {
+      if (['smoke', 'gas', 'moisture', 'safety'].includes(deviceClass)) add('critical', `${entityId} reports an active ${deviceClass} condition`);
+      else if (['problem', 'tamper', 'door', 'garage_door', 'window'].includes(deviceClass)) add('warning', `${entityId} reports an active ${deviceClass} condition`);
     }
-    if ((domain === 'lock' && state === 'unlocked') || (domain === 'cover' && ['open', 'opening'].includes(state))) {
-      reasons.push(`${entityId} is ${state}`);
-    }
-    if (domain === 'alarm_control_panel' && !['disarmed', 'armed_home', 'armed_away', 'armed_night'].includes(state)) {
-      reasons.push(`${entityId} is in alarm state ${state}`);
-    }
-    if (domain === 'sensor' && lowBattery(entity)) reasons.push(`${entityId} has a low battery`);
-    if (domain === 'climate' && climateProblem(entity)) reasons.push(`${entityId} reports a climate problem`);
+    if ((domain === 'lock' && state === 'unlocked') || (domain === 'cover' && ['open', 'opening'].includes(state))) add('warning', `${entityId} is ${state}`);
+    if (domain === 'alarm_control_panel' && !['disarmed', 'armed_home', 'armed_away', 'armed_night'].includes(state)) add('critical', `${entityId} is in alarm state ${state}`);
+    if (domain === 'sensor' && lowBattery(entity)) add('warning', `${entityId} has a low battery`);
+    if (domain === 'climate' && climateProblem(entity)) add('warning', `${entityId} reports a climate problem`);
   }
 
-  return { urgent: reasons.length > 0, reasons };
+  return { urgent: severity !== 'normal', severity, reasons };
 }
 
 export function buildAutomaticDashboardIntelligenceContext(
@@ -100,7 +95,6 @@ export function buildAutomaticDashboardIntelligenceContext(
   const now = options.now ?? Date.now();
   const usageById = new Map(countDashboardInteractions(options.interactions ?? [], now).map((signal) => [signal.itemId, signal]));
   const states = options.states ?? {};
-
   const usage = document.items.map((item) => {
     const existing = usageById.get(item.id);
     const urgency = deriveDashboardItemUrgency(item, states);
@@ -109,28 +103,15 @@ export function buildAutomaticDashboardIntelligenceContext(
       interactions30d: existing?.interactions30d ?? 0,
       lastUsedAt: existing?.lastUsedAt,
       urgent: urgency.urgent,
+      severity: urgency.severity,
     } satisfies DashboardUsageSignal;
   });
-
-  return {
-    device: options.device,
-    daypart: deriveDashboardDaypart(now),
-    now,
-    usage,
-  };
+  return { device: options.device, daypart: deriveDashboardDaypart(now), now, usage };
 }
 
 function itemEntityIds(item: FrakonGridItem): string[] {
-  const values: unknown[] = [
-    item.card.entity,
-    item.card.entity_id,
-    item.card.camera_entity,
-    item.card.battery_entity,
-    item.card.range_entity,
-    item.card.charging_entity,
-  ];
+  const values: unknown[] = [item.card.entity, item.card.entity_id, item.card.camera_entity, item.card.battery_entity, item.card.range_entity, item.card.charging_entity];
   if (Array.isArray(item.card.entities)) values.push(...item.card.entities);
-
   const ids = new Set<string>();
   for (const value of values) {
     if (typeof value === 'string' && value.includes('.')) ids.add(value);
@@ -140,10 +121,6 @@ function itemEntityIds(item: FrakonGridItem): string[] {
     }
   }
   return [...ids];
-}
-
-function urgentBinaryDeviceClass(value: unknown): boolean {
-  return ['moisture', 'smoke', 'gas', 'safety', 'problem', 'tamper', 'door', 'garage_door', 'window'].includes(String(value ?? ''));
 }
 
 function lowBattery(entity: HomeAssistantStateLike): boolean {
