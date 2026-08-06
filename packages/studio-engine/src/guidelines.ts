@@ -37,11 +37,24 @@ function anchors(rect: TransformRect, axis: GuidelineAxis): AxisAnchor[] {
   ];
 }
 
-function overlapsPerpendicularAxis(a: TransformRect, b: TransformRect, axis: GuidelineAxis): boolean {
-  if (axis === 'x') {
-    return a.y < b.y + b.height && a.y + a.height > b.y;
-  }
-  return a.x < b.x + b.width && a.x + a.width > b.x;
+function perpendicularGap(a: TransformRect, b: TransformRect, axis: GuidelineAxis): number {
+  const aStart = axis === 'x' ? a.y : a.x;
+  const aSize = axis === 'x' ? a.height : a.width;
+  const bStart = axis === 'x' ? b.y : b.x;
+  const bSize = axis === 'x' ? b.height : b.width;
+  const aEnd = aStart + aSize;
+  const bEnd = bStart + bSize;
+  if (aStart < bEnd && aEnd > bStart) return 0;
+  return Math.max(bStart - aEnd, aStart - bEnd, 0);
+}
+
+function isPerpendicularlyRelevant(
+  a: TransformRect,
+  b: TransformRect,
+  axis: GuidelineAxis,
+  threshold: number,
+): boolean {
+  return perpendicularGap(a, b, axis) <= threshold;
 }
 
 function isAdjacentEdgePair(source: AxisAnchor, target: AxisAnchor): boolean {
@@ -61,7 +74,7 @@ function bestAxisSnap(
 
   for (const source of moving) {
     for (const target of stationary) {
-      if (!overlapsPerpendicularAxis(source, target, axis)) continue;
+      if (!isPerpendicularlyRelevant(source, target, axis, threshold)) continue;
 
       for (const sourceAnchor of anchors(source, axis)) {
         for (const targetAnchor of anchors(target, axis)) {
@@ -112,8 +125,8 @@ function spacingGuidelines(
   for (let index = 0; index < ordered.length - 1; index += 1) {
     const first = ordered[index];
     const second = ordered[index + 1];
-    if (!overlapsPerpendicularAxis(source, first, axis)
-      || !overlapsPerpendicularAxis(source, second, axis)) continue;
+    if (!isPerpendicularlyRelevant(source, first, axis, threshold)
+      || !isPerpendicularlyRelevant(source, second, axis, threshold)) continue;
 
     const gap = second[startKey] - (first[startKey] + first[sizeKey]);
     if (gap < 0) continue;
