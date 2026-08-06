@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { createDashboardEmergencyFocusState } from '../../../src/dashboard/dashboard-emergency-focus';
 import type { DashboardDeviceContext, DashboardIntelligenceContext } from '../../../src/dashboard/dashboard-intelligence';
 import type { DashboardIntelligenceUrgencyDiagnostic } from '../../../src/dashboard/dashboard-intelligence-stabilizer';
 import type { DashboardInteractionTracker } from '../../../src/dashboard/dashboard-interaction-tracker';
@@ -9,6 +10,7 @@ import type {
   FrakonDashboardIntelligenceContextChangedDetail,
   FrakonDashboardIntelligenceStabilizationStatusDetail,
 } from './dashboard-intelligence-signal-bridge';
+import './dashboard-emergency-focus-bridge';
 import './dashboard-intelligence-safe-panel';
 import './dashboard-intelligence-signal-bridge';
 
@@ -21,6 +23,7 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
   @property({ type: Number }) urgencyConfirmMs = 5_000;
   @property({ type: Number }) urgencyReleaseMs = 15_000;
   @property({ type: Number }) minimumEmissionIntervalMs = 2_000;
+  @property({ type: Boolean }) emergencyAutoFocus = true;
 
   @state() private automaticContext?: DashboardIntelligenceContext;
   @state() private diagnostics: DashboardIntelligenceUrgencyDiagnostic[] = [];
@@ -70,7 +73,7 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
 
     return html`
       <div class="status" aria-live="polite">
-        ${critical > 0 ? html`<span class="pill critical">${critical} critical</span>` : nothing}
+        ${critical > 0 ? html`<span class="pill critical">${critical} critical · Emergency Focus active</span>` : nothing}
         ${stableUrgent > 0 ? html`<span class="pill stable">${stableUrgent} urgent</span>` : nothing}
         ${confirming > 0 ? html`<span class="pill confirming">${confirming} confirming</span>` : nothing}
         ${cooldown > 0 ? html`<span class="pill cooldown">${cooldown} cooling down</span>` : nothing}
@@ -80,6 +83,9 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
   }
 
   render() {
+    const emergencyFocus = this.document
+      ? createDashboardEmergencyFocusState(this.document, this.automaticContext)
+      : undefined;
     return html`
       <frakon-dashboard-intelligence-signal-bridge
         .hass=${this.hass}
@@ -92,6 +98,11 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
         @frakon-dashboard-intelligence-context-changed=${this.onContextChanged}
         @frakon-dashboard-intelligence-stabilization-status=${this.onStabilizationStatus}
       ></frakon-dashboard-intelligence-signal-bridge>
+      <frakon-dashboard-emergency-focus-bridge
+        .focus=${emergencyFocus}
+        .document=${this.document}
+        .autoFocus=${this.emergencyAutoFocus}
+      ></frakon-dashboard-emergency-focus-bridge>
       ${this.renderStatus()}
       <frakon-dashboard-intelligence-safe-panel
         .document=${this.document}
