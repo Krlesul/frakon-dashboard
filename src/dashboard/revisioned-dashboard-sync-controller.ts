@@ -1,9 +1,11 @@
 import {
   createDashboardConflictSession,
+  resolveDashboardConflictSelections,
   resolveDashboardConflictSession,
   type DashboardConflictChoice,
   type DashboardConflictSession,
 } from './dashboard-conflict-coordinator';
+import type { DashboardConflictSelections } from './dashboard-selective-conflict-resolution';
 import type { DashboardRevisionEnvelope } from './dashboard-revision';
 import type { FrakonDashboardDocument } from './layout-model';
 import type { RevisionedDashboardStorage } from './revisioned-dashboard-storage';
@@ -59,8 +61,7 @@ export class RevisionedDashboardSyncController {
     try {
       const result = await this.storage.save(document, this.state.envelope);
       if (result.status === 'saved' && result.envelope) {
-        this.baseEnvelope = result.envelope;
-        this.patchState({ envelope: result.envelope, conflict: undefined });
+        this.acceptEnvelope(result.envelope);
         return result.envelope;
       }
 
@@ -81,14 +82,34 @@ export class RevisionedDashboardSyncController {
     const conflict = this.state.conflict;
     if (!conflict) return this.state.envelope;
     const resolved = resolveDashboardConflictSession(conflict, choice, this.clientId, this.now());
+    return this.persistResolvedConflict(conflict, resolved);
+  }
+
+  async resolveConflictSelections(
+    selections: DashboardConflictSelections,
+  ): Promise<DashboardRevisionEnvelope | undefined> {
+    const conflict = this.state.conflict;
+    if (!conflict) return this.state.envelope;
+    try {
+      const resolved = resolveDashboardConflictSelections(conflict, selections, this.clientId, this.now());
+      return await this.persistResolvedConflict(conflict, resolved);
+    } catch (error) {
+      this.patchState({ error: toError(error) });
+      return undefined;
+    }
+  }
+
+  private async persistResolvedConflict(
+    conflict: DashboardConflictSession,
+    resolved: DashboardRevisionEnvelope,
+  ): Promise<DashboardRevisionEnvelope | undefined> {
     this.patchState({ saving: true, error: undefined });
     try {
       const result = await this.storage.save(resolved.document, conflict.comparison.remote);
       if (result.status !== 'saved' || !result.envelope) {
         throw new Error('Dashboard changed again while resolving the conflict. Reload and try again.');
       }
-      this.baseEnvelope = result.envelope;
-      this.patchState({ envelope: result.envelope, conflict: undefined });
+      this.acceptEnvelope(result.envelope);
       return result.envelope;
     } catch (error) {
       this.patchState({ error: toError(error) });
@@ -96,6 +117,11 @@ export class RevisionedDashboardSyncController {
     } finally {
       this.patchState({ saving: false });
     }
+  }
+
+  private acceptEnvelope(envelope: DashboardRevisionEnvelope): void {
+    this.baseEnvelope = envelope;
+    this.patchState({ envelope, conflict: undefined });
   }
 
   private patchState(patch: Partial<RevisionedDashboardSyncState>): void {
