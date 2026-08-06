@@ -2,6 +2,7 @@ import { LitElement, css, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { SurfaceStyle } from '../../../packages/design-system/src/surface-style';
 import type { SelectionState } from '../../../packages/studio-engine/src/selection';
+import { solveDashboardConstraints } from '../../../src/dashboard/constraint-solver';
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 import {
   applySurfaceStyleToTarget,
@@ -12,6 +13,7 @@ import { resolveGridItemSurface } from '../../../src/dashboard/surface-style-res
 import type { FrakonConstraintDocumentChangedDetail } from './constraint-inspector';
 import type { FrakonSurfaceStyleChangedDetail } from './surface-style-editor';
 import './constraint-inspector';
+import './constraint-preview-bridge';
 import './surface-style-editor';
 
 export interface FrakonStudioDocumentChangedDetail {
@@ -29,6 +31,7 @@ export class FrakonSurfaceInspector extends LitElement {
   @property({ attribute: false }) selection: SelectionState = { ids: [] };
   @property() mode: InspectorMode = 'auto';
   @state() private activeTab: InspectorTab = 'appearance';
+  @state() private canvasPreviewVisible = true;
 
   static styles = css`
     :host { display:block; }
@@ -52,6 +55,17 @@ export class FrakonSurfaceInspector extends LitElement {
       font-weight:650;
       letter-spacing:.01em;
     }
+    .preview-toggle {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 12px;
+      border:1px solid rgb(105 167 255 / 16%);
+      border-radius:12px;
+      background:rgb(105 167 255 / 6%);
+    }
+    .preview-toggle span { font-size:12px; opacity:.72; }
     .reset { justify-self:start; }
   `;
 
@@ -126,6 +140,29 @@ export class FrakonSurfaceInspector extends LitElement {
     `;
   }
 
+  private renderConstraints() {
+    const preview = this.document ? solveDashboardConstraints(this.document).document : undefined;
+    return html`
+      <div class="preview-toggle">
+        <span>Show proposed card positions directly on the canvas.</span>
+        <button
+          aria-pressed=${this.canvasPreviewVisible}
+          @click=${() => { this.canvasPreviewVisible = !this.canvasPreviewVisible; }}
+        >${this.canvasPreviewVisible ? 'Hide canvas preview' : 'Show canvas preview'}</button>
+      </div>
+      <frakon-constraint-preview-bridge
+        .source=${this.document}
+        .preview=${preview}
+        .visible=${this.canvasPreviewVisible && this.activeTab === 'constraints'}
+      ></frakon-constraint-preview-bridge>
+      <frakon-constraint-inspector
+        .document=${this.document}
+        .selection=${this.selection}
+        @frakon-constraint-document-changed=${this.onConstraintDocumentChanged}
+      ></frakon-constraint-inspector>
+    `;
+  }
+
   render() {
     return html`
       <section class="shell">
@@ -146,13 +183,7 @@ export class FrakonSurfaceInspector extends LitElement {
           >Layout rules</button>
         </div>
 
-        ${this.activeTab === 'appearance' ? this.renderAppearance() : html`
-          <frakon-constraint-inspector
-            .document=${this.document}
-            .selection=${this.selection}
-            @frakon-constraint-document-changed=${this.onConstraintDocumentChanged}
-          ></frakon-constraint-inspector>
-        `}
+        ${this.activeTab === 'appearance' ? this.renderAppearance() : this.renderConstraints()}
       </section>
     `;
   }
