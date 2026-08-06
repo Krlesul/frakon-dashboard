@@ -4,18 +4,18 @@ import { DashboardStorageController } from './dashboard-storage-controller';
 import type { DashboardStorageAdapter } from './dashboard-storage';
 import type { FrakonDashboardDocument } from './layout-model';
 
-function dashboard(id: string, x = 0): FrakonDashboardDocument {
+function dashboard(id: string, revision = 0): FrakonDashboardDocument {
   return {
     version: 1,
     id,
-    name: id,
+    name: `${id}-${revision}`,
     columns: 12,
     rowHeight: 80,
     gap: 12,
     items: [
       {
         id: 'card',
-        x,
+        x: 0,
         y: 0,
         w: 2,
         h: 2,
@@ -54,7 +54,7 @@ describe('DashboardAutosaveController', () => {
     await autosave.flush();
 
     expect(adapter.saved).toHaveLength(1);
-    expect(adapter.saved[0]?.items[0]?.x).toBe(2);
+    expect(adapter.saved[0]?.name).toBe('home-2');
     expect(autosave.currentState.pending).toBe(false);
     expect(autosave.currentState.lastSavedAt).toBeTypeOf('number');
     autosave.dispose();
@@ -70,7 +70,7 @@ describe('DashboardAutosaveController', () => {
     await autosave.flush();
 
     expect(adapter.saved).toHaveLength(1);
-    expect(adapter.saved[0]?.items[0]?.x).toBe(3);
+    expect(adapter.saved[0]?.name).toBe('home-3');
     autosave.dispose();
     vi.useRealTimers();
   });
@@ -89,7 +89,7 @@ describe('DashboardAutosaveController', () => {
     await firstFlush;
     await autosave.flush();
 
-    expect(adapter.saved.map((entry) => entry.items[0]?.x)).toEqual([1, 4]);
+    expect(adapter.saved.map((entry) => entry.name)).toEqual(['home-1', 'home-4']);
     autosave.dispose();
   });
 
