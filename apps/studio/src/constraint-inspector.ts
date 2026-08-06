@@ -1,6 +1,10 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { ConstraintKind, LayoutConstraint } from '../../../packages/studio-engine/src/constraints';
+import type {
+  ConstraintDiagnostic,
+  ConstraintKind,
+  LayoutConstraint,
+} from '../../../packages/studio-engine/src/constraints';
 import type { SelectionState } from '../../../packages/studio-engine/src/selection';
 import {
   addConstraint,
@@ -9,6 +13,7 @@ import {
   setConstraintPriority,
   updateConstraint,
 } from '../../../src/dashboard/constraint-actions';
+import { solveDashboardConstraints } from '../../../src/dashboard/constraint-solver';
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 
 export interface FrakonConstraintDocumentChangedDetail {
@@ -39,6 +44,7 @@ export class FrakonConstraintInspector extends LitElement {
   @state() private kind: ConstraintKind = 'below';
   @state() private gap = 1;
   @state() private priority = 50;
+  @state() private previewEnabled = true;
 
   static styles = css`
     :host { display:block; }
@@ -49,15 +55,27 @@ export class FrakonConstraintInspector extends LitElement {
     select,input,button { font:inherit; color:inherit; }
     select,input { box-sizing:border-box; width:100%; padding:9px 10px; border:1px solid rgb(255 255 255 / 12%); border-radius:10px; background:rgb(13 18 28 / 78%); }
     button { border:1px solid rgb(105 167 255 / 36%); border-radius:10px; padding:9px 12px; background:rgb(105 167 255 / 15%); cursor:pointer; }
+    button.primary { background:rgb(105 167 255 / 25%); border-color:rgb(105 167 255 / 56%); font-weight:700; }
     button.danger { border-color:rgb(255 92 114 / 35%); background:rgb(255 92 114 / 12%); }
     button:disabled { opacity:.45; cursor:not-allowed; }
-    .constraint-list { display:grid; gap:8px; }
+    .constraint-list,.preview,.diagnostics { display:grid; gap:8px; }
     .constraint { display:grid; gap:8px; padding:10px; border:1px solid rgb(255 255 255 / 9%); border-radius:12px; background:rgb(255 255 255 / 3%); }
     .row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .meta { font-size:12px; opacity:.65; }
     .actions { display:flex; flex-wrap:wrap; gap:6px; }
     .empty { opacity:.62; font-size:13px; }
-    @media (max-width:560px) { .grid { grid-template-columns:1fr; } }
+    .preview { padding:12px; border:1px solid rgb(105 167 255 / 20%); border-radius:14px; background:rgb(105 167 255 / 7%); }
+    .preview-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+    .metric { display:grid; gap:3px; padding:9px; border-radius:10px; background:rgb(255 255 255 / 4%); }
+    .metric strong { font-size:16px; }
+    .diagnostic { padding:8px 10px; border-radius:10px; font-size:12px; background:rgb(255 255 255 / 4%); }
+    .diagnostic.applied { border-left:3px solid #5fd39a; }
+    .diagnostic.locked { border-left:3px solid #ffcf66; }
+    .diagnostic.missing-item { border-left:3px solid #ff5c72; }
+    .diagnostic.skipped { border-left:3px solid #9aa7bd; }
+    @media (max-width:560px) {
+      .grid,.preview-summary { grid-template-columns:1fr; }
+    }
   `;
 
   protected updated(): void {
@@ -115,10 +133,28 @@ export class FrakonConstraintInspector extends LitElement {
     this.emitDocument(removeConstraint(this.document, id), id);
   }
 
+  private applyLayoutRules(): void {
+    if (!this.document) return;
+    const solved = solveDashboardConstraints(this.document);
+    this.emitDocument(solved.document);
+  }
+
   private itemLabel(id: string): string {
     const item = this.document?.items.find((entry) => entry.id === id);
     const name = item && typeof item.card.name === 'string' ? item.card.name : undefined;
     return name ?? id;
+  }
+
+  private changedItemCount(document: FrakonDashboardDocument, solved: FrakonDashboardDocument): number {
+    const solvedById = new Map(solved.items.map((item) => [item.id, item]));
+    return document.items.filter((item) => {
+      const next = solvedById.get(item.id);
+      return next && (next.x !== item.x || next.y !== item.y || next.w !== item.w || next.h !== item.h);
+    }).length;
+  }
+
+  private renderDiagnostic(diagnostic: ConstraintDiagnostic) {
+    return html`<div class=${`diagnostic ${diagnostic.status}`}><strong>${diagnostic.status}</strong> · ${diagnostic.message}</div>`;
   }
 
   private renderConstraint(constraint: LayoutConstraint) {
@@ -154,6 +190,10 @@ export class FrakonConstraintInspector extends LitElement {
     const items = document.items;
     const canCreate = items.length > 1 && this.sourceId !== this.targetId;
     const constraints = document.constraints ?? [];
+    const solved = solveDashboardConstraints(document);
+    const changedItems = this.changedItemCount(document, solved.document);
+    const applied = solved.diagnostics.filter((entry) => entry.status === 'applied').length;
+    const warnings = solved.diagnostics.filter((entry) => entry.status !== 'applied').length;
 
     return html`
       <section class="shell">
@@ -194,6 +234,31 @@ export class FrakonConstraintInspector extends LitElement {
           ${constraints.length > 0 ? constraints.map((constraint) => this.renderConstraint(constraint)) : nothing}
           ${constraints.length === 0 ? html`<p class="empty">No constraints configured.</p>` : nothing}
         </div>
+
+        <section class="preview">
+          <div class="row">
+            <div>
+              <h4>Layout preview</h4>
+              <p class="meta">Inspect the result before applying positions and sizes.</p>
+            </div>
+            <button aria-pressed=${this.previewEnabled} @click=${() => { this.previewEnabled = !this.previewEnabled; }}>
+              ${this.previewEnabled ? 'Hide details' : 'Show details'}
+            </button>
+          </div>
+          <div class="preview-summary">
+            <div class="metric"><strong>${changedItems}</strong><span class="meta">cards changed</span></div>
+            <div class="metric"><strong>${applied}</strong><span class="meta">rules applied</span></div>
+            <div class="metric"><strong>${warnings}</strong><span class="meta">warnings</span></div>
+          </div>
+          ${this.previewEnabled ? html`
+            <div class="diagnostics">
+              ${solved.diagnostics.length > 0 ? solved.diagnostics.map((entry) => this.renderDiagnostic(entry)) : html`<p class="empty">No active rules to preview.</p>`}
+            </div>
+          ` : nothing}
+          <button class="primary" ?disabled=${constraints.length === 0 || changedItems === 0} @click=${this.applyLayoutRules}>
+            Apply layout rules
+          </button>
+        </section>
       </section>
     `;
   }
