@@ -9,7 +9,7 @@ import type {
   FrakonDashboardIntelligenceContextChangedDetail,
   FrakonDashboardIntelligenceStabilizationStatusDetail,
 } from './dashboard-intelligence-signal-bridge';
-import './dashboard-intelligence-panel';
+import './dashboard-intelligence-safe-panel';
 import './dashboard-intelligence-signal-bridge';
 
 @customElement('frakon-dashboard-intelligence-live-panel')
@@ -44,6 +44,7 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
     .confirming { color:#9ec8ff; }
     .cooldown { color:#ffc27a; }
     .stable { color:#8be1b4; }
+    .critical { color:#ff8f8f; background:rgb(255 91 91 / 12%); }
     .next { margin-left:auto; opacity:.65; font-weight:500; }
   `;
 
@@ -60,6 +61,7 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
     const confirming = this.diagnostics.filter((diagnostic) => diagnostic.phase === 'confirming').length;
     const cooldown = this.diagnostics.filter((diagnostic) => diagnostic.phase === 'cooldown').length;
     const stableUrgent = this.diagnostics.filter((diagnostic) => diagnostic.phase === 'stable' && diagnostic.stableUrgent).length;
+    const critical = this.diagnostics.filter((diagnostic) => diagnostic.stableUrgent && diagnostic.severity === 'critical').length;
     if (confirming === 0 && cooldown === 0 && stableUrgent === 0) return nothing;
 
     const nextSeconds = this.nextEvaluationAt === undefined
@@ -68,6 +70,7 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
 
     return html`
       <div class="status" aria-live="polite">
+        ${critical > 0 ? html`<span class="pill critical">${critical} critical</span>` : nothing}
         ${stableUrgent > 0 ? html`<span class="pill stable">${stableUrgent} urgent</span>` : nothing}
         ${confirming > 0 ? html`<span class="pill confirming">${confirming} confirming</span>` : nothing}
         ${cooldown > 0 ? html`<span class="pill cooldown">${cooldown} cooling down</span>` : nothing}
@@ -90,10 +93,10 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
         @frakon-dashboard-intelligence-stabilization-status=${this.onStabilizationStatus}
       ></frakon-dashboard-intelligence-signal-bridge>
       ${this.renderStatus()}
-      <frakon-dashboard-intelligence-panel
+      <frakon-dashboard-intelligence-safe-panel
         .document=${this.document}
         .automaticContext=${this.automaticContext}
-      ></frakon-dashboard-intelligence-panel>
+      ></frakon-dashboard-intelligence-safe-panel>
     `;
   }
 }
