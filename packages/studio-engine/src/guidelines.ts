@@ -138,8 +138,10 @@ export function computeSmartGuidelines(
   const xSpacing = spacingGuidelines(moving, stationary, 'x', threshold);
   const ySpacing = spacingGuidelines(moving, stationary, 'y', threshold);
 
-  const useXSpacing = xSpacing && Math.abs(xSpacing.delta) < Math.abs(xSnap.delta || Number.POSITIVE_INFINITY);
-  const useYSpacing = ySpacing && Math.abs(ySpacing.delta) < Math.abs(ySnap.delta || Number.POSITIVE_INFINITY);
+  // Prefer an equal-spacing guide when it is at least as close as an edge/center guide.
+  // This keeps the movement deterministic while exposing the more informative intent.
+  const useXSpacing = xSpacing && Math.abs(xSpacing.delta) <= Math.abs(xSnap.delta || Number.POSITIVE_INFINITY);
+  const useYSpacing = ySpacing && Math.abs(ySpacing.delta) <= Math.abs(ySnap.delta || Number.POSITIVE_INFINITY);
 
   const xResult = useXSpacing ? xSpacing : xSnap;
   const yResult = useYSpacing ? ySpacing : ySnap;
