@@ -25,7 +25,7 @@ export class FrakonDashboardConflictCanvasBridge extends LitElement {
   private studioCanvas(): HTMLElement | undefined {
     let root: Node = this.getRootNode();
     while (root instanceof ShadowRoot) {
-      const canvas = root.querySelector<HTMLElement>('frakon-studio-canvas');
+      const canvas = findStudioCanvas(root);
       if (canvas) return canvas;
       root = root.host.getRootNode();
     }
@@ -53,6 +53,18 @@ export class FrakonDashboardConflictCanvasBridge extends LitElement {
   render() {
     return nothing;
   }
+}
+
+function findStudioCanvas(root: ParentNode): HTMLElement | undefined {
+  const direct = root.querySelector<HTMLElement>('frakon-studio-canvas');
+  if (direct) return direct;
+
+  for (const element of root.querySelectorAll<HTMLElement>('*')) {
+    if (!element.shadowRoot) continue;
+    const nested = findStudioCanvas(element.shadowRoot);
+    if (nested) return nested;
+  }
+  return undefined;
 }
 
 declare global {
