@@ -37,6 +37,18 @@ function anchors(rect: TransformRect, axis: GuidelineAxis): AxisAnchor[] {
   ];
 }
 
+function overlapsPerpendicularAxis(a: TransformRect, b: TransformRect, axis: GuidelineAxis): boolean {
+  if (axis === 'x') {
+    return a.y < b.y + b.height && a.y + a.height > b.y;
+  }
+  return a.x < b.x + b.width && a.x + a.width > b.x;
+}
+
+function isAdjacentEdgePair(source: AxisAnchor, target: AxisAnchor): boolean {
+  return (source.kind === 'end' && target.kind === 'start')
+    || (source.kind === 'start' && target.kind === 'end');
+}
+
 function bestAxisSnap(
   moving: GuidelineItem[],
   stationary: GuidelineItem[],
@@ -48,19 +60,23 @@ function bestAxisSnap(
   let bestGuidelines: Guideline[] = [];
 
   for (const source of moving) {
-    for (const sourceAnchor of anchors(source, axis)) {
-      for (const target of stationary) {
+    for (const target of stationary) {
+      if (!overlapsPerpendicularAxis(source, target, axis)) continue;
+
+      for (const sourceAnchor of anchors(source, axis)) {
         for (const targetAnchor of anchors(target, axis)) {
           const delta = targetAnchor.position - sourceAnchor.position;
           const distance = Math.abs(delta);
           if (distance > threshold || distance > bestDistance) continue;
 
+          const adjacent = isAdjacentEdgePair(sourceAnchor, targetAnchor);
           const guideline: Guideline = {
             axis,
-            kind: sourceAnchor.kind,
+            kind: adjacent ? 'spacing' : sourceAnchor.kind,
             position: targetAnchor.position,
             sourceId: source.id,
             targetId: target.id,
+            distance: adjacent ? 0 : undefined,
           };
 
           if (distance < bestDistance) {
@@ -96,6 +112,9 @@ function spacingGuidelines(
   for (let index = 0; index < ordered.length - 1; index += 1) {
     const first = ordered[index];
     const second = ordered[index + 1];
+    if (!overlapsPerpendicularAxis(source, first, axis)
+      || !overlapsPerpendicularAxis(source, second, axis)) continue;
+
     const gap = second[startKey] - (first[startKey] + first[sizeKey]);
     if (gap < 0) continue;
 
@@ -138,8 +157,6 @@ export function computeSmartGuidelines(
   const xSpacing = spacingGuidelines(moving, stationary, 'x', threshold);
   const ySpacing = spacingGuidelines(moving, stationary, 'y', threshold);
 
-  // Prefer an equal-spacing guide when it is at least as close as an edge/center guide.
-  // This keeps the movement deterministic while exposing the more informative intent.
   const useXSpacing = xSpacing && Math.abs(xSpacing.delta) <= Math.abs(xSnap.delta || Number.POSITIVE_INFINITY);
   const useYSpacing = ySpacing && Math.abs(ySpacing.delta) <= Math.abs(ySnap.delta || Number.POSITIVE_INFINITY);
 
