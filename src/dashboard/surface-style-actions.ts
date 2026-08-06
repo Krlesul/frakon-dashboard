@@ -57,7 +57,8 @@ export function clearItemSurfaceStyle(
     items: document.items.map((item) => {
       if (!selected.has(item.id)) return item;
       if (item.locked && options.includeLocked !== true) return item;
-      const { surface: _surface, ...rest } = item;
+      const rest = { ...item };
+      delete rest.surface;
       return rest;
     }),
   };
