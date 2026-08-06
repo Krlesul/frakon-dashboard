@@ -16,8 +16,10 @@ import type {
   RevisionedDashboardSyncState,
 } from '../../../src/dashboard/revisioned-dashboard-sync-controller';
 import type { FrakonDashboardConflictResolvedDetail } from './dashboard-conflict-panel';
+import type { FrakonDetailedConflictResolvedDetail } from './dashboard-detailed-conflict-panel';
 import type { FrakonHistoryStudioChangedDetail } from './dashboard-studio-history';
 import './dashboard-conflict-panel';
+import './dashboard-detailed-conflict-panel';
 import './dashboard-studio-history';
 
 export interface FrakonStorageStudioChangedDetail {
@@ -68,6 +70,7 @@ export class FrakonDashboardStudioStorage extends LitElement {
     .dot.error { background:#ff5c72; }
     .label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+    .conflict-stack { display:grid; gap:10px; }
     button {
       border:1px solid rgb(255 255 255 / 12%);
       border-radius:9px;
@@ -220,6 +223,15 @@ export class FrakonDashboardStudioStorage extends LitElement {
 
   private async resolveConflict(event: CustomEvent<FrakonDashboardConflictResolvedDetail>): Promise<void> {
     const envelope = await this.revisionController?.resolveConflict(event.detail.choice as DashboardConflictChoice);
+    this.acceptResolvedEnvelope(envelope);
+  }
+
+  private async resolveDetailedConflict(event: CustomEvent<FrakonDetailedConflictResolvedDetail>): Promise<void> {
+    const envelope = await this.revisionController?.resolveConflictSelections(event.detail.selections);
+    this.acceptResolvedEnvelope(envelope);
+  }
+
+  private acceptResolvedEnvelope(envelope: Awaited<ReturnType<RevisionedDashboardSyncController['resolveConflict']>>): void {
     if (!envelope) return;
     this.activeDocument = structuredClone(envelope.document);
     this.document = structuredClone(envelope.document);
@@ -297,12 +309,22 @@ export class FrakonDashboardStudioStorage extends LitElement {
           </div>
         </div>
         ${conflict ? html`
-          <frakon-dashboard-conflict-panel
-            .local=${conflict.comparison.local}
-            .remote=${conflict.comparison.remote}
-            .merge=${conflict.merge}
-            @frakon-dashboard-conflict-resolved=${this.resolveConflict}
-          ></frakon-dashboard-conflict-panel>
+          <div class="conflict-stack">
+            <frakon-dashboard-conflict-panel
+              .local=${conflict.comparison.local}
+              .remote=${conflict.comparison.remote}
+              .merge=${conflict.merge}
+              @frakon-dashboard-conflict-resolved=${this.resolveConflict}
+            ></frakon-dashboard-conflict-panel>
+            ${conflict.merge.conflicts.length > 0 ? html`
+              <frakon-dashboard-detailed-conflict-panel
+                .local=${conflict.comparison.local}
+                .remote=${conflict.comparison.remote}
+                .merge=${conflict.merge}
+                @frakon-dashboard-detailed-conflict-resolved=${this.resolveDetailedConflict}
+              ></frakon-dashboard-detailed-conflict-panel>
+            ` : nothing}
+          </div>
         ` : nothing}
         ${document ? html`
           <frakon-dashboard-studio-history
