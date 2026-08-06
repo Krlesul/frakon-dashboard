@@ -32,7 +32,8 @@ class ToggleAdapter implements DashboardStorageAdapter {
 const document: FrakonDashboardDocument = {
   version: 1,
   id: 'home',
-  name: 'Home',
+  title: 'Home',
+  breakpoint: 'desktop',
   columns: 12,
   rowHeight: 80,
   gap: 12,
@@ -58,7 +59,7 @@ describe('DashboardSyncCoordinator', () => {
     await coordinator.synchronize();
 
     expect(storage.currentState.pending).toBe(0);
-    expect((await primary.load('home'))?.name).toBe('Home');
+    expect((await primary.load('home'))?.title).toBe('Home');
     coordinator.stop();
   });
 
