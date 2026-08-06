@@ -1,3 +1,5 @@
+import type { SurfaceStyle } from '../../packages/design-system/src/surface-style';
+
 export type FrakonBreakpoint = 'mobile' | 'tablet' | 'desktop' | 'wide';
 
 export interface FrakonGridItem {
@@ -12,6 +14,7 @@ export interface FrakonGridItem {
   maxW?: number;
   maxH?: number;
   locked?: boolean;
+  surface?: SurfaceStyle;
 }
 
 export interface FrakonDashboardDocument {
@@ -22,6 +25,8 @@ export interface FrakonDashboardDocument {
   columns: number;
   rowHeight: number;
   gap: number;
+  surface?: SurfaceStyle;
+  cardSurface?: SurfaceStyle;
   items: FrakonGridItem[];
 }
 
