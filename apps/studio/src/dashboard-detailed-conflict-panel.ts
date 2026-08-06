@@ -28,6 +28,8 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
   @state() private showLocal = true;
   @state() private showRemote = true;
   @state() private showResult = true;
+  @state() private activePath = '';
+  @state() private focusToken = 0;
 
   static styles = css`
     :host { display:block; }
@@ -43,6 +45,7 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
     .swatch.result { border:2px solid #5fd39a; background:rgb(95 211 154 / 15%); }
     .list { display:grid; gap:8px; max-height:420px; overflow:auto; }
     .row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:10px; border-radius:10px; background:rgb(255 255 255 / 5%); }
+    .row.active { box-shadow:0 0 0 1px rgb(105 167 255 / 48%) inset; background:rgb(105 167 255 / 9%); }
     code { display:block; font:600 12px/1.4 ui-monospace,SFMono-Regular,monospace; }
     small { display:block; margin-top:3px; opacity:.58; }
     .values { display:grid; gap:3px; margin-top:7px; font-size:11px; }
@@ -58,10 +61,14 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
   `;
 
   protected willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has('merge')) this.selections = {};
+    if (changed.has('merge')) {
+      this.selections = {};
+      this.activePath = '';
+    }
   }
 
   private select(path: string, side: DashboardConflictSide): void {
+    this.activePath = path;
     this.selections = { ...this.selections, [path]: side };
     this.dispatchEvent(new CustomEvent<FrakonDetailedConflictPreviewChangedDetail>(
       'frakon-dashboard-detailed-conflict-preview-changed',
@@ -71,6 +78,16 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
         composed: true,
       },
     ));
+  }
+
+  private focus(path: string): void {
+    if (!this.cardId(path)) return;
+    this.activePath = path;
+    this.focusToken += 1;
+  }
+
+  private cardId(path: string): string {
+    return /^items\.(.+)$/.exec(path)?.[1] ?? '';
   }
 
   private apply(): void {
@@ -100,6 +117,7 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
     if (!this.local || !this.remote || !this.merge || !session || this.merge.conflicts.length === 0) return nothing;
     const resolved = this.merge.conflicts.filter((conflict) => this.selections[conflict.path]).length;
     const preview = createDashboardConflictPreview(session, this.selections);
+    const activeId = this.cardId(this.activePath);
 
     return html`
       <section class="panel" role="alert">
@@ -109,21 +127,16 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
         </div>
         <div class="legend" aria-label="Conflict preview layers">
           <strong>Canvas layers</strong>
-          <button class=${this.showLocal ? '' : 'layer-off'} @click=${() => { this.showLocal = !this.showLocal; }}>
-            <span class="swatch local"></span>Local
-          </button>
-          <button class=${this.showRemote ? '' : 'layer-off'} @click=${() => { this.showRemote = !this.showRemote; }}>
-            <span class="swatch remote"></span>Home Assistant
-          </button>
-          <button class=${this.showResult ? '' : 'layer-off'} @click=${() => { this.showResult = !this.showResult; }}>
-            <span class="swatch result"></span>Result
-          </button>
+          <button class=${this.showLocal ? '' : 'layer-off'} @click=${() => { this.showLocal = !this.showLocal; }}><span class="swatch local"></span>Local</button>
+          <button class=${this.showRemote ? '' : 'layer-off'} @click=${() => { this.showRemote = !this.showRemote; }}><span class="swatch remote"></span>Home Assistant</button>
+          <button class=${this.showResult ? '' : 'layer-off'} @click=${() => { this.showResult = !this.showResult; }}><span class="swatch result"></span>Result</button>
         </div>
         <div class="list">
           ${this.merge.conflicts.map((conflict) => {
             const presentation = presentDashboardConflict(conflict);
+            const cardId = this.cardId(conflict.path);
             return html`
-              <div class="row">
+              <div class=${`row ${this.activePath === conflict.path ? 'active' : ''}`}>
                 <div>
                   <code>${presentation.label}</code>
                   <small>${conflict.path}</small>
@@ -133,6 +146,7 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
                   </div>
                 </div>
                 <div class="choices">
+                  ${cardId ? html`<button @click=${() => this.focus(conflict.path)}>Focus card</button>` : nothing}
                   <button class=${this.selections[conflict.path] === 'local' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'local')}>Local</button>
                   <button class=${this.selections[conflict.path] === 'remote' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'remote')}>Home Assistant</button>
                 </div>
@@ -151,6 +165,8 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
         .showLocal=${this.showLocal}
         .showRemote=${this.showRemote}
         .showResult=${this.showResult}
+        .activeId=${activeId}
+        .focusToken=${this.focusToken}
       ></frakon-dashboard-conflict-canvas-bridge>
     `;
   }
