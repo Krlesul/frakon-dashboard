@@ -1,6 +1,7 @@
 import { LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { DashboardDeviceContext, DashboardIntelligenceContext } from '../../../src/dashboard/dashboard-intelligence';
+import { DashboardIntelligenceStabilizer } from '../../../src/dashboard/dashboard-intelligence-stabilizer';
 import type { DashboardInteractionTracker } from '../../../src/dashboard/dashboard-interaction-tracker';
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 import {
@@ -19,9 +20,13 @@ export class FrakonDashboardIntelligenceSignalBridge extends LitElement {
   @property({ attribute: false }) tracker?: Pick<DashboardInteractionTracker, 'snapshot'>;
   @property() device: DashboardDeviceContext = 'desktop';
   @property({ type: Number }) refreshIntervalMs = 60_000;
+  @property({ type: Number }) urgencyConfirmMs = 5_000;
+  @property({ type: Number }) urgencyReleaseMs = 15_000;
+  @property({ type: Number }) minimumEmissionIntervalMs = 2_000;
 
   private refreshTimer?: number;
-  private lastSignature = '';
+  private evaluationTimer?: number;
+  private stabilizer = this.createStabilizer();
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -30,12 +35,25 @@ export class FrakonDashboardIntelligenceSignalBridge extends LitElement {
 
   disconnectedCallback(): void {
     this.stopTimer();
+    this.stopEvaluationTimer();
     super.disconnectedCallback();
   }
 
   protected updated(changed: Map<PropertyKey, unknown>): void {
     if (changed.has('refreshIntervalMs')) this.startTimer();
+    if (changed.has('urgencyConfirmMs') || changed.has('urgencyReleaseMs') || changed.has('minimumEmissionIntervalMs')) {
+      this.stabilizer = this.createStabilizer();
+    }
+    if (changed.has('document')) this.stabilizer.reset();
     this.emitContext();
+  }
+
+  private createStabilizer(): DashboardIntelligenceStabilizer {
+    return new DashboardIntelligenceStabilizer({
+      urgencyConfirmMs: this.urgencyConfirmMs,
+      urgencyReleaseMs: this.urgencyReleaseMs,
+      minimumEmissionIntervalMs: this.minimumEmissionIntervalMs,
+    });
   }
 
   private startTimer(): void {
@@ -49,24 +67,37 @@ export class FrakonDashboardIntelligenceSignalBridge extends LitElement {
     this.refreshTimer = undefined;
   }
 
+  private stopEvaluationTimer(): void {
+    if (this.evaluationTimer !== undefined) window.clearTimeout(this.evaluationTimer);
+    this.evaluationTimer = undefined;
+  }
+
+  private scheduleEvaluation(timestamp?: number): void {
+    this.stopEvaluationTimer();
+    if (timestamp === undefined) return;
+    const delay = Math.max(0, timestamp - Date.now());
+    this.evaluationTimer = window.setTimeout(() => {
+      this.evaluationTimer = undefined;
+      this.emitContext();
+    }, delay);
+  }
+
   private emitContext(): void {
     if (!this.document) return;
-    const context = buildDashboardIntelligenceContextFromHass(this.document, this.hass, {
+    const now = Date.now();
+    const raw = buildDashboardIntelligenceContextFromHass(this.document, this.hass, {
       device: this.device,
       tracker: this.tracker,
-      now: Date.now(),
+      now,
     });
-    const signature = JSON.stringify({
-      device: context.device,
-      daypart: context.daypart,
-      usage: context.usage,
-    });
-    if (signature === this.lastSignature) return;
-    this.lastSignature = signature;
+    const result = this.stabilizer.update(raw, now);
+    this.scheduleEvaluation(result.nextEvaluationAt);
+    if (!result.changed) return;
+
     this.dispatchEvent(new CustomEvent<FrakonDashboardIntelligenceContextChangedDetail>(
       'frakon-dashboard-intelligence-context-changed',
       {
-        detail: { context: structuredClone(context) },
+        detail: { context: structuredClone(result.context) },
         bubbles: true,
         composed: true,
       },
