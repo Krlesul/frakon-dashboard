@@ -1,4 +1,5 @@
 import type { SurfaceStyle } from '../../packages/design-system/src/surface-style';
+import type { LayoutConstraint } from '../../packages/studio-engine/src/constraints';
 
 export type FrakonBreakpoint = 'mobile' | 'tablet' | 'desktop' | 'wide';
 
@@ -27,6 +28,7 @@ export interface FrakonDashboardDocument {
   gap: number;
   surface?: SurfaceStyle;
   cardSurface?: SurfaceStyle;
+  constraints?: LayoutConstraint[];
   items: FrakonGridItem[];
 }
 
@@ -81,15 +83,31 @@ export function compactItems(items: FrakonGridItem[], columns: number): FrakonGr
   return placed.sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
+function normalizeConstraints(
+  constraints: LayoutConstraint[] | undefined,
+  items: FrakonGridItem[],
+): LayoutConstraint[] | undefined {
+  if (!constraints) return undefined;
+  const ids = new Set(items.map((item) => item.id));
+  const unique = new Map<string, LayoutConstraint>();
+  for (const constraint of constraints) {
+    if (!constraint.id || !ids.has(constraint.sourceId) || !ids.has(constraint.targetId)) continue;
+    unique.set(constraint.id, structuredClone(constraint));
+  }
+  return [...unique.values()];
+}
+
 export function normalizeDashboard(document: FrakonDashboardDocument): FrakonDashboardDocument {
   const columns = Math.max(1, Math.round(document.columns));
+  const items = document.items.map((item) => clampGridItem(item, columns));
   return {
     ...document,
     version: 1,
     columns,
     rowHeight: Math.max(24, Math.round(document.rowHeight)),
     gap: Math.max(0, Math.round(document.gap)),
-    items: document.items.map((item) => clampGridItem(item, columns)),
+    constraints: normalizeConstraints(document.constraints, items),
+    items,
   };
 }
 
@@ -144,7 +162,13 @@ export function duplicateGridItem(
 export function removeGridItem(document: FrakonDashboardDocument, id: string): FrakonDashboardDocument {
   const target = document.items.find((item) => item.id === id);
   if (target?.locked) return document;
-  return { ...document, items: document.items.filter((item) => item.id !== id) };
+  return normalizeDashboard({
+    ...document,
+    constraints: document.constraints?.filter(
+      (constraint) => constraint.sourceId !== id && constraint.targetId !== id,
+    ),
+    items: document.items.filter((item) => item.id !== id),
+  });
 }
 
 export function setGridItemLocked(document: FrakonDashboardDocument, id: string, locked: boolean): FrakonDashboardDocument {
