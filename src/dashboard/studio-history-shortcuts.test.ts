@@ -18,9 +18,20 @@ describe('resolveStudioHistoryShortcut', () => {
   });
 
   it('ignores shortcuts while editing form controls', () => {
-    const input = document.createElement('input');
-    const textarea = document.createElement('textarea');
-    expect(resolveStudioHistoryShortcut({ key: 'z', ctrlKey: true, target: input })).toBeUndefined();
-    expect(resolveStudioHistoryShortcut({ key: 'z', metaKey: true, target: textarea })).toBeUndefined();
+    expect(resolveStudioHistoryShortcut({
+      key: 'z',
+      ctrlKey: true,
+      target: { tagName: 'INPUT' },
+    })).toBeUndefined();
+    expect(resolveStudioHistoryShortcut({
+      key: 'z',
+      metaKey: true,
+      target: { tagName: 'textarea' },
+    })).toBeUndefined();
+    expect(resolveStudioHistoryShortcut({
+      key: 'z',
+      metaKey: true,
+      target: { isContentEditable: true },
+    })).toBeUndefined();
   });
 });
