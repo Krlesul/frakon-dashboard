@@ -9,5 +9,6 @@ export * from './dashboard-studio-history';
 export * from './dashboard-studio-storage';
 export * from './dashboard-conflict-panel';
 export * from './dashboard-detailed-conflict-panel';
+export * from './dashboard-conflict-canvas-overlay';
 export * from './history-toolbar';
 export * from './guideline-overlay';
