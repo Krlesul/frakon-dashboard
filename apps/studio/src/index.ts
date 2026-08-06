@@ -6,5 +6,6 @@ export * from './constraint-preview-overlay';
 export * from './constraint-preview-bridge';
 export * from './dashboard-studio';
 export * from './dashboard-studio-history';
+export * from './dashboard-studio-storage';
 export * from './history-toolbar';
 export * from './guideline-overlay';
