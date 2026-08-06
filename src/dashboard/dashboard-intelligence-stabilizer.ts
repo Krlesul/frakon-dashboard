@@ -12,10 +12,21 @@ interface UrgencyState {
   stable: boolean;
 }
 
+export type DashboardIntelligenceUrgencyPhase = 'stable' | 'confirming' | 'cooldown';
+
+export interface DashboardIntelligenceUrgencyDiagnostic {
+  itemId: string;
+  observedUrgent: boolean;
+  stableUrgent: boolean;
+  phase: DashboardIntelligenceUrgencyPhase;
+  nextEvaluationAt?: number;
+}
+
 export interface DashboardIntelligenceStabilizerResult {
   context: DashboardIntelligenceContext;
   changed: boolean;
   nextEvaluationAt?: number;
+  diagnostics: DashboardIntelligenceUrgencyDiagnostic[];
 }
 
 export class DashboardIntelligenceStabilizer {
@@ -34,6 +45,8 @@ export class DashboardIntelligenceStabilizer {
 
   update(input: DashboardIntelligenceContext, now = input.now ?? Date.now()): DashboardIntelligenceStabilizerResult {
     const usage = (input.usage ?? []).map((signal) => this.stabilizeSignal(signal, now));
+    this.removeMissingSignals(new Set(usage.map((signal) => signal.itemId)));
+
     const context: DashboardIntelligenceContext = {
       ...structuredClone(input),
       now,
@@ -52,6 +65,7 @@ export class DashboardIntelligenceStabilizer {
       context: changed || !this.lastContext ? context : structuredClone(this.lastContext),
       changed,
       nextEvaluationAt: this.nextEvaluationAt(now),
+      diagnostics: this.diagnostics(now),
     };
   }
 
@@ -78,6 +92,33 @@ export class DashboardIntelligenceStabilizer {
     return { ...signal, urgent: state.stable };
   }
 
+  private removeMissingSignals(present: Set<string>): void {
+    for (const itemId of this.urgency.keys()) {
+      if (!present.has(itemId)) this.urgency.delete(itemId);
+    }
+  }
+
+  private diagnostics(now: number): DashboardIntelligenceUrgencyDiagnostic[] {
+    return [...this.urgency.entries()]
+      .map(([itemId, state]) => {
+        const phase: DashboardIntelligenceUrgencyPhase = state.stable === state.observed
+          ? 'stable'
+          : state.observed
+            ? 'confirming'
+            : 'cooldown';
+        const threshold = state.observed ? this.urgencyConfirmMs : this.urgencyReleaseMs;
+        const nextEvaluationAt = phase === 'stable' ? undefined : state.observedSince + threshold;
+        return {
+          itemId,
+          observedUrgent: state.observed,
+          stableUrgent: state.stable,
+          phase,
+          nextEvaluationAt: nextEvaluationAt && nextEvaluationAt > now ? nextEvaluationAt : undefined,
+        };
+      })
+      .sort((left, right) => left.itemId.localeCompare(right.itemId));
+  }
+
   private nextEvaluationAt(now: number): number | undefined {
     let next: number | undefined;
     for (const state of this.urgency.values()) {
@@ -96,5 +137,15 @@ export class DashboardIntelligenceStabilizer {
 
 function sameContext(left: DashboardIntelligenceContext | undefined, right: DashboardIntelligenceContext): boolean {
   if (!left) return false;
-  return JSON.stringify({ ...left, now: undefined }) === JSON.stringify({ ...right, now: undefined });
+  return JSON.stringify(normalizeContext(left)) === JSON.stringify(normalizeContext(right));
+}
+
+function normalizeContext(context: DashboardIntelligenceContext): DashboardIntelligenceContext {
+  return {
+    ...context,
+    now: undefined,
+    usage: [...(context.usage ?? [])]
+      .map((signal) => ({ ...signal }))
+      .sort((left, right) => left.itemId.localeCompare(right.itemId)),
+  };
 }
