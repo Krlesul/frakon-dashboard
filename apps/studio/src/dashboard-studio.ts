@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { cssRecordToString, surfaceStyleToCss } from '../../../packages/design-system/src/surface-style';
+import { previewMove, type MoveItem } from '../../../packages/studio-engine/src/move';
 import {
   boundsForItems,
   resizeGroup,
@@ -31,6 +32,15 @@ interface ResizeSession {
   source: GroupTransformItem[];
 }
 
+interface MoveSession {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  sourceDocument: FrakonDashboardDocument;
+  sourceItems: MoveItem[];
+  selectedIds: string[];
+}
+
 const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 const COLUMN_WIDTH = 96;
 
@@ -40,8 +50,13 @@ export class FrakonDashboardStudio extends LitElement {
   @state() private selection: SelectionState = { ids: [] };
   @state() private viewportZoom = 1;
   @state() private resizing = false;
+  @state() private moving = false;
+  @state() private collisionIds: string[] = [];
 
   private resizeSession?: ResizeSession;
+  private moveSession?: MoveSession;
+  private readonly windowMove = (event: PointerEvent) => this.continueMove(event);
+  private readonly windowMoveEnd = (event: PointerEvent) => this.endMove(event);
 
   static styles = css`
     :host {
@@ -67,7 +82,15 @@ export class FrakonDashboardStudio extends LitElement {
       position:absolute;
       box-sizing:border-box;
       overflow:hidden;
-      cursor:default;
+      cursor:grab;
+      touch-action:none;
+      transition:box-shadow 120ms ease,filter 120ms ease;
+    }
+    .item:active { cursor:grabbing; }
+    .item.moving { filter:brightness(1.05); }
+    .item.collision {
+      box-shadow:0 0 0 2px #ff5c72,0 14px 42px rgb(255 36 72 / 28%) !important;
+      filter:saturate(1.18);
     }
     .item-content {
       height:100%;
@@ -75,6 +98,7 @@ export class FrakonDashboardStudio extends LitElement {
       display:grid;
       align-content:start;
       gap:8px;
+      pointer-events:none;
     }
     .item-title { font-weight:700; }
     .item-meta { font-size:12px; opacity:.58; }
@@ -97,7 +121,11 @@ export class FrakonDashboardStudio extends LitElement {
       box-shadow:0 0 0 1px rgb(105 167 255 / 18%);
       z-index:20;
     }
-    .selection-box.resizing { border-style:dashed; }
+    .selection-box.resizing,.selection-box.moving { border-style:dashed; }
+    .selection-box.collision {
+      border-color:#ff5c72;
+      box-shadow:0 0 0 1px rgb(255 92 114 / 22%);
+    }
     .resize-handle {
       position:absolute;
       width:12px;
@@ -110,6 +138,7 @@ export class FrakonDashboardStudio extends LitElement {
       touch-action:none;
       transform:translate(-50%,-50%);
     }
+    .selection-box.collision .resize-handle { border-color:#ff5c72; }
     .resize-handle[data-handle='n'] { left:50%; top:0; cursor:ns-resize; }
     .resize-handle[data-handle='ne'] { left:100%; top:0; cursor:nesw-resize; }
     .resize-handle[data-handle='e'] { left:100%; top:50%; cursor:ew-resize; }
@@ -124,6 +153,11 @@ export class FrakonDashboardStudio extends LitElement {
     }
   `;
 
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.removeMoveListeners();
+  }
+
   private emitChanged(): void {
     if (!this.document) return;
     this.dispatchEvent(new CustomEvent<FrakonDashboardStudioChangedDetail>('frakon-dashboard-studio-changed', {
@@ -137,7 +171,7 @@ export class FrakonDashboardStudio extends LitElement {
   }
 
   private onSelectionChanged(event: CustomEvent<FrakonStudioSelectionChangedDetail>): void {
-    if (this.resizing) return;
+    if (this.resizing || this.moving) return;
     this.selection = event.detail.selection;
     this.emitChanged();
   }
@@ -162,13 +196,95 @@ export class FrakonDashboardStudio extends LitElement {
     };
   }
 
+  private itemToMove(item: FrakonGridItem, document: FrakonDashboardDocument): MoveItem {
+    return this.itemToTransform(item, document);
+  }
+
   private selectedTransforms(document: FrakonDashboardDocument): GroupTransformItem[] {
     const ids = new Set(this.selection.ids);
     return document.items.filter((item) => ids.has(item.id)).map((item) => this.itemToTransform(item, document));
   }
 
+  private beginMove(event: PointerEvent, item: FrakonGridItem): void {
+    if (!this.document || event.button !== 0 || this.resizing || item.locked) return;
+    if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const selectedIds = this.selection.ids.includes(item.id) ? [...this.selection.ids] : [item.id];
+    if (!this.selection.ids.includes(item.id)) {
+      this.selection = { ids: selectedIds, anchorId: item.id };
+    }
+
+    this.moveSession = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      sourceDocument: structuredClone(this.document),
+      sourceItems: this.document.items.map((entry) => this.itemToMove(entry, this.document as FrakonDashboardDocument)),
+      selectedIds,
+    };
+    this.moving = true;
+    this.collisionIds = [];
+    window.addEventListener('pointermove', this.windowMove);
+    window.addEventListener('pointerup', this.windowMoveEnd);
+    window.addEventListener('pointercancel', this.windowMoveEnd);
+  }
+
+  private continueMove(event: PointerEvent): void {
+    const session = this.moveSession;
+    if (!session || session.pointerId !== event.pointerId) return;
+    event.preventDefault();
+
+    const zoom = Math.max(0.01, this.viewportZoom);
+    const document = session.sourceDocument;
+    const preview = previewMove(session.sourceItems, session.selectedIds, {
+      x: (event.clientX - session.startX) / zoom,
+      y: (event.clientY - session.startY) / zoom,
+    }, {
+      minX: 0,
+      minY: 0,
+      gridX: COLUMN_WIDTH,
+      gridY: document.rowHeight,
+    });
+    const byId = new Map(preview.items.map((item) => [item.id, item]));
+    this.document = {
+      ...document,
+      items: document.items.map((item) => {
+        const moved = byId.get(item.id);
+        if (!moved || item.locked) return item;
+        return {
+          ...item,
+          x: Math.max(0, Math.round(moved.x / COLUMN_WIDTH)),
+          y: Math.max(0, Math.round(moved.y / document.rowHeight)),
+        };
+      }),
+    };
+    this.collisionIds = preview.collisionIds;
+    this.emitChanged();
+  }
+
+  private endMove(event: PointerEvent): void {
+    const session = this.moveSession;
+    if (!session || session.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    if (this.collisionIds.length > 0) this.document = session.sourceDocument;
+    this.moveSession = undefined;
+    this.moving = false;
+    this.collisionIds = [];
+    this.removeMoveListeners();
+    this.emitChanged();
+  }
+
+  private removeMoveListeners(): void {
+    window.removeEventListener('pointermove', this.windowMove);
+    window.removeEventListener('pointerup', this.windowMoveEnd);
+    window.removeEventListener('pointercancel', this.windowMoveEnd);
+  }
+
   private beginResize(event: PointerEvent, handle: ResizeHandle): void {
-    if (!this.document || event.button !== 0) return;
+    if (!this.document || event.button !== 0 || this.moving) return;
     const source = this.selectedTransforms(this.document);
     if (source.length === 0 || source.every((item) => item.locked)) return;
     event.preventDefault();
@@ -231,8 +347,14 @@ export class FrakonDashboardStudio extends LitElement {
     if (selected.length === 0) return nothing;
     const bounds = boundsForItems(selected);
     const placement = `left:${bounds.x}px;top:${bounds.y}px;width:${bounds.width}px;height:${bounds.height}px`;
+    const classes = [
+      'selection-box',
+      this.resizing ? 'resizing' : '',
+      this.moving ? 'moving' : '',
+      this.collisionIds.length > 0 ? 'collision' : '',
+    ].filter(Boolean).join(' ');
     return html`
-      <div class="selection-box ${this.resizing ? 'resizing' : ''}" style=${placement}>
+      <div class=${classes} style=${placement}>
         ${RESIZE_HANDLES.map((handle) => html`
           <span
             class="resize-handle"
@@ -253,6 +375,8 @@ export class FrakonDashboardStudio extends LitElement {
     }
 
     const rowHeight = document.rowHeight;
+    const collisions = new Set(this.collisionIds);
+    const selected = new Set(this.selection.ids);
     return document.items.map((item) => {
       const style = resolveGridItemSurface(document, item);
       const surfaceCss = cssRecordToString(surfaceStyleToCss(style));
@@ -264,12 +388,18 @@ export class FrakonDashboardStudio extends LitElement {
       ].join(';');
       const cardType = typeof item.card.type === 'string' ? item.card.type : 'card';
       const name = typeof item.card.name === 'string' ? item.card.name : item.id;
+      const classes = [
+        'item',
+        collisions.has(item.id) ? 'collision' : '',
+        this.moving && selected.has(item.id) ? 'moving' : '',
+      ].filter(Boolean).join(' ');
       return html`
         <article
-          class="item"
+          class=${classes}
           data-frakon-id=${item.id}
           style=${`${placement};${surfaceCss}`}
           aria-label=${name}
+          @pointerdown=${(event: PointerEvent) => this.beginMove(event, item)}
         >
           <div class="item-content">
             <span class="item-title">${name}</span>
