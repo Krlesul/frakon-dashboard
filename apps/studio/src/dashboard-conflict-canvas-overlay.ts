@@ -9,6 +9,9 @@ const COLUMN_WIDTH = 96;
 export class FrakonDashboardConflictCanvasOverlay extends LitElement {
   @property({ attribute: false }) preview?: DashboardConflictPreview;
   @property({ attribute: false }) document?: FrakonDashboardDocument;
+  @property({ type: Boolean }) showLocal = true;
+  @property({ type: Boolean }) showRemote = true;
+  @property({ type: Boolean }) showResult = true;
 
   static styles = css`
     :host {
@@ -62,9 +65,13 @@ export class FrakonDashboardConflictCanvasOverlay extends LitElement {
   render() {
     if (!this.preview || !this.document || this.preview.cards.length === 0) return nothing;
     return html`${this.preview.cards.map((card) => html`
-      ${card.local ? this.renderBox(card.local, 'local', `${card.id} · Local`, card.selected === 'remote') : nothing}
-      ${card.remote ? this.renderBox(card.remote, 'remote', `${card.id} · Home Assistant`, card.selected === 'local') : nothing}
-      ${card.selected && card.resolved
+      ${this.showLocal && card.local
+        ? this.renderBox(card.local, 'local', `${card.id} · Local`, card.selected === 'remote')
+        : nothing}
+      ${this.showRemote && card.remote
+        ? this.renderBox(card.remote, 'remote', `${card.id} · Home Assistant`, card.selected === 'local')
+        : nothing}
+      ${this.showResult && card.selected && card.resolved
         ? this.renderBox(card.resolved, 'resolved', `${card.id} · Result`, false)
         : nothing}
     `)}`;
