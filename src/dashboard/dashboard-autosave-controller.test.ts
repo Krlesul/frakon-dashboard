@@ -8,7 +8,8 @@ function dashboard(id: string, revision = 0): FrakonDashboardDocument {
   return {
     version: 1,
     id,
-    name: `${id}-${revision}`,
+    title: `${id}-${revision}`,
+    breakpoint: 'desktop',
     columns: 12,
     rowHeight: 80,
     gap: 12,
@@ -54,7 +55,7 @@ describe('DashboardAutosaveController', () => {
     await autosave.flush();
 
     expect(adapter.saved).toHaveLength(1);
-    expect(adapter.saved[0]?.name).toBe('home-2');
+    expect(adapter.saved[0]?.title).toBe('home-2');
     expect(autosave.currentState.pending).toBe(false);
     expect(autosave.currentState.lastSavedAt).toBeTypeOf('number');
     autosave.dispose();
@@ -70,7 +71,7 @@ describe('DashboardAutosaveController', () => {
     await autosave.flush();
 
     expect(adapter.saved).toHaveLength(1);
-    expect(adapter.saved[0]?.name).toBe('home-3');
+    expect(adapter.saved[0]?.title).toBe('home-3');
     autosave.dispose();
     vi.useRealTimers();
   });
@@ -89,7 +90,7 @@ describe('DashboardAutosaveController', () => {
     await firstFlush;
     await autosave.flush();
 
-    expect(adapter.saved.map((entry) => entry.name)).toEqual(['home-1', 'home-4']);
+    expect(adapter.saved.map((entry) => entry.title)).toEqual(['home-1', 'home-4']);
     autosave.dispose();
   });
 
