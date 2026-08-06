@@ -26,6 +26,7 @@ export function createDashboardConflictPreview(
 ): DashboardConflictPreview {
   const localById = new Map(session.comparison.local.document.items.map((item) => [item.id, item]));
   const remoteById = new Map(session.comparison.remote.document.items.map((item) => [item.id, item]));
+  const mergedById = new Map(session.merge.document.items.map((item) => [item.id, item]));
   const conflictPaths = new Set(session.merge.conflicts.map((conflict) => conflict.path));
   const itemIds = new Set<string>();
 
@@ -34,24 +35,29 @@ export function createDashboardConflictPreview(
     if (match?.[1]) itemIds.add(match[1]);
   }
 
-  let resolvedById = new Map<string, FrakonGridItem>();
   let resolvedDocumentAvailable = false;
   try {
-    const resolved = resolveDashboardConflictSelections(session.merge, selections);
-    resolvedById = new Map(resolved.items.map((item) => [item.id, item]));
+    resolveDashboardConflictSelections(session.merge, selections);
     resolvedDocumentAvailable = true;
   } catch {
-    resolvedById = new Map(session.merge.document.items.map((item) => [item.id, item]));
+    resolvedDocumentAvailable = false;
   }
 
   const cards = [...itemIds].sort().map((id) => {
     const path = `items.${id}`;
+    const selected = selections[path];
+    const resolved = selected === 'local'
+      ? localById.get(id)
+      : selected === 'remote'
+        ? remoteById.get(id)
+        : mergedById.get(id);
+
     return {
       id,
       local: cloneItem(localById.get(id)),
       remote: cloneItem(remoteById.get(id)),
-      resolved: cloneItem(resolvedById.get(id)),
-      selected: selections[path],
+      resolved: cloneItem(resolved),
+      selected,
       conflicted: conflictPaths.has(path),
     } satisfies DashboardConflictPreviewCard;
   });
