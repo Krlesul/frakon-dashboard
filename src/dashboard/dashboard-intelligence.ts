@@ -3,12 +3,14 @@ import type { FrakonDashboardDocument, FrakonGridItem } from './layout-model';
 
 export type DashboardDeviceContext = 'mobile' | 'tablet' | 'wall' | 'desktop';
 export type DashboardDaypart = 'morning' | 'day' | 'evening' | 'night';
+export type DashboardUrgencySeverity = 'normal' | 'warning' | 'critical';
 
 export interface DashboardUsageSignal {
   itemId: string;
   interactions30d?: number;
   lastUsedAt?: number;
   urgent?: boolean;
+  severity?: DashboardUrgencySeverity;
 }
 
 export interface DashboardIntelligenceContext {
@@ -59,8 +61,10 @@ function scoreItem(
   }
 
   if (usage?.urgent) {
-    score += 30;
-    reasons.push('urgent state adds 30 points');
+    const severity = usage.severity ?? 'warning';
+    const boost = severity === 'critical' ? 60 : severity === 'warning' ? 30 : 15;
+    score += boost;
+    reasons.push(`${severity} urgency adds ${boost} points`);
   }
 
   const type = typeof item.card.type === 'string' ? item.card.type : '';
