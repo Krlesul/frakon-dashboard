@@ -10,6 +10,7 @@ import './cards/media/media-player-card';
 import './cards/vehicle/vehicle-card';
 import './dashboard/dashboard-card';
 import './dashboard/dashboard-card-editor';
+import './dashboard/canvas-dashboard-card';
 
 interface CustomCardRegistration {
   type: string;
@@ -34,6 +35,7 @@ window.customCards.push(
   { type: 'frakon-media-player-card', name: 'FRAKON Media Player Card', description: 'Media playback and volume controls.', preview: true },
   { type: 'frakon-vehicle-card', name: 'FRAKON Vehicle Card', description: 'Vehicle battery, range and charging overview.', preview: true },
   { type: 'frakon-dashboard-card', name: 'FRAKON Dashboard Card', description: 'Responsive visual editor with palette, forms, history and configurable persistence.', preview: true },
+  { type: 'frakon-canvas-dashboard-card', name: 'FRAKON Canvas Dashboard (Experimental)', description: 'Experimental free-pixel canvas editor with collision-safe v1-compatible commits.', preview: true },
 );
 
-console.info('%c FRAKON Dashboard %c 0.15.0-alpha.1 ', 'background:#10141c;color:#fff;padding:4px 8px;border-radius:6px 0 0 6px', 'background:#6aa8ff;color:#07101d;padding:4px 8px;border-radius:0 6px 6px 0');
+console.info('%c FRAKON Dashboard %c 0.16.0-alpha.1 ', 'background:#10141c;color:#fff;padding:4px 8px;border-radius:6px 0 0 6px', 'background:#6aa8ff;color:#07101d;padding:4px 8px;border-radius:0 6px 6px 0');
