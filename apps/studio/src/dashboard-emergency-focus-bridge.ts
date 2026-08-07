@@ -1,6 +1,6 @@
 import { LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { DashboardEmergencyFocusState } from '../../../src/dashboard/dashboard-emergency-focus';
+import type { DashboardEmergencyFocusState, DashboardEmergencyFocusTarget } from '../../../src/dashboard/dashboard-emergency-focus';
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 import type { ViewportTransform } from '../../../packages/studio-engine/src/viewport';
 import type { FrakonDashboardEmergencyFocusOverlay } from './dashboard-emergency-focus-overlay';
@@ -14,10 +14,16 @@ export class FrakonDashboardEmergencyFocusBridge extends LitElement {
   @property({ attribute: false }) focus?: DashboardEmergencyFocusState;
   @property({ attribute: false }) document?: FrakonDashboardDocument;
   @property({ type: Boolean }) autoFocus = true;
+  @property() activeItemId = '';
+  @property({ type: Number }) focusToken = 0;
+  @property({ type: Number }) restoreToken = 0;
 
   private overlay?: FrakonDashboardEmergencyFocusOverlay;
   private previousViewport?: ViewportTransform;
   private focusedItemId?: string;
+  private lastFocusToken = -1;
+  private lastRestoreToken = -1;
+  private wasActive = false;
 
   protected updated(): void {
     this.sync();
@@ -31,21 +37,50 @@ export class FrakonDashboardEmergencyFocusBridge extends LitElement {
   private sync(): void {
     if (!this.focus?.active || !this.document) {
       this.deactivate();
+      this.wasActive = false;
       return;
     }
     const canvas = this.studioCanvas();
     if (!canvas) return;
+    if (!this.previousViewport) this.previousViewport = { ...canvas.viewport };
     if (!this.overlay) this.overlay = document.createElement('frakon-dashboard-emergency-focus-overlay');
     this.overlay.focus = this.focus;
     this.overlay.document = this.document;
+    this.overlay.activeItemId = this.currentTarget()?.itemId ?? '';
     if (this.overlay.parentElement !== canvas) canvas.append(this.overlay);
 
-    const primary = this.focus.primary;
-    if (!this.autoFocus || !primary || this.focusedItemId === primary.itemId) return;
-    if (!this.previousViewport) this.previousViewport = { ...canvas.viewport };
-    this.focusedItemId = primary.itemId;
+    if (this.restoreToken !== this.lastRestoreToken) {
+      this.lastRestoreToken = this.restoreToken;
+      if (this.wasActive) this.restorePreviousViewport(canvas);
+    }
+
+    const manualFocusRequested = this.focusToken !== this.lastFocusToken;
+    if (manualFocusRequested) this.lastFocusToken = this.focusToken;
+    const target = this.currentTarget();
+    if (!target) return;
+    const targetChanged = this.focusedItemId !== target.itemId;
+    const entering = !this.wasActive;
+    this.wasActive = true;
+
+    if (manualFocusRequested || targetChanged || (entering && this.autoFocus)) {
+      if (manualFocusRequested || this.autoFocus) this.focusTarget(canvas, target);
+    }
+  }
+
+  private currentTarget(): DashboardEmergencyFocusTarget | undefined {
+    if (!this.focus?.active) return undefined;
+    if (this.activeItemId) {
+      const selected = this.focus.targets.find((target) => target.itemId === this.activeItemId);
+      if (selected) return selected;
+    }
+    return this.focus.primary;
+  }
+
+  private focusTarget(canvas: FrakonStudioCanvas, target: DashboardEmergencyFocusTarget): void {
+    if (!this.document) return;
+    this.focusedItemId = target.itemId;
     const rect = canvas.getBoundingClientRect();
-    const item = primary.item;
+    const item = target.item;
     const itemWidth = item.w * COLUMN_WIDTH - this.document.gap;
     const itemHeight = item.h * this.document.rowHeight - this.document.gap;
     const availableWidth = Math.max(320, rect.width - 96);
@@ -61,16 +96,19 @@ export class FrakonDashboardEmergencyFocusBridge extends LitElement {
     canvas.requestUpdate();
   }
 
+  private restorePreviousViewport(canvas = this.studioCanvas()): void {
+    if (!canvas || !this.previousViewport) return;
+    canvas.viewport = { ...this.previousViewport };
+    canvas.requestUpdate();
+    this.focusedItemId = undefined;
+  }
+
   private deactivate(): void {
     this.overlay?.remove();
     this.focusedItemId = undefined;
-    if (!this.previousViewport) return;
-    const canvas = this.studioCanvas();
-    if (canvas) {
-      canvas.viewport = { ...this.previousViewport };
-      canvas.requestUpdate();
-    }
+    if (this.previousViewport) this.restorePreviousViewport();
     this.previousViewport = undefined;
+    this.wasActive = false;
   }
 
   private studioCanvas(): FrakonStudioCanvas | undefined {
