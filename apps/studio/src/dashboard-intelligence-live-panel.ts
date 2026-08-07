@@ -10,7 +10,7 @@ import type { DashboardDeviceContext, DashboardIntelligenceContext } from '../..
 import type { DashboardIntelligenceUrgencyDiagnostic } from '../../../src/dashboard/dashboard-intelligence-stabilizer';
 import type { DashboardInteractionTracker } from '../../../src/dashboard/dashboard-interaction-tracker';
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
-import type { HomeAssistantLike } from '../../../src/home-assistant/dashboard-intelligence-signal-bridge';
+import { homeAssistantLanguage, type HomeAssistantLike } from '../../../src/home-assistant/dashboard-intelligence-signal-bridge';
 import type {
   FrakonDashboardIntelligenceContextChangedDetail,
   FrakonDashboardIntelligenceStabilizationStatusDetail,
@@ -105,9 +105,10 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
   render() {
     const emergencyFocus = this.emergencyFocus();
     const emergencyItemId = this.currentEmergencyItemId(emergencyFocus);
+    const locale = homeAssistantLanguage(this.hass);
     return html`
       <frakon-dashboard-intelligence-signal-bridge .hass=${this.hass} .document=${this.document} .tracker=${this.tracker} .device=${this.device} .urgencyConfirmMs=${this.urgencyConfirmMs} .urgencyReleaseMs=${this.urgencyReleaseMs} .minimumEmissionIntervalMs=${this.minimumEmissionIntervalMs} @frakon-dashboard-intelligence-context-changed=${this.onContextChanged} @frakon-dashboard-intelligence-stabilization-status=${this.onStabilizationStatus}></frakon-dashboard-intelligence-signal-bridge>
-      <frakon-dashboard-emergency-focus-bridge .focusState=${emergencyFocus} .document=${this.document} .autoFocus=${this.emergencyAutoFocus} .activeItemId=${emergencyItemId} .focusToken=${this.emergencyFocusToken} .restoreToken=${this.emergencyRestoreToken}></frakon-dashboard-emergency-focus-bridge>
+      <frakon-dashboard-emergency-focus-bridge .focusState=${emergencyFocus} .document=${this.document} .autoFocus=${this.emergencyAutoFocus} .activeItemId=${emergencyItemId} .locale=${locale} .focusToken=${this.emergencyFocusToken} .restoreToken=${this.emergencyRestoreToken}></frakon-dashboard-emergency-focus-bridge>
       ${this.renderStatus()}${this.renderEmergencyControls(emergencyFocus)}
       <frakon-dashboard-intelligence-safe-panel .document=${this.document} .automaticContext=${this.automaticContext}></frakon-dashboard-intelligence-safe-panel>
     `;
