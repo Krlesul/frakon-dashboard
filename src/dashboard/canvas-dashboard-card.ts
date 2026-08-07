@@ -139,15 +139,15 @@ export class FrakonCanvasDashboardCard extends LitElement {
       this.capabilitiesError = undefined;
       return;
     }
-    const callWS = this.hass?.callWS;
-    if (!callWS) {
+    const hass = this.hass;
+    if (!hass?.callWS) {
       this.serverCapabilities = undefined;
       this.capabilitiesError = 'Home Assistant WebSocket API is unavailable.';
       return;
     }
     try {
       this.serverCapabilities = await loadDashboardServerCapabilities({
-        request: <T>(command: string, payload: Record<string, unknown>) => callWS<T>({ type: command, ...payload }),
+        request: <T>(command: string, payload: Record<string, unknown>) => hass.callWS!<T>({ type: command, ...payload }),
       });
       this.capabilitiesError = undefined;
     } catch (error) {
