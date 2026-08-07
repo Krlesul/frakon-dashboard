@@ -1,5 +1,6 @@
 import type {
   DashboardDaypart,
+  DashboardEntityMetadata,
   DashboardIntelligenceContext,
   DashboardUrgencySeverity,
   DashboardUsageSignal,
@@ -23,6 +24,7 @@ export interface DashboardIntelligenceSignalOptions {
   device: DashboardIntelligenceContext['device'];
   interactions?: DashboardInteractionRecord[];
   states?: Record<string, HomeAssistantStateLike | undefined>;
+  entityMetadata?: Record<string, DashboardEntityMetadata | undefined>;
 }
 
 export interface DashboardUrgencyResult {
@@ -102,9 +104,15 @@ export function buildAutomaticDashboardIntelligenceContext(
   const now = options.now ?? Date.now();
   const usageById = new Map(countDashboardInteractions(options.interactions ?? [], now).map((signal) => [signal.itemId, signal]));
   const states = options.states ?? {};
+  const metadata = options.entityMetadata ?? {};
   const usage = document.items.map((item) => {
     const existing = usageById.get(item.id);
     const urgency = deriveDashboardItemUrgency(item, states);
+    const sourceEntityMetadata: Record<string, DashboardEntityMetadata> = {};
+    for (const entityId of urgency.sourceEntityIds) {
+      const entry = metadata[entityId];
+      if (entry?.areaName || entry?.deviceName) sourceEntityMetadata[entityId] = { ...entry };
+    }
     return {
       itemId: item.id,
       interactions30d: existing?.interactions30d ?? 0,
@@ -114,6 +122,7 @@ export function buildAutomaticDashboardIntelligenceContext(
       urgencyReasons: urgency.reasons,
       sourceEntityIds: urgency.sourceEntityIds,
       sourceEntityLabels: urgency.sourceEntityLabels,
+      sourceEntityMetadata,
     } satisfies DashboardUsageSignal;
   });
   return { device: options.device, daypart: deriveDashboardDaypart(now), now, usage };
