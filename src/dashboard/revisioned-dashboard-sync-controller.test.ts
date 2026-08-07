@@ -91,4 +91,20 @@ describe('RevisionedDashboardSyncController', () => {
     expect(controller.currentState.envelope?.revision).toBe(resolved.revision);
     expect(storage.saved.at(-1)?.title).toBe('Local');
   });
+
+  it('surfaces a persistence block without fabricating a conflict session', async () => {
+    const storage = new StorageStub();
+    storage.results.push({ status: 'blocked', reason: 'persistence-disabled' });
+    const controller = new RevisionedDashboardSyncController(
+      storage as unknown as RevisionedDashboardStorage,
+      'tablet',
+    );
+    await controller.load('home');
+
+    await controller.save({ ...baseDocument, title: 'Blocked' });
+
+    expect(controller.currentState.conflict).toBeUndefined();
+    expect(controller.currentState.error?.message).toContain('persistence is disabled');
+    expect(controller.currentState.saving).toBe(false);
+  });
 });
