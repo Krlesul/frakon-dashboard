@@ -24,8 +24,9 @@ import type { DashboardIntelligenceUrgencyDiagnostic } from '../../../src/dashbo
 import type { DashboardInteractionTracker } from '../../../src/dashboard/dashboard-interaction-tracker';
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 import { homeAssistantLanguage, type HomeAssistantLike } from '../../../src/home-assistant/dashboard-intelligence-signal-bridge';
-import type { FrakonDashboardEmergencyHistoryImportDetail } from './dashboard-emergency-audit-panel';
+import type { FrakonDashboardEmergencyCardActionDetail, FrakonDashboardEmergencyHistoryImportDetail } from './dashboard-emergency-audit-panel';
 import type { FrakonDashboardIntelligenceContextChangedDetail, FrakonDashboardIntelligenceStabilizationStatusDetail } from './dashboard-intelligence-signal-bridge';
+import './dashboard-card-locator';
 import './dashboard-emergency-audit-panel';
 import './dashboard-emergency-focus-bridge';
 import './dashboard-intelligence-safe-panel';
@@ -49,6 +50,8 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
   @state() private emergencyActiveItemId = '';
   @state() private emergencyFocusToken = 0;
   @state() private emergencyRestoreToken = 0;
+  @state() private locatorItemId = '';
+  @state() private locatorToken = 0;
   @state() private acknowledgedSignatures: string[] = [];
   @state() private emergencyHistory: DashboardEmergencyHistoryState = { active: [], recent: [] };
 
@@ -83,24 +86,26 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
   private refocusEmergencyView():void { this.emergencyFocusToken+=1; }
   private acknowledgeEmergency(focus:DashboardEmergencyFocusState):void { const target=this.currentEmergencyTarget(focus); if(!target)return; const signature=dashboardEmergencyFocusSignature(target); if(!this.acknowledgedSignatures.includes(signature)) this.acknowledgedSignatures=[...this.acknowledgedSignatures,signature]; this.setEmergencyHistory(acknowledgeDashboardEmergencyHistory(this.emergencyHistory,signature,Date.now())); }
 
-  private setEmergencyHistory(history: DashboardEmergencyHistoryState): void {
-    this.emergencyHistory = saveDashboardEmergencyHistory(this.browserStorage(), history, { recentLimit: this.emergencyHistoryLimit });
+  private setEmergencyHistory(history: DashboardEmergencyHistoryState): void { this.emergencyHistory = saveDashboardEmergencyHistory(this.browserStorage(), history, { recentLimit: this.emergencyHistoryLimit }); }
+  private importEmergencyHistory(event: CustomEvent<FrakonDashboardEmergencyHistoryImportDetail>): void { this.setEmergencyHistory(event.detail.history); }
+  private clearEmergencyHistory(): void { clearDashboardEmergencyHistory(this.browserStorage()); this.emergencyHistory = { active: [], recent: [] }; this.acknowledgedSignatures = []; }
+
+  private onAuditCardAction(event: CustomEvent<FrakonDashboardEmergencyCardActionDetail>): void {
+    const { action, itemId, active } = event.detail;
+    if (!this.document?.items.some((item) => item.id === itemId)) return;
+    if (action === 'focus' && active) {
+      const focus = this.emergencyFocus();
+      if (focus.targets.some((target) => target.itemId === itemId)) {
+        this.emergencyActiveItemId = itemId;
+        this.emergencyFocusToken += 1;
+        return;
+      }
+    }
+    this.locatorItemId = itemId;
+    this.locatorToken += 1;
   }
 
-  private importEmergencyHistory(event: CustomEvent<FrakonDashboardEmergencyHistoryImportDetail>): void {
-    this.setEmergencyHistory(event.detail.history);
-  }
-
-  private clearEmergencyHistory(): void {
-    clearDashboardEmergencyHistory(this.browserStorage());
-    this.emergencyHistory = { active: [], recent: [] };
-    this.acknowledgedSignatures = [];
-  }
-
-  private browserStorage(): Storage | undefined {
-    try { return typeof window !== 'undefined' ? window.localStorage : undefined; }
-    catch { return undefined; }
-  }
+  private browserStorage(): Storage | undefined { try { return typeof window !== 'undefined' ? window.localStorage : undefined; } catch { return undefined; } }
 
   private renderStatus(){ const strings=dashboardEmergencyUiStrings(homeAssistantLanguage(this.hass)); const confirming=this.diagnostics.filter((d)=>d.phase==='confirming').length; const cooldown=this.diagnostics.filter((d)=>d.phase==='cooldown').length; const stableUrgent=this.diagnostics.filter((d)=>d.phase==='stable'&&d.stableUrgent).length; const critical=this.diagnostics.filter((d)=>d.stableUrgent&&d.severity==='critical').length; if(confirming===0&&cooldown===0&&stableUrgent===0)return nothing; const nextSeconds=this.nextEvaluationAt===undefined?undefined:Math.max(0,Math.ceil((this.nextEvaluationAt-Date.now())/1000)); return html`<div class="status" aria-live="polite">${critical>0?html`<span class="pill critical">${critical} ${strings.critical} · ${strings.emergencyFocusActive}</span>`:nothing}${stableUrgent>0?html`<span class="pill stable">${stableUrgent} ${strings.urgent}</span>`:nothing}${confirming>0?html`<span class="pill confirming">${confirming} ${strings.confirming}</span>`:nothing}${cooldown>0?html`<span class="pill cooldown">${cooldown} ${strings.coolingDown}</span>`:nothing}${nextSeconds!==undefined?html`<span class="next">${strings.nextCheckIn(nextSeconds)}</span>`:nothing}</div>`; }
 
@@ -108,7 +113,7 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
 
   private renderEmergencyHistory(){ const locale=homeAssistantLanguage(this.hass); const strings=dashboardEmergencyUiStrings(locale); const formatter=new Intl.DateTimeFormat(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'}); const formatDuration=(ms:number)=>{const total=Math.max(0,Math.round(ms/1000));const minutes=Math.floor(total/60);const seconds=total%60;return minutes>0?`${minutes}m ${seconds}s`:`${seconds}s`;}; const active=this.emergencyHistory.active; const recent=this.emergencyHistory.recent.slice(0,5); if(active.length===0&&recent.length===0)return nothing; return html`<section class="history"><h4>${strings.history}</h4><div class="history-list">${active.map((entry)=>html`<div class="history-entry"><strong>${entry.itemId}</strong><small>${strings.activeSince}: ${formatter.format(entry.startedAt)} · ${strings.duration}: ${formatDuration(dashboardEmergencyDuration(entry))}</small>${entry.acknowledgedAt!==undefined?html`<small>${strings.acknowledgedAt}: ${formatter.format(entry.acknowledgedAt)}</small>`:nothing}</div>`)}${recent.length>0?html`<small>${strings.recentEvents}</small>`:html`<small class="history-empty">${strings.noRecentEvents}</small>`}${recent.map((entry)=>html`<div class="history-entry"><strong>${entry.itemId}</strong><small>${strings.endedAt}: ${formatter.format(entry.endedAt!)} · ${strings.duration}: ${formatDuration(entry.durationMs??0)}</small>${entry.acknowledgedAt!==undefined?html`<small>${strings.acknowledgedAt}: ${formatter.format(entry.acknowledgedAt)}</small>`:nothing}</div>`)}</div></section>`; }
 
-  render(){ const emergencyFocus=this.emergencyFocus(); const emergencyItemId=this.currentEmergencyItemId(emergencyFocus); const locale=homeAssistantLanguage(this.hass); return html`<frakon-dashboard-intelligence-signal-bridge .hass=${this.hass} .document=${this.document} .tracker=${this.tracker} .device=${this.device} .urgencyConfirmMs=${this.urgencyConfirmMs} .urgencyReleaseMs=${this.urgencyReleaseMs} .minimumEmissionIntervalMs=${this.minimumEmissionIntervalMs} @frakon-dashboard-intelligence-context-changed=${this.onContextChanged} @frakon-dashboard-intelligence-stabilization-status=${this.onStabilizationStatus}></frakon-dashboard-intelligence-signal-bridge><frakon-dashboard-emergency-focus-bridge .focusState=${emergencyFocus} .document=${this.document} .autoFocus=${this.emergencyAutoFocus} .activeItemId=${emergencyItemId} .locale=${locale} .acknowledgedSignatures=${this.acknowledgedSignatures} .focusToken=${this.emergencyFocusToken} .restoreToken=${this.emergencyRestoreToken}></frakon-dashboard-emergency-focus-bridge>${this.renderStatus()}${this.renderEmergencyControls(emergencyFocus)}${this.renderEmergencyHistory()}<frakon-dashboard-emergency-audit-panel .history=${this.emergencyHistory} .locale=${locale} .recentLimit=${this.emergencyHistoryLimit} @frakon-dashboard-emergency-history-import=${this.importEmergencyHistory} @frakon-dashboard-emergency-history-clear=${()=>this.clearEmergencyHistory()}></frakon-dashboard-emergency-audit-panel><frakon-dashboard-intelligence-safe-panel .document=${this.document} .automaticContext=${this.automaticContext}></frakon-dashboard-intelligence-safe-panel>`; }
+  render(){ const emergencyFocus=this.emergencyFocus(); const emergencyItemId=this.currentEmergencyItemId(emergencyFocus); const locale=homeAssistantLanguage(this.hass); return html`<frakon-dashboard-intelligence-signal-bridge .hass=${this.hass} .document=${this.document} .tracker=${this.tracker} .device=${this.device} .urgencyConfirmMs=${this.urgencyConfirmMs} .urgencyReleaseMs=${this.urgencyReleaseMs} .minimumEmissionIntervalMs=${this.minimumEmissionIntervalMs} @frakon-dashboard-intelligence-context-changed=${this.onContextChanged} @frakon-dashboard-intelligence-stabilization-status=${this.onStabilizationStatus}></frakon-dashboard-intelligence-signal-bridge><frakon-dashboard-emergency-focus-bridge .focusState=${emergencyFocus} .document=${this.document} .autoFocus=${this.emergencyAutoFocus} .activeItemId=${emergencyItemId} .locale=${locale} .acknowledgedSignatures=${this.acknowledgedSignatures} .focusToken=${this.emergencyFocusToken} .restoreToken=${this.emergencyRestoreToken}></frakon-dashboard-emergency-focus-bridge><frakon-dashboard-card-locator .document=${this.document} .itemId=${this.locatorItemId} .locateToken=${this.locatorToken}></frakon-dashboard-card-locator>${this.renderStatus()}${this.renderEmergencyControls(emergencyFocus)}${this.renderEmergencyHistory()}<frakon-dashboard-emergency-audit-panel .history=${this.emergencyHistory} .locale=${locale} .recentLimit=${this.emergencyHistoryLimit} @frakon-dashboard-emergency-history-import=${this.importEmergencyHistory} @frakon-dashboard-emergency-history-clear=${()=>this.clearEmergencyHistory()} @frakon-dashboard-emergency-card-action=${this.onAuditCardAction}></frakon-dashboard-emergency-audit-panel><frakon-dashboard-intelligence-safe-panel .document=${this.document} .automaticContext=${this.automaticContext}></frakon-dashboard-intelligence-safe-panel>`; }
 }
 
 declare global{interface HTMLElementTagNameMap{'frakon-dashboard-intelligence-live-panel':FrakonDashboardIntelligenceLivePanel}}
