@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { FrakonDashboardAnyDocument } from './dashboard-document-codec';
+import { canPersistDashboardDocument } from './dashboard-layout-version-policy';
 import type { DashboardStorageTransport } from './dashboard-storage';
 import { createDashboardRevision, type DashboardRevisionEnvelope } from './dashboard-revision';
 import { RevisionedDashboardStorage } from './revisioned-dashboard-storage';
+import { migrateDashboardV1ToV2 } from './layout-model-v2';
 import type { FrakonDashboardDocument } from './layout-model';
 
 const document: FrakonDashboardDocument = {
@@ -82,5 +85,39 @@ describe('RevisionedDashboardStorage', () => {
       command: 'frakon/dashboard/remove_revision',
       payload: { dashboard_id: 'home', expectedRevision: 'rev-1' },
     });
+  });
+
+  it('blocks version 2 saves before the explicit write capability is enabled', async () => {
+    const transport = new Transport();
+    const v2 = migrateDashboardV1ToV2(document, 1200);
+    const capabilities = { readV2: true, writeV2: false, migrateV1ToV2: true };
+    const storage = new RevisionedDashboardStorage<FrakonDashboardAnyDocument>(transport, {
+      clientId: 'canvas-tablet',
+      canPersist: (candidate) => canPersistDashboardDocument(candidate, capabilities),
+    });
+
+    await expect(storage.save(v2)).resolves.toEqual({
+      status: 'blocked',
+      reason: 'persistence-disabled',
+    });
+    expect(transport.requests).toEqual([]);
+  });
+
+  it('allows version 2 revision transport only after the write gate is enabled', async () => {
+    const transport = new Transport();
+    const v2 = migrateDashboardV1ToV2(document, 1200);
+    const capabilities = { readV2: true, writeV2: true, migrateV1ToV2: true };
+    const saved = createDashboardRevision(v2, 'canvas-tablet', undefined, 50);
+    transport.response = { status: 'saved', envelope: saved };
+    const storage = new RevisionedDashboardStorage<FrakonDashboardAnyDocument>(transport, {
+      clientId: 'canvas-tablet',
+      now: () => 50,
+      canPersist: (candidate) => canPersistDashboardDocument(candidate, capabilities),
+    });
+
+    const result = await storage.save(v2);
+    expect(result.status).toBe('saved');
+    expect(result.envelope?.document.version).toBe(2);
+    expect(transport.requests[0]?.command).toBe('frakon/dashboard/save_revision');
   });
 });
