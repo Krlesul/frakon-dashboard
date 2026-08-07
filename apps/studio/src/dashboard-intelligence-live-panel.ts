@@ -13,6 +13,10 @@ import {
   updateDashboardEmergencyHistory,
   type DashboardEmergencyHistoryState,
 } from '../../../src/dashboard/dashboard-emergency-history';
+import {
+  loadDashboardEmergencyHistory,
+  saveDashboardEmergencyHistory,
+} from '../../../src/dashboard/dashboard-emergency-history-storage';
 import { dashboardEmergencyUiStrings } from '../../../src/dashboard/dashboard-emergency-ui-i18n';
 import type { DashboardDeviceContext, DashboardIntelligenceContext } from '../../../src/dashboard/dashboard-intelligence';
 import type { DashboardIntelligenceUrgencyDiagnostic } from '../../../src/dashboard/dashboard-intelligence-stabilizer';
@@ -34,6 +38,7 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
   @property({ type:Number }) urgencyReleaseMs = 15_000;
   @property({ type:Number }) minimumEmissionIntervalMs = 2_000;
   @property({ type:Boolean }) emergencyAutoFocus = true;
+  @property({ type:Number }) emergencyHistoryLimit = 100;
 
   @state() private automaticContext?: DashboardIntelligenceContext;
   @state() private diagnostics: DashboardIntelligenceUrgencyDiagnostic[] = [];
@@ -48,12 +53,20 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
     :host{display:block}.status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding:9px 11px;border:1px solid rgb(105 167 255 / 18%);border-radius:10px;background:rgb(105 167 255 / 6%);font:600 11px/1.4 Inter,system-ui,sans-serif}.pill{padding:4px 7px;border-radius:999px;background:rgb(255 255 255 / 7%)}.confirming{color:#9ec8ff}.cooldown{color:#ffc27a}.stable{color:#8be1b4}.critical{color:#ff8f8f;background:rgb(255 91 91 / 12%)}.next{margin-left:auto;opacity:.65;font-weight:500}.emergency-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:-2px 0 10px;padding:10px 11px;border:1px solid rgb(255 91 91 / 32%);border-radius:11px;background:rgb(255 91 91 / 8%);font:600 11px/1.35 Inter,system-ui,sans-serif}.emergency-controls strong{margin-right:auto}.emergency-controls button{border:1px solid rgb(255 255 255 / 14%);border-radius:8px;padding:6px 9px;color:inherit;background:rgb(255 255 255 / 7%);cursor:pointer;font:inherit}.emergency-controls button.primary{border-color:rgb(255 91 91 / 46%);background:rgb(255 91 91 / 14%)}.emergency-controls button.acknowledged{opacity:.65}.emergency-controls button:disabled{opacity:.4;cursor:not-allowed}.history{margin:0 0 10px;padding:10px 11px;border:1px solid rgb(255 255 255 / 10%);border-radius:11px;background:rgb(255 255 255 / 3%);font:500 11px/1.4 Inter,system-ui,sans-serif}.history h4{margin:0 0 8px;font-size:12px}.history-list{display:grid;gap:7px}.history-entry{display:grid;gap:2px;padding:7px 8px;border-radius:8px;background:rgb(255 255 255 / 4%)}.history-entry strong{font-size:11px}.history-entry small{opacity:.68}.history-empty{opacity:.55}
   `;
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.emergencyHistory = loadDashboardEmergencyHistory(this.browserStorage(), { recentLimit: this.emergencyHistoryLimit });
+    this.acknowledgedSignatures = this.emergencyHistory.active
+      .filter((entry) => entry.acknowledgedAt !== undefined)
+      .map((entry) => entry.signature);
+  }
+
   private onContextChanged(event: CustomEvent<FrakonDashboardIntelligenceContextChangedDetail>): void {
     this.automaticContext = event.detail.context;
     const focus = this.emergencyFocus(event.detail.context);
     const activeSignatures = new Set(focus.targets.map(dashboardEmergencyFocusSignature));
     this.acknowledgedSignatures = this.acknowledgedSignatures.filter((signature) => activeSignatures.has(signature));
-    this.emergencyHistory = updateDashboardEmergencyHistory(this.emergencyHistory, focus, Date.now(), this.acknowledgedSignatures);
+    this.setEmergencyHistory(updateDashboardEmergencyHistory(this.emergencyHistory, focus, Date.now(), this.acknowledgedSignatures, this.emergencyHistoryLimit));
     if (!focus.active) { this.emergencyActiveItemId=''; return; }
     if (!focus.targets.some((target)=>target.itemId===this.emergencyActiveItemId)) this.emergencyActiveItemId=focus.primary?.itemId??'';
   }
@@ -65,7 +78,16 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
   private moveEmergencyFocus(direction:1|-1):void { const focus=this.emergencyFocus(); const target=nextDashboardEmergencyFocusTarget(focus,this.currentEmergencyItemId(focus),direction); if(!target)return; this.emergencyActiveItemId=target.itemId; this.emergencyFocusToken+=1; }
   private restoreEmergencyView():void { this.emergencyRestoreToken+=1; }
   private refocusEmergencyView():void { this.emergencyFocusToken+=1; }
-  private acknowledgeEmergency(focus:DashboardEmergencyFocusState):void { const target=this.currentEmergencyTarget(focus); if(!target)return; const signature=dashboardEmergencyFocusSignature(target); if(!this.acknowledgedSignatures.includes(signature)) this.acknowledgedSignatures=[...this.acknowledgedSignatures,signature]; this.emergencyHistory=acknowledgeDashboardEmergencyHistory(this.emergencyHistory,signature,Date.now()); }
+  private acknowledgeEmergency(focus:DashboardEmergencyFocusState):void { const target=this.currentEmergencyTarget(focus); if(!target)return; const signature=dashboardEmergencyFocusSignature(target); if(!this.acknowledgedSignatures.includes(signature)) this.acknowledgedSignatures=[...this.acknowledgedSignatures,signature]; this.setEmergencyHistory(acknowledgeDashboardEmergencyHistory(this.emergencyHistory,signature,Date.now())); }
+
+  private setEmergencyHistory(history: DashboardEmergencyHistoryState): void {
+    this.emergencyHistory = saveDashboardEmergencyHistory(this.browserStorage(), history, { recentLimit: this.emergencyHistoryLimit });
+  }
+
+  private browserStorage(): Storage | undefined {
+    try { return typeof window !== 'undefined' ? window.localStorage : undefined; }
+    catch { return undefined; }
+  }
 
   private renderStatus(){ const strings=dashboardEmergencyUiStrings(homeAssistantLanguage(this.hass)); const confirming=this.diagnostics.filter((d)=>d.phase==='confirming').length; const cooldown=this.diagnostics.filter((d)=>d.phase==='cooldown').length; const stableUrgent=this.diagnostics.filter((d)=>d.phase==='stable'&&d.stableUrgent).length; const critical=this.diagnostics.filter((d)=>d.stableUrgent&&d.severity==='critical').length; if(confirming===0&&cooldown===0&&stableUrgent===0)return nothing; const nextSeconds=this.nextEvaluationAt===undefined?undefined:Math.max(0,Math.ceil((this.nextEvaluationAt-Date.now())/1000)); return html`<div class="status" aria-live="polite">${critical>0?html`<span class="pill critical">${critical} ${strings.critical} · ${strings.emergencyFocusActive}</span>`:nothing}${stableUrgent>0?html`<span class="pill stable">${stableUrgent} ${strings.urgent}</span>`:nothing}${confirming>0?html`<span class="pill confirming">${confirming} ${strings.confirming}</span>`:nothing}${cooldown>0?html`<span class="pill cooldown">${cooldown} ${strings.coolingDown}</span>`:nothing}${nextSeconds!==undefined?html`<span class="next">${strings.nextCheckIn(nextSeconds)}</span>`:nothing}</div>`; }
 
