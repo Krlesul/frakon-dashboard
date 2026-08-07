@@ -7,6 +7,7 @@ export interface DashboardEmergencyPresentation {
   title: string;
   kind: DashboardEmergencyKind;
   icon: string;
+  guidance: string;
   sourceLabel?: string;
   technicalReason?: string;
   sourceEntityId?: string;
@@ -20,26 +21,78 @@ const TITLES: Record<DashboardEmergencyLocale, Record<DashboardEmergencyKind, st
   pl: { smoke:'Wykryto dym', gas:'Wykryto gaz', water:'Wykryto wyciek wody', safety:'Alert bezpieczeństwa', alarm:'Aktywny alarm bezpieczeństwa', battery:'Krytyczny stan baterii', climate:'Krytyczny stan ogrzewania', unavailable:'Urządzenie jest niedostępne', generic:'Krytyczny stan Home Assistanta' },
 };
 
+const GUIDANCE: Record<DashboardEmergencyLocale, Record<DashboardEmergencyKind, string>> = {
+  en: {
+    smoke:'Check for fire. Leave the affected area if danger is suspected.',
+    gas:'Avoid flames and electrical switches. Leave the area if a gas leak is suspected.',
+    water:'Check the leak location and shut off the water supply if it is safe to do so.',
+    safety:'Check the affected area and related safety sensors.',
+    alarm:'Check cameras, doors and windows before taking further action.',
+    battery:'Check the device and replace or recharge the battery when safe.',
+    climate:'Check heating or cooling equipment and the current temperature.',
+    unavailable:'Check device power, network connection and Home Assistant availability.',
+    generic:'Check the affected device and confirm the condition before taking action.',
+  },
+  cs: {
+    smoke:'Zkontrolujte, zda nehrozí požár. Při podezření na nebezpečí opusťte zasažený prostor.',
+    gas:'Nepoužívejte otevřený oheň ani elektrické vypínače. Při podezření na únik plynu prostor opusťte.',
+    water:'Zkontrolujte místo úniku a pokud je to bezpečné, uzavřete přívod vody.',
+    safety:'Zkontrolujte dotčené místo a související bezpečnostní senzory.',
+    alarm:'Zkontrolujte kamery, dveře a okna před další reakcí.',
+    battery:'Zkontrolujte zařízení a bezpečně vyměňte nebo nabijte baterii.',
+    climate:'Zkontrolujte topení nebo chlazení a aktuální teplotu.',
+    unavailable:'Zkontrolujte napájení zařízení, síť a jeho dostupnost v Home Assistantu.',
+    generic:'Zkontrolujte dotčené zařízení a ověřte stav před další reakcí.',
+  },
+  de: {
+    smoke:'Prüfen Sie auf Feuer. Verlassen Sie den betroffenen Bereich bei Gefahrverdacht.',
+    gas:'Vermeiden Sie offenes Feuer und elektrische Schalter. Verlassen Sie den Bereich bei Gasverdacht.',
+    water:'Prüfen Sie die Leckstelle und schließen Sie die Wasserzufuhr, wenn dies sicher möglich ist.',
+    safety:'Prüfen Sie den betroffenen Bereich und die zugehörigen Sicherheitssensoren.',
+    alarm:'Prüfen Sie Kameras, Türen und Fenster, bevor Sie weitere Maßnahmen ergreifen.',
+    battery:'Prüfen Sie das Gerät und ersetzen oder laden Sie die Batterie sicher.',
+    climate:'Prüfen Sie Heizung oder Kühlung sowie die aktuelle Temperatur.',
+    unavailable:'Prüfen Sie Stromversorgung, Netzwerk und Home-Assistant-Verfügbarkeit des Geräts.',
+    generic:'Prüfen Sie das betroffene Gerät und bestätigen Sie den Zustand vor weiteren Maßnahmen.',
+  },
+  sk: {
+    smoke:'Skontrolujte, či nehrozí požiar. Pri podozrení na nebezpečenstvo opustite zasiahnutý priestor.',
+    gas:'Nepoužívajte otvorený oheň ani elektrické vypínače. Pri podozrení na únik plynu priestor opustite.',
+    water:'Skontrolujte miesto úniku a ak je to bezpečné, uzavrite prívod vody.',
+    safety:'Skontrolujte dotknuté miesto a súvisiace bezpečnostné senzory.',
+    alarm:'Skontrolujte kamery, dvere a okná pred ďalšou reakciou.',
+    battery:'Skontrolujte zariadenie a bezpečne vymeňte alebo nabite batériu.',
+    climate:'Skontrolujte kúrenie alebo chladenie a aktuálnu teplotu.',
+    unavailable:'Skontrolujte napájanie zariadenia, sieť a dostupnosť v Home Assistante.',
+    generic:'Skontrolujte dotknuté zariadenie a overte stav pred ďalšou reakciou.',
+  },
+  pl: {
+    smoke:'Sprawdź, czy nie ma pożaru. Opuść zagrożony obszar, jeśli podejrzewasz niebezpieczeństwo.',
+    gas:'Nie używaj otwartego ognia ani przełączników elektrycznych. Opuść obszar przy podejrzeniu wycieku gazu.',
+    water:'Sprawdź miejsce wycieku i zakręć dopływ wody, jeśli można to zrobić bezpiecznie.',
+    safety:'Sprawdź zagrożony obszar i powiązane czujniki bezpieczeństwa.',
+    alarm:'Sprawdź kamery, drzwi i okna przed podjęciem dalszych działań.',
+    battery:'Sprawdź urządzenie i bezpiecznie wymień lub naładuj baterię.',
+    climate:'Sprawdź ogrzewanie lub chłodzenie oraz aktualną temperaturę.',
+    unavailable:'Sprawdź zasilanie urządzenia, sieć i dostępność w Home Assistant.',
+    generic:'Sprawdź urządzenie i potwierdź stan przed podjęciem dalszych działań.',
+  },
+};
+
 const ICONS: Record<DashboardEmergencyKind, string> = {
-  smoke: '◉',
-  gas: '◆',
-  water: '●',
-  safety: '!',
-  alarm: '▲',
-  battery: '▰',
-  climate: '≈',
-  unavailable: '×',
-  generic: '!',
+  smoke:'◉', gas:'◆', water:'●', safety:'!', alarm:'▲', battery:'▰', climate:'≈', unavailable:'×', generic:'!',
 };
 
 export function presentDashboardEmergency(target: DashboardEmergencyFocusTarget, locale: string = 'en'): DashboardEmergencyPresentation {
   const technicalReason = target.reasons[0];
   const sourceEntityId = target.sourceEntityIds[0];
   const kind = emergencyKind(technicalReason);
+  const language = normalizeEmergencyLocale(locale);
   return {
-    title: TITLES[normalizeEmergencyLocale(locale)][kind],
+    title: TITLES[language][kind],
     kind,
     icon: ICONS[kind],
+    guidance: GUIDANCE[language][kind],
     sourceLabel: sourceEntityId ? target.sourceEntityLabels[sourceEntityId] ?? humanizeEntityId(sourceEntityId) : undefined,
     technicalReason,
     sourceEntityId,
