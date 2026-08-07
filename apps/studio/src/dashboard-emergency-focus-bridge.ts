@@ -11,7 +11,7 @@ const COLUMN_WIDTH = 96;
 
 @customElement('frakon-dashboard-emergency-focus-bridge')
 export class FrakonDashboardEmergencyFocusBridge extends LitElement {
-  @property({ attribute: false }) focus?: DashboardEmergencyFocusState;
+  @property({ attribute: false }) focusState?: DashboardEmergencyFocusState;
   @property({ attribute: false }) document?: FrakonDashboardDocument;
   @property({ type: Boolean }) autoFocus = true;
   @property() activeItemId = '';
@@ -25,26 +25,16 @@ export class FrakonDashboardEmergencyFocusBridge extends LitElement {
   private lastRestoreToken = -1;
   private wasActive = false;
 
-  protected updated(): void {
-    this.sync();
-  }
-
-  disconnectedCallback(): void {
-    this.deactivate();
-    super.disconnectedCallback();
-  }
+  protected updated(): void { this.sync(); }
+  disconnectedCallback(): void { this.deactivate(); super.disconnectedCallback(); }
 
   private sync(): void {
-    if (!this.focus?.active || !this.document) {
-      this.deactivate();
-      this.wasActive = false;
-      return;
-    }
+    if (!this.focusState?.active || !this.document) { this.deactivate(); this.wasActive = false; return; }
     const canvas = this.studioCanvas();
     if (!canvas) return;
     if (!this.previousViewport) this.previousViewport = { ...canvas.viewport };
     if (!this.overlay) this.overlay = document.createElement('frakon-dashboard-emergency-focus-overlay');
-    this.overlay.focus = this.focus;
+    this.overlay.focusState = this.focusState;
     this.overlay.document = this.document;
     this.overlay.activeItemId = this.currentTarget()?.itemId ?? '';
     if (this.overlay.parentElement !== canvas) canvas.append(this.overlay);
@@ -61,19 +51,18 @@ export class FrakonDashboardEmergencyFocusBridge extends LitElement {
     const targetChanged = this.focusedItemId !== target.itemId;
     const entering = !this.wasActive;
     this.wasActive = true;
-
     if (manualFocusRequested || targetChanged || (entering && this.autoFocus)) {
       if (manualFocusRequested || this.autoFocus) this.focusTarget(canvas, target);
     }
   }
 
   private currentTarget(): DashboardEmergencyFocusTarget | undefined {
-    if (!this.focus?.active) return undefined;
+    if (!this.focusState?.active) return undefined;
     if (this.activeItemId) {
-      const selected = this.focus.targets.find((target) => target.itemId === this.activeItemId);
+      const selected = this.focusState.targets.find((target) => target.itemId === this.activeItemId);
       if (selected) return selected;
     }
-    return this.focus.primary;
+    return this.focusState.primary;
   }
 
   private focusTarget(canvas: FrakonStudioCanvas, target: DashboardEmergencyFocusTarget): void {
@@ -88,11 +77,7 @@ export class FrakonDashboardEmergencyFocusBridge extends LitElement {
     const zoom = Math.min(1.35, Math.max(canvas.viewport.zoom, Math.min(availableWidth / itemWidth, availableHeight / itemHeight)));
     const centerX = item.x * COLUMN_WIDTH + itemWidth / 2;
     const centerY = item.y * this.document.rowHeight + itemHeight / 2;
-    canvas.viewport = {
-      zoom,
-      x: rect.width / 2 - centerX * zoom,
-      y: rect.height / 2 - centerY * zoom,
-    };
+    canvas.viewport = { zoom, x: rect.width / 2 - centerX * zoom, y: rect.height / 2 - centerY * zoom };
     canvas.requestUpdate();
   }
 
@@ -135,8 +120,4 @@ function findStudioCanvas(root: ParentNode): FrakonStudioCanvas | undefined {
   return undefined;
 }
 
-declare global {
-  interface HTMLElementTagNameMap {
-    'frakon-dashboard-emergency-focus-bridge': FrakonDashboardEmergencyFocusBridge;
-  }
-}
+declare global { interface HTMLElementTagNameMap { 'frakon-dashboard-emergency-focus-bridge': FrakonDashboardEmergencyFocusBridge; } }
