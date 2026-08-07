@@ -17,8 +17,8 @@ const doc: FrakonDashboardDocument = {
 };
 
 describe('dashboard pointer guidelines', () => {
-  it('reports aligned anchors in pixel space', () => {
-    const preview = [{ ...doc.items[0], x: 1 }, { ...doc.items[1] }];
+  it('reports aligned anchors in pixel space when cards share an axis', () => {
+    const preview = [{ ...doc.items[0], x: 2 }, { ...doc.items[1] }];
     const guides = dashboardPointerGuidelines(doc, preview, ['a'], 430);
     expect(guides.some((guide) => guide.axis === 'y')).toBe(true);
   });
