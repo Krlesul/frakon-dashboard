@@ -60,7 +60,7 @@ describe('DashboardCanvasV2Session', () => {
     expect(result.document.items.find((item) => item.id === 'locked')?.frame).toEqual({ x: 20, y: 140, width: 100, height: 60 });
   });
 
-  it('applies document constraints before collision validation', () => {
+  it('applies document constraints before collision validation and exposes diagnostics', () => {
     const source = document();
     source.layout.snap.enabled = false;
     source.constraints = [{ id: 'b-below-a', kind: 'below', sourceId: 'b', targetId: 'a', gap: 20 }];
@@ -68,6 +68,19 @@ describe('DashboardCanvasV2Session', () => {
     const preview = session.preview({ x: 40, y: 40 });
     expect(preview.document.items.find((item) => item.id === 'a')?.frame).toMatchObject({ x: 60, y: 60 });
     expect(preview.document.items.find((item) => item.id === 'b')?.frame.y).toBe(160);
+    expect(preview.constraintDiagnostics).toEqual([
+      expect.objectContaining({ constraintId: 'b-below-a', status: 'applied' }),
+    ]);
+  });
+
+  it('keeps locked constraint sources visible in diagnostics', () => {
+    const source = document();
+    source.constraints = [{ id: 'locked-below-a', kind: 'below', sourceId: 'locked', targetId: 'a', gap: 20 }];
+    const session = new DashboardCanvasV2Session(source, { kind: 'move', selectedIds: ['a'] }, { x: 0, y: 0 });
+    const preview = session.preview({ x: 10, y: 0 });
+    expect(preview.constraintDiagnostics).toEqual([
+      expect.objectContaining({ constraintId: 'locked-below-a', status: 'locked' }),
+    ]);
   });
 
   it('grows canvas minHeight when an item is moved below the current extent', () => {
