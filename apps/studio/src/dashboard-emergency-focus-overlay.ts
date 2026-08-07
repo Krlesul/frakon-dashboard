@@ -11,6 +11,7 @@ export class FrakonDashboardEmergencyFocusOverlay extends LitElement {
   @property({ attribute: false }) focusState?: DashboardEmergencyFocusState;
   @property({ attribute: false }) document?: FrakonDashboardDocument;
   @property() activeItemId = '';
+  @property() locale = 'en';
 
   static styles = css`
     :host { position:absolute; inset:0; z-index:30; display:block; pointer-events:none; }
@@ -32,7 +33,7 @@ export class FrakonDashboardEmergencyFocusOverlay extends LitElement {
     return html`<div class="veil"></div>${this.focusState.targets.map((target) => {
       const item = target.item;
       const active = target.itemId === activeItemId;
-      const presentation = presentDashboardEmergency(target);
+      const presentation = presentDashboardEmergency(target, this.locale);
       const style = `left:${item.x * COLUMN_WIDTH}px;top:${item.y * this.document!.rowHeight}px;width:${item.w * COLUMN_WIDTH - this.document!.gap}px;height:${item.h * this.document!.rowHeight - this.document!.gap}px`;
       return html`<div class=${`focus ${active ? 'active' : 'muted'}`} style=${style}><div class="label"><strong>CRITICAL · ${presentation.title}</strong>${presentation.sourceLabel ? html`<span class="source">${presentation.sourceLabel}</span>` : nothing}${presentation.sourceEntityId ? html`<span class="technical">${presentation.sourceEntityId}</span>` : nothing}</div></div>`;
     })}`;
