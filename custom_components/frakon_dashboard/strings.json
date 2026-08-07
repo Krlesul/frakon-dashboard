@@ -1,0 +1,14 @@
+{
+  "title": "FRAKON Dashboard",
+  "config": {
+    "step": {
+      "user": {
+        "title": "FRAKON Dashboard",
+        "description": "Enable Home Assistant server-side storage for FRAKON dashboards."
+      }
+    },
+    "abort": {
+      "already_configured": "FRAKON Dashboard is already configured."
+    }
+  }
+}
