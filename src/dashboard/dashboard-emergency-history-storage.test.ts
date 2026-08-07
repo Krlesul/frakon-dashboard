@@ -18,13 +18,14 @@ describe('Emergency Focus history persistence', () => {
   it('round-trips valid history and limits recent entries', () => {
     const storage = new MemoryStorage();
     const saved = saveDashboardEmergencyHistory(storage, {
-      active: [{ signature:'active', itemId:'smoke', sourceEntityIds:['binary_sensor.smoke'], sourceEntityLabels:{'binary_sensor.smoke':'Kouřové čidlo kuchyň'}, reasons:['smoke'], startedAt:100 }],
+      active: [{ signature:'active', itemId:'smoke', sourceEntityIds:['binary_sensor.smoke'], sourceEntityLabels:{'binary_sensor.smoke':'Kouřové čidlo kuchyň'}, sourceEntityMetadata:{'binary_sensor.smoke':{areaName:'Kuchyň',deviceName:'Kouřový senzor'}}, reasons:['smoke'], startedAt:100 }],
       recent: [
         { signature:'old', itemId:'old', sourceEntityIds:[], reasons:[], startedAt:10, endedAt:20, durationMs:10 },
         { signature:'new', itemId:'new', sourceEntityIds:[], reasons:[], startedAt:30, endedAt:40, durationMs:10 },
       ],
     }, { recentLimit:1 });
     expect(saved.active[0]?.sourceEntityLabels).toEqual({'binary_sensor.smoke':'Kouřové čidlo kuchyň'});
+    expect(saved.active[0]?.sourceEntityMetadata).toEqual({'binary_sensor.smoke':{areaName:'Kuchyň',deviceName:'Kouřový senzor'}});
     expect(saved.recent.map((entry)=>entry.signature)).toEqual(['new']);
     expect(loadDashboardEmergencyHistory(storage, { recentLimit:1 })).toEqual(saved);
   });
@@ -38,10 +39,10 @@ describe('Emergency Focus history persistence', () => {
   it('sanitizes malformed entries and recomputes durations', () => {
     expect(sanitizeHistory({
       active:[{ signature:'', itemId:'bad', startedAt:1 }],
-      recent:[{ signature:'ok', itemId:'water', startedAt:100, endedAt:160, durationMs:999, sourceEntityIds:['sensor.water', 4], sourceEntityLabels:{'sensor.water':' Water sensor ',bad:7}, reasons:['leak'] }],
+      recent:[{ signature:'ok', itemId:'water', startedAt:100, endedAt:160, durationMs:999, sourceEntityIds:['sensor.water', 4], sourceEntityLabels:{'sensor.water':' Water sensor ',bad:7}, sourceEntityMetadata:{'sensor.water':{areaName:' Technická místnost ',deviceName:' Leak sensor '},bad:{areaName:7}}, reasons:['leak'] }],
     })).toEqual({
       active:[],
-      recent:[{ signature:'ok', itemId:'water', startedAt:100, endedAt:160, durationMs:60, acknowledgedAt:undefined, sourceEntityIds:['sensor.water'], sourceEntityLabels:{'sensor.water':'Water sensor'}, reasons:['leak'] }],
+      recent:[{ signature:'ok', itemId:'water', startedAt:100, endedAt:160, durationMs:60, acknowledgedAt:undefined, sourceEntityIds:['sensor.water'], sourceEntityLabels:{'sensor.water':'Water sensor'}, sourceEntityMetadata:{'sensor.water':{areaName:'Technická místnost',deviceName:'Leak sensor'}}, reasons:['leak'] }],
     });
   });
 
