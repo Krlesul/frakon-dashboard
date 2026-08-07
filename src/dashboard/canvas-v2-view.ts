@@ -3,8 +3,10 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
 import type { Guideline } from '../../packages/studio-engine/src/guidelines';
 import type { SelectionRect, SelectionState } from '../../packages/studio-engine/src/selection';
+import type { SupportedLanguage } from '../i18n';
 import type { HomeAssistant } from '../home-assistant/types';
 import './card-host';
+import './canvas-v2-inspector-panel';
 import { dashboardCanvasV2Guidelines } from './dashboard-canvas-v2-guidelines';
 import {
   canvasV2MoveSelection,
@@ -31,6 +33,7 @@ export interface FrakonCanvasV2DraftDetail {
 export class FrakonCanvasV2View extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ attribute: false }) document?: FrakonDashboardDocumentV2;
+  @property({ attribute: false }) language: SupportedLanguage = 'en';
   @property({ type: Number }) width = 1000;
   @property({ type: Boolean }) editMode = false;
   @state() private previewDocument?: FrakonDashboardDocumentV2;
@@ -38,6 +41,7 @@ export class FrakonCanvasV2View extends LitElement {
   @state() private selection: SelectionState = { ids: [] };
   @state() private marqueeRect?: SelectionRect;
   @state() private guidelines: Guideline[] = [];
+  @state() private constraintDiagnostics: ConstraintDiagnostic[] = [];
 
   private session?: DashboardCanvasV2Session;
   private pointerId?: number;
@@ -107,10 +111,12 @@ export class FrakonCanvasV2View extends LitElement {
     event.stopPropagation();
     const result = nudgeDashboardV2Selection(this.document, selection.ids, delta);
     this.collisionIds = result.collisionIds;
+    this.constraintDiagnostics = result.constraintDiagnostics;
     this.dispatchDraft({
       status: result.status === 'moved' ? 'committed' : result.status,
       document: result.document,
       collisionIds: result.collisionIds,
+      constraintDiagnostics: result.constraintDiagnostics,
     });
   }
 
@@ -165,6 +171,7 @@ export class FrakonCanvasV2View extends LitElement {
     const preview = this.session.preview(this.documentPoint(event));
     this.previewDocument = preview.document;
     this.collisionIds = preview.collisionIds;
+    this.constraintDiagnostics = preview.constraintDiagnostics;
     this.guidelines = this.movingIds.length ? dashboardCanvasV2Guidelines(preview.document, this.movingIds) : [];
   }
 
@@ -193,6 +200,7 @@ export class FrakonCanvasV2View extends LitElement {
       event.preventDefault();
       const result = this.session.commit(this.documentPoint(event));
       this.clearPointerInteraction();
+      this.constraintDiagnostics = result.constraintDiagnostics;
       this.dispatchDraft(result);
       return;
     }
@@ -286,6 +294,14 @@ export class FrakonCanvasV2View extends LitElement {
         ${guidelines.map((guideline) => html`<div class="guideline ${guideline.axis}" style=${guideline.axis === 'x' ? `left:${guideline.renderedPosition}px` : `top:${guideline.renderedPosition}px`}></div>`)}
         ${this.marqueeStyle(source) ? html`<div class="marquee" style=${this.marqueeStyle(source)}></div>` : nothing}
       </div>
+      ${this.editMode ? html`
+        <frakon-canvas-v2-inspector-panel
+          .document=${source}
+          .selectedIds=${normalizedSelection.ids}
+          .diagnostics=${this.constraintDiagnostics}
+          .language=${this.language}
+        ></frakon-canvas-v2-inspector-panel>
+      ` : nothing}
     `;
   }
 }
