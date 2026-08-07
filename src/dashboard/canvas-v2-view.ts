@@ -7,7 +7,12 @@ import type { SupportedLanguage } from '../i18n';
 import type { HomeAssistant } from '../home-assistant/types';
 import './card-host';
 import './canvas-v2-inspector-panel';
+import type { FrakonCanvasV2InspectorEditDetail } from './canvas-v2-inspector-panel';
 import { dashboardCanvasV2Guidelines } from './dashboard-canvas-v2-guidelines';
+import {
+  patchDashboardCanvasV2Item,
+  patchDashboardCanvasV2Snap,
+} from './dashboard-canvas-v2-inspector-actions';
 import {
   canvasV2MoveSelection,
   normalizeCanvasV2Selection,
@@ -98,6 +103,22 @@ export class FrakonCanvasV2View extends LitElement {
       shiftKey: event.shiftKey,
       ctrlKey: event.ctrlKey,
       metaKey: event.metaKey,
+    });
+  }
+
+  private onInspectorEdit(event: CustomEvent<FrakonCanvasV2InspectorEditDetail>): void {
+    if (!this.editMode || !this.document || this.session || this.marqueeStart) return;
+    const edit = event.detail;
+    const result = edit.kind === 'item'
+      ? patchDashboardCanvasV2Item(this.document, edit.itemId, edit.patch)
+      : patchDashboardCanvasV2Snap(this.document, edit.patch);
+    this.collisionIds = result.collisionIds;
+    this.constraintDiagnostics = result.constraintDiagnostics;
+    this.dispatchDraft({
+      status: result.status === 'missing-item' ? 'unchanged' : result.status,
+      document: result.document,
+      collisionIds: result.collisionIds,
+      constraintDiagnostics: result.constraintDiagnostics,
     });
   }
 
@@ -300,6 +321,7 @@ export class FrakonCanvasV2View extends LitElement {
           .selectedIds=${normalizedSelection.ids}
           .diagnostics=${this.constraintDiagnostics}
           .language=${this.language}
+          @frakon-canvas-v2-inspector-edit=${this.onInspectorEdit}
         ></frakon-canvas-v2-inspector-panel>
       ` : nothing}
     `;
