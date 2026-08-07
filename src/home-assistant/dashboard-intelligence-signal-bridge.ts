@@ -15,12 +15,18 @@ export interface HomeAssistantStateLike {
 
 export interface HomeAssistantLike {
   states: Record<string, HomeAssistantStateLike>;
+  language?: string;
+  locale?: { language?: string };
 }
 
 export interface DashboardIntelligenceSignalBridgeOptions {
   device: DashboardDeviceContext;
   tracker?: Pick<DashboardInteractionTracker, 'snapshot'>;
   now?: number;
+}
+
+export function homeAssistantLanguage(hass: HomeAssistantLike | undefined): string {
+  return hass?.locale?.language || hass?.language || 'en';
 }
 
 export function buildDashboardIntelligenceContextFromHass(
