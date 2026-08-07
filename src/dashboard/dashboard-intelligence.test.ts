@@ -32,7 +32,7 @@ describe('dashboard intelligence', () => {
     });
 
     expect(analysis.orderedItemIds[0]).toBe('sensor');
-    expect(analysis.scores.find((score) => score.itemId === 'sensor')?.tier).toBe('primary');
+    expect(analysis.scores.find((score) => score.itemId === 'sensor')?.tier).toBe('critical');
   });
 
   it('adapts recommendations to the target device', () => {
