@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calculateDashboardEmergencyHistoryStats,
   exportDashboardEmergencyHistory,
   filterDashboardEmergencyHistory,
   mergeDashboardEmergencyHistory,
@@ -27,6 +28,34 @@ describe('Emergency Focus history tools', () => {
 
   it('filters by time range using event end or start time', () => {
     expect(filterDashboardEmergencyHistory(history, { from:45, to:90 }).recent.map((entry)=>entry.itemId)).toEqual(['alarm']);
+  });
+
+  it('calculates audit statistics including acknowledgement latency', () => {
+    expect(calculateDashboardEmergencyHistoryStats(history, 130)).toEqual({
+      totalEvents:3,
+      activeEvents:1,
+      closedEvents:2,
+      acknowledgedEvents:2,
+      acknowledgementRate:2/3,
+      mostFrequentKind:'alarm',
+      mostFrequentKindCount:1,
+      averageDurationMs:30,
+      averageAcknowledgementMs:12.5,
+    });
+  });
+
+  it('returns empty-safe audit statistics', () => {
+    expect(calculateDashboardEmergencyHistoryStats({ active:[], recent:[] }, 100)).toEqual({
+      totalEvents:0,
+      activeEvents:0,
+      closedEvents:0,
+      acknowledgedEvents:0,
+      acknowledgementRate:0,
+      mostFrequentKind:undefined,
+      mostFrequentKindCount:0,
+      averageDurationMs:undefined,
+      averageAcknowledgementMs:undefined,
+    });
   });
 
   it('exports a versioned sanitized audit payload', () => {
