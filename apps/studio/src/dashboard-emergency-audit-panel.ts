@@ -1,26 +1,40 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { DashboardEmergencyHistoryState } from '../../../src/dashboard/dashboard-emergency-history';
-import { filterDashboardEmergencyHistory, serializeDashboardEmergencyHistoryExport, type DashboardEmergencyAcknowledgementFilter } from '../../../src/dashboard/dashboard-emergency-history-tools';
+import {
+  filterDashboardEmergencyHistory,
+  parseDashboardEmergencyHistoryImport,
+  serializeDashboardEmergencyHistoryExport,
+  type DashboardEmergencyAcknowledgementFilter,
+  type DashboardEmergencyHistoryImportResult,
+} from '../../../src/dashboard/dashboard-emergency-history-tools';
 import type { DashboardEmergencyKind } from '../../../src/dashboard/dashboard-emergency-presentation';
 
 const KINDS: Array<DashboardEmergencyKind | 'all'> = ['all','smoke','gas','water','safety','alarm','battery','climate','unavailable','generic'];
+
+export interface FrakonDashboardEmergencyHistoryImportDetail {
+  history: DashboardEmergencyHistoryState;
+  importedRecent: number;
+}
 
 @customElement('frakon-dashboard-emergency-audit-panel')
 export class FrakonDashboardEmergencyAuditPanel extends LitElement {
   @property({ attribute:false }) history: DashboardEmergencyHistoryState = { active:[], recent:[] };
   @property() locale = 'en';
+  @property({ type:Number }) recentLimit = 100;
   @state() private kind: DashboardEmergencyKind | 'all' = 'all';
   @state() private acknowledgement: DashboardEmergencyAcknowledgementFilter = 'all';
   @state() private fromDate = '';
   @state() private toDate = '';
   @state() private confirmClear = false;
+  @state() private importStatus: 'idle' | 'success' | 'invalid-json' | 'invalid-format' | 'unsupported-version' = 'idle';
+  @state() private importedCount = 0;
 
   static styles = css`
-    :host{display:block;margin:0 0 10px}.panel{padding:10px 11px;border:1px solid rgb(255 255 255 / 10%);border-radius:11px;background:rgb(255 255 255 / 3%);font:500 11px/1.4 Inter,system-ui,sans-serif}.toolbar,.filters{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.filters{margin-bottom:8px}.panel button,.panel select,.panel input{border:1px solid rgb(255 255 255 / 14%);border-radius:8px;padding:6px 8px;color:inherit;background:rgb(255 255 255 / 6%);font:inherit}.panel button{cursor:pointer}.panel button.danger{border-color:rgb(255 91 91 / 36%)}.summary{margin:7px 0;opacity:.7}.confirm{margin-top:8px;padding:8px;border-radius:8px;background:rgb(255 91 91 / 8%)}
+    :host{display:block;margin:0 0 10px}.panel{padding:10px 11px;border:1px solid rgb(255 255 255 / 10%);border-radius:11px;background:rgb(255 255 255 / 3%);font:500 11px/1.4 Inter,system-ui,sans-serif}.toolbar,.filters{display:flex;gap:7px;flex-wrap:wrap;align-items:center}.filters{margin-bottom:8px}.panel button,.panel select,.panel input{border:1px solid rgb(255 255 255 / 14%);border-radius:8px;padding:6px 8px;color:inherit;background:rgb(255 255 255 / 6%);font:inherit}.panel button{cursor:pointer}.panel button.danger{border-color:rgb(255 91 91 / 36%)}.summary{margin:7px 0;opacity:.7}.confirm{margin-top:8px;padding:8px;border-radius:8px;background:rgb(255 91 91 / 8%)}.import-status{margin-top:7px;opacity:.78}.file-input{display:none}
   `;
 
-  private strings(){ const l=this.locale.toLowerCase().split(/[-_]/)[0]; return l==='cs'?{title:'Audit kritických událostí',all:'Vše',ack:'Potvrzené',unack:'Nepotvrzené',from:'Od',to:'Do',export:'Export JSON',clear:'Vymazat historii',confirm:'Opravdu vymazat uloženou historii kritických událostí?',yes:'Ano, vymazat',cancel:'Zrušit',shown:'Zobrazeno'}:{title:'Critical event audit',all:'All',ack:'Acknowledged',unack:'Unacknowledged',from:'From',to:'To',export:'Export JSON',clear:'Clear history',confirm:'Really clear stored critical event history?',yes:'Yes, clear',cancel:'Cancel',shown:'Shown'}; }
+  private strings(){ const l=this.locale.toLowerCase().split(/[-_]/)[0]; return l==='cs'?{title:'Audit kritických událostí',all:'Vše',ack:'Potvrzené',unack:'Nepotvrzené',from:'Od',to:'Do',export:'Export JSON',import:'Import JSON',clear:'Vymazat historii',confirm:'Opravdu vymazat uloženou historii kritických událostí?',yes:'Ano, vymazat',cancel:'Zrušit',shown:'Zobrazeno',imported:(n:number)=>`Importováno ${n} historických událostí`,invalidJson:'Soubor není platný JSON.',invalidFormat:'Soubor není audit log FRAKON Dashboardu.',unsupported:'Tato verze audit logu není podporována.'}:{title:'Critical event audit',all:'All',ack:'Acknowledged',unack:'Unacknowledged',from:'From',to:'To',export:'Export JSON',import:'Import JSON',clear:'Clear history',confirm:'Really clear stored critical event history?',yes:'Yes, clear',cancel:'Cancel',shown:'Shown',imported:(n:number)=>`Imported ${n} historical events`,invalidJson:'The file is not valid JSON.',invalidFormat:'The file is not a FRAKON Dashboard audit log.',unsupported:'This audit log version is not supported.'}; }
 
   private filtered(){
     const from=this.fromDate?new Date(`${this.fromDate}T00:00:00`).getTime():undefined;
@@ -37,10 +51,30 @@ export class FrakonDashboardEmergencyAuditPanel extends LitElement {
     anchor.click(); URL.revokeObjectURL(url);
   }
 
+  private openImport(): void {
+    this.renderRoot.querySelector<HTMLInputElement>('.file-input')?.click();
+  }
+
+  private async importJson(event: Event): Promise<void> {
+    const input=event.currentTarget as HTMLInputElement;
+    const file=input.files?.[0];
+    input.value='';
+    if(!file)return;
+    let raw='';
+    try { raw=await file.text(); }
+    catch { this.importStatus='invalid-json'; return; }
+    const result:DashboardEmergencyHistoryImportResult=parseDashboardEmergencyHistoryImport(raw,this.history,this.recentLimit);
+    if(!result.ok){ this.importStatus=result.error; return; }
+    this.importStatus='success'; this.importedCount=result.importedRecent;
+    this.dispatchEvent(new CustomEvent<FrakonDashboardEmergencyHistoryImportDetail>('frakon-dashboard-emergency-history-import',{detail:{history:result.history,importedRecent:result.importedRecent},bubbles:true,composed:true}));
+  }
+
   private requestClear():void{
     this.dispatchEvent(new CustomEvent('frakon-dashboard-emergency-history-clear',{bubbles:true,composed:true}));
-    this.confirmClear=false;
+    this.confirmClear=false; this.importStatus='idle'; this.importedCount=0;
   }
+
+  private renderImportStatus(){ const s=this.strings(); if(this.importStatus==='idle')return nothing; if(this.importStatus==='success')return html`<div class="import-status">${s.imported(this.importedCount)}</div>`; if(this.importStatus==='invalid-json')return html`<div class="import-status">${s.invalidJson}</div>`; if(this.importStatus==='invalid-format')return html`<div class="import-status">${s.invalidFormat}</div>`; return html`<div class="import-status">${s.unsupported}</div>`; }
 
   render(){
     const s=this.strings(); const filtered=this.filtered(); const total=filtered.active.length+filtered.recent.length;
@@ -49,7 +83,7 @@ export class FrakonDashboardEmergencyAuditPanel extends LitElement {
       <select @change=${(e:Event)=>this.acknowledgement=(e.currentTarget as HTMLSelectElement).value as DashboardEmergencyAcknowledgementFilter}><option value="all">${s.all}</option><option value="acknowledged">${s.ack}</option><option value="unacknowledged">${s.unack}</option></select>
       <label>${s.from} <input type="date" .value=${this.fromDate} @change=${(e:Event)=>this.fromDate=(e.currentTarget as HTMLInputElement).value}></label>
       <label>${s.to} <input type="date" .value=${this.toDate} @change=${(e:Event)=>this.toDate=(e.currentTarget as HTMLInputElement).value}></label>
-    </div><div class="summary">${s.shown}: ${total}</div><div class="toolbar"><button @click=${this.exportJson}>${s.export}</button><button class="danger" @click=${()=>this.confirmClear=true}>${s.clear}</button></div>${this.confirmClear?html`<div class="confirm">${s.confirm}<div class="toolbar"><button class="danger" @click=${this.requestClear}>${s.yes}</button><button @click=${()=>this.confirmClear=false}>${s.cancel}</button></div></div>`:nothing}</section>`;
+    </div><div class="summary">${s.shown}: ${total}</div><div class="toolbar"><button @click=${this.exportJson}>${s.export}</button><button @click=${this.openImport}>${s.import}</button><input class="file-input" type="file" accept="application/json,.json" @change=${this.importJson}><button class="danger" @click=${()=>this.confirmClear=true}>${s.clear}</button></div>${this.renderImportStatus()}${this.confirmClear?html`<div class="confirm">${s.confirm}<div class="toolbar"><button class="danger" @click=${this.requestClear}>${s.yes}</button><button @click=${()=>this.confirmClear=false}>${s.cancel}</button></div></div>`:nothing}</section>`;
   }
 }
 
