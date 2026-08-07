@@ -16,6 +16,7 @@ import {
   type DashboardCanvasV2Point,
 } from './dashboard-canvas-v2-session';
 import { dashboardCanvasRenderModel } from './dashboard-canvas-render-model';
+import { keyboardNudgeDeltaV2, nudgeDashboardV2Selection } from './dashboard-keyboard-nudge-v2';
 import type { FrakonCanvasItem, FrakonDashboardDocumentV2 } from './layout-model-v2';
 
 export interface FrakonCanvasV2DraftDetail {
@@ -46,7 +47,8 @@ export class FrakonCanvasV2View extends LitElement {
 
   static styles = css`
     :host { display: block; }
-    .canvas { position: relative; min-height: 120px; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-color) 6%); }
+    .canvas { position: relative; min-height: 120px; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-color) 6%); outline: none; }
+    .canvas:focus-visible { box-shadow: 0 0 0 2px var(--primary-color); }
     .item { position: absolute; min-width: 0; min-height: 0; overflow: hidden; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--primary-text-color) 10%, transparent); background: var(--card-background-color); box-sizing: border-box; }
     .item.selected { outline: 2px solid var(--primary-color); outline-offset: 2px; }
     .item.collision { outline: 2px solid #ff4d67; outline-offset: 2px; }
@@ -77,6 +79,14 @@ export class FrakonCanvasV2View extends LitElement {
     };
   }
 
+  private dispatchDraft(detail: FrakonCanvasV2DraftDetail): void {
+    this.dispatchEvent(new CustomEvent<FrakonCanvasV2DraftDetail>('frakon-canvas-v2-draft', {
+      detail,
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
   private selectItem(event: MouseEvent, item: FrakonCanvasItem): void {
     this.selection = selectCanvasV2Item(this.selection, item.id, {
       shiftKey: event.shiftKey,
@@ -85,10 +95,28 @@ export class FrakonCanvasV2View extends LitElement {
     });
   }
 
+  private onKeyDown(event: KeyboardEvent): void {
+    if (!this.editMode || !this.document || this.session || this.marqueeStart) return;
+    const delta = keyboardNudgeDeltaV2(event.key, this.document.layout.snap.size, event.shiftKey);
+    if (!delta) return;
+    const selection = normalizeCanvasV2Selection(this.selection, this.document);
+    if (!selection.ids.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const result = nudgeDashboardV2Selection(this.document, selection.ids, delta);
+    this.collisionIds = result.collisionIds;
+    this.dispatchDraft({
+      status: result.status === 'moved' ? 'committed' : result.status,
+      document: result.document,
+      collisionIds: result.collisionIds,
+    });
+  }
+
   private beginMove(event: PointerEvent, item: FrakonCanvasItem): void {
     if (!this.editMode || !this.document || item.locked || this.session || this.marqueeStart || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
+    this.canvasElement()?.focus();
     const nextSelection = this.selection.ids.includes(item.id)
       ? normalizeCanvasV2Selection(this.selection, this.document)
       : selectCanvasV2Item(this.selection, item.id);
@@ -96,11 +124,7 @@ export class FrakonCanvasV2View extends LitElement {
     const selectedIds = canvasV2MoveSelection(nextSelection, item.id, this.document);
     if (!selectedIds.length) return;
     this.movingIds = [...selectedIds];
-    this.session = new DashboardCanvasV2Session(
-      this.document,
-      { kind: 'move', selectedIds },
-      this.documentPoint(event),
-    );
+    this.session = new DashboardCanvasV2Session(this.document, { kind: 'move', selectedIds }, this.documentPoint(event));
     this.pointerId = event.pointerId;
     this.updatePreview(event);
     (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
@@ -110,14 +134,11 @@ export class FrakonCanvasV2View extends LitElement {
     if (!this.editMode || !this.document || item.locked || this.session || this.marqueeStart || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
+    this.canvasElement()?.focus();
     this.selection = selectCanvasV2Item(this.selection, item.id);
     this.movingIds = [];
     this.guidelines = [];
-    this.session = new DashboardCanvasV2Session(
-      this.document,
-      { kind: 'resize', itemId: item.id, handle: 'se' },
-      this.documentPoint(event),
-    );
+    this.session = new DashboardCanvasV2Session(this.document, { kind: 'resize', itemId: item.id, handle: 'se' }, this.documentPoint(event));
     this.pointerId = event.pointerId;
     this.updatePreview(event);
     (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
@@ -126,6 +147,7 @@ export class FrakonCanvasV2View extends LitElement {
   private beginMarquee(event: PointerEvent): void {
     if (!this.editMode || !this.document || this.session || this.marqueeStart || event.button !== 0 || event.target !== event.currentTarget) return;
     event.preventDefault();
+    this.canvasElement()?.focus();
     const start = this.documentPoint(event);
     this.marqueeStart = start;
     this.marqueeBaseSelection = structuredClone(this.selection);
@@ -141,27 +163,15 @@ export class FrakonCanvasV2View extends LitElement {
     const preview = this.session.preview(this.documentPoint(event));
     this.previewDocument = preview.document;
     this.collisionIds = preview.collisionIds;
-    this.guidelines = this.movingIds.length
-      ? dashboardCanvasV2Guidelines(preview.document, this.movingIds)
-      : [];
+    this.guidelines = this.movingIds.length ? dashboardCanvasV2Guidelines(preview.document, this.movingIds) : [];
   }
 
   private updateMarquee(event: PointerEvent): void {
     if (!this.document || !this.marqueeStart || this.marqueePointerId !== event.pointerId) return;
     const current = this.documentPoint(event);
-    const rect: SelectionRect = {
-      x: this.marqueeStart.x,
-      y: this.marqueeStart.y,
-      width: current.x - this.marqueeStart.x,
-      height: current.y - this.marqueeStart.y,
-    };
+    const rect: SelectionRect = { x: this.marqueeStart.x, y: this.marqueeStart.y, width: current.x - this.marqueeStart.x, height: current.y - this.marqueeStart.y };
     this.marqueeRect = rect;
-    this.selection = selectCanvasV2ByMarquee(
-      this.document,
-      rect,
-      this.marqueeBaseSelection ?? { ids: [] },
-      this.marqueeAdditive,
-    );
+    this.selection = selectCanvasV2ByMarquee(this.document, rect, this.marqueeBaseSelection ?? { ids: [] }, this.marqueeAdditive);
   }
 
   private onPointerMove(event: PointerEvent): void {
@@ -181,11 +191,7 @@ export class FrakonCanvasV2View extends LitElement {
       event.preventDefault();
       const result = this.session.commit(this.documentPoint(event));
       this.clearPointerInteraction();
-      this.dispatchEvent(new CustomEvent<FrakonCanvasV2DraftDetail>('frakon-canvas-v2-draft', {
-        detail: result,
-        bubbles: true,
-        composed: true,
-      }));
+      this.dispatchDraft(result);
       return;
     }
     if (this.marqueeStart && this.marqueePointerId === event.pointerId) {
@@ -223,11 +229,7 @@ export class FrakonCanvasV2View extends LitElement {
     const scale = Math.max(1, this.width) / Math.max(1, document.layout.width);
     const x2 = this.marqueeRect.x + this.marqueeRect.width;
     const y2 = this.marqueeRect.y + this.marqueeRect.height;
-    const left = Math.min(this.marqueeRect.x, x2) * scale;
-    const top = Math.min(this.marqueeRect.y, y2) * scale;
-    const width = Math.abs(this.marqueeRect.width) * scale;
-    const height = Math.abs(this.marqueeRect.height) * scale;
-    return `left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
+    return `left:${Math.min(this.marqueeRect.x, x2) * scale}px;top:${Math.min(this.marqueeRect.y, y2) * scale}px;width:${Math.abs(this.marqueeRect.width) * scale}px;height:${Math.abs(this.marqueeRect.height) * scale}px`;
   }
 
   private renderedGuidelines(document: FrakonDashboardDocumentV2): Array<Guideline & { renderedPosition: number }> {
@@ -253,7 +255,9 @@ export class FrakonCanvasV2View extends LitElement {
     return html`
       <div
         class="canvas"
+        tabindex=${this.editMode ? '0' : '-1'}
         style=${`height:${model.minHeight}px`}
+        @keydown=${this.onKeyDown}
         @pointerdown=${this.beginMarquee}
         @pointermove=${this.onPointerMove}
         @pointerup=${this.endInteraction}
@@ -270,35 +274,14 @@ export class FrakonCanvasV2View extends LitElement {
               @click=${(event: MouseEvent) => this.selectItem(event, sourceItem)}
             >
               ${this.editMode ? html`
-                <div class="head">
-                  <button
-                    class="move"
-                    ?disabled=${sourceItem.locked}
-                    @click=${(event: MouseEvent) => event.stopPropagation()}
-                    @pointerdown=${(event: PointerEvent) => this.beginMove(event, sourceItem)}
-                  >↕ ${item.id}</button>
-                </div>
-                ${!sourceItem.locked
-                  ? html`<button
-                      class="resize"
-                      title="Resize"
-                      @click=${(event: MouseEvent) => event.stopPropagation()}
-                      @pointerdown=${(event: PointerEvent) => this.beginResize(event, sourceItem)}
-                    ></button>`
-                  : nothing}
+                <div class="head"><button class="move" ?disabled=${sourceItem.locked} @click=${(event: MouseEvent) => event.stopPropagation()} @pointerdown=${(event: PointerEvent) => this.beginMove(event, sourceItem)}>↕ ${item.id}</button></div>
+                ${!sourceItem.locked ? html`<button class="resize" title="Resize" @click=${(event: MouseEvent) => event.stopPropagation()} @pointerdown=${(event: PointerEvent) => this.beginResize(event, sourceItem)}></button>` : nothing}
               ` : nothing}
               <div class="content"><frakon-card-host .hass=${this.hass} .config=${item.card}></frakon-card-host></div>
             </article>
           `;
         })}
-        ${guidelines.map((guideline) => html`
-          <div
-            class="guideline ${guideline.axis}"
-            style=${guideline.axis === 'x'
-              ? `left:${guideline.renderedPosition}px`
-              : `top:${guideline.renderedPosition}px`}
-          ></div>
-        `)}
+        ${guidelines.map((guideline) => html`<div class="guideline ${guideline.axis}" style=${guideline.axis === 'x' ? `left:${guideline.renderedPosition}px` : `top:${guideline.renderedPosition}px`}></div>`)}
         ${this.marqueeStyle(source) ? html`<div class="marquee" style=${this.marqueeStyle(source)}></div>` : nothing}
       </div>
     `;
