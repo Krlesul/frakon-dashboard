@@ -1,4 +1,4 @@
-import type { DashboardIntelligenceContext } from './dashboard-intelligence';
+import type { DashboardEntityMetadata, DashboardIntelligenceContext } from './dashboard-intelligence';
 import type { FrakonDashboardDocument, FrakonGridItem } from './layout-model';
 
 export interface DashboardEmergencyFocusTarget {
@@ -8,6 +8,7 @@ export interface DashboardEmergencyFocusTarget {
   reasons: string[];
   sourceEntityIds: string[];
   sourceEntityLabels: Record<string, string>;
+  sourceEntityMetadata: Record<string, DashboardEntityMetadata>;
 }
 
 export interface DashboardEmergencyFocusState {
@@ -21,7 +22,7 @@ export function createDashboardEmergencyFocusState(document: FrakonDashboardDocu
   const criticalById = new Map((context.usage ?? []).filter((signal) => signal.urgent && signal.severity === 'critical').map((signal) => [signal.itemId, signal]));
   const targets = document.items.filter((item) => criticalById.has(item.id)).map((item) => {
     const signal = criticalById.get(item.id);
-    return { itemId:item.id, item:structuredClone(item), severity:'critical' as const, reasons:[...(signal?.urgencyReasons ?? [])], sourceEntityIds:[...(signal?.sourceEntityIds ?? [])], sourceEntityLabels:{ ...(signal?.sourceEntityLabels ?? {}) } };
+    return { itemId:item.id, item:structuredClone(item), severity:'critical' as const, reasons:[...(signal?.urgencyReasons ?? [])], sourceEntityIds:[...(signal?.sourceEntityIds ?? [])], sourceEntityLabels:{ ...(signal?.sourceEntityLabels ?? {}) }, sourceEntityMetadata:structuredClone(signal?.sourceEntityMetadata ?? {}) };
   }).sort((left, right) => left.item.y - right.item.y || left.item.x - right.item.x || left.itemId.localeCompare(right.itemId));
   return { active: targets.length > 0, targets, primary: targets[0] };
 }
