@@ -1,14 +1,15 @@
 import { LitElement, css, html, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { ConstraintKind } from '../../packages/studio-engine/src/constraints';
 import type { SupportedLanguage } from '../i18n';
 import { canvasDashboardTranslate } from './canvas-dashboard-i18n';
+import {
+  addDashboardCanvasV2Constraint,
+  patchDashboardCanvasV2Constraint,
+  removeDashboardCanvasV2Constraint,
+  type DashboardCanvasV2ConstraintEditResult,
+} from './dashboard-canvas-v2-constraint-actions';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
-
-export type FrakonCanvasV2ConstraintEditDetail =
-  | { kind: 'add'; sourceId: string; targetId: string; constraintKind: ConstraintKind; gap?: number; priority?: number; enabled?: boolean }
-  | { kind: 'patch'; constraintId: string; patch: { kind?: ConstraintKind; targetId?: string; gap?: number | null; priority?: number | null; enabled?: boolean } }
-  | { kind: 'remove'; constraintId: string };
 
 const KINDS: ConstraintKind[] = [
   'below', 'right-of',
@@ -22,6 +23,7 @@ export class FrakonCanvasV2ConstraintEditor extends LitElement {
   @property({ attribute: false }) document?: FrakonDashboardDocumentV2;
   @property({ attribute: false }) selectedIds: string[] = [];
   @property({ attribute: false }) language: SupportedLanguage = 'en';
+  @state() private localError?: string;
 
   static styles = css`
     :host { display: block; }
@@ -32,6 +34,7 @@ export class FrakonCanvasV2ConstraintEditor extends LitElement {
     button { border: 0; border-radius: 8px; padding: 6px 8px; color: inherit; background: color-mix(in srgb, var(--primary-color) 14%, transparent); cursor: pointer; font: inherit; font-size: 11px; }
     button.danger { background: color-mix(in srgb, #ff4d67 15%, transparent); }
     .enabled { display: inline-flex; gap: 4px; align-items: center; font-size: 10px; white-space: nowrap; }
+    .error { padding: 6px 8px; border-radius: 8px; font-size: 11px; background: color-mix(in srgb, #ff4d67 16%, transparent); }
     @media (max-width: 760px) { .row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   `;
 
@@ -39,12 +42,39 @@ export class FrakonCanvasV2ConstraintEditor extends LitElement {
     return canvasDashboardTranslate(this.language, key);
   }
 
-  private emit(detail: FrakonCanvasV2ConstraintEditDetail): void {
-    this.dispatchEvent(new CustomEvent<FrakonCanvasV2ConstraintEditDetail>('frakon-canvas-v2-constraint-edit', {
-      detail,
+  private applyResult(result: DashboardCanvasV2ConstraintEditResult): void {
+    if (result.status === 'invalid') {
+      this.localError = result.reason ?? 'Invalid constraint.';
+      return;
+    }
+    this.localError = undefined;
+    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', {
+      detail: {
+        status: result.status,
+        document: result.document,
+        collisionIds: result.collisionIds,
+        constraintDiagnostics: result.constraintDiagnostics,
+      },
       bubbles: true,
       composed: true,
     }));
+  }
+
+  private add(sourceId: string, targetId: string): void {
+    if (!this.document) return;
+    this.applyResult(addDashboardCanvasV2Constraint(this.document, {
+      kind: 'below', sourceId, targetId, gap: 12, enabled: true,
+    }));
+  }
+
+  private patch(constraintId: string, patch: Parameters<typeof patchDashboardCanvasV2Constraint>[2]): void {
+    if (!this.document) return;
+    this.applyResult(patchDashboardCanvasV2Constraint(this.document, constraintId, patch));
+  }
+
+  private remove(constraintId: string): void {
+    if (!this.document) return;
+    this.applyResult(removeDashboardCanvasV2Constraint(this.document, constraintId));
   }
 
   private relatedConstraints(sourceId: string) {
@@ -65,27 +95,26 @@ export class FrakonCanvasV2ConstraintEditor extends LitElement {
         <div class="title">${this.t('constraintEditor')} · ${sourceId}</div>
         ${constraints.map((constraint) => html`
           <div class="row">
-            <select .value=${constraint.kind} @change=${(event: Event) => this.emit({ kind: 'patch', constraintId: constraint.id, patch: { kind: (event.currentTarget as HTMLSelectElement).value as ConstraintKind } })}>
+            <select title=${this.t('constraintKind')} .value=${constraint.kind} @change=${(event: Event) => this.patch(constraint.id, { kind: (event.currentTarget as HTMLSelectElement).value as ConstraintKind })}>
               ${KINDS.map((kind) => html`<option value=${kind}>${kind}</option>`)}
             </select>
-            <select .value=${constraint.targetId} @change=${(event: Event) => this.emit({ kind: 'patch', constraintId: constraint.id, patch: { targetId: (event.currentTarget as HTMLSelectElement).value } })}>
+            <select title=${this.t('constraintTarget')} .value=${constraint.targetId} @change=${(event: Event) => this.patch(constraint.id, { targetId: (event.currentTarget as HTMLSelectElement).value })}>
               ${targets.map((target) => html`<option value=${target.id}>${target.id}</option>`)}
             </select>
             <input title=${this.t('constraintGap')} type="number" .value=${constraint.gap === undefined ? '' : String(constraint.gap)} @change=${(event: Event) => {
               const raw = (event.currentTarget as HTMLInputElement).value.trim();
-              this.emit({ kind: 'patch', constraintId: constraint.id, patch: { gap: raw ? Number(raw) : null } });
+              this.patch(constraint.id, { gap: raw ? Number(raw) : null });
             }}>
             <input title=${this.t('constraintPriority')} type="number" .value=${constraint.priority === undefined ? '' : String(constraint.priority)} @change=${(event: Event) => {
               const raw = (event.currentTarget as HTMLInputElement).value.trim();
-              this.emit({ kind: 'patch', constraintId: constraint.id, patch: { priority: raw ? Number(raw) : null } });
+              this.patch(constraint.id, { priority: raw ? Number(raw) : null });
             }}>
-            <label class="enabled"><input type="checkbox" .checked=${constraint.enabled !== false} @change=${(event: Event) => this.emit({ kind: 'patch', constraintId: constraint.id, patch: { enabled: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('enabled')}</label>
-            <button class="danger" @click=${() => this.emit({ kind: 'remove', constraintId: constraint.id })}>${this.t('removeConstraint')}</button>
+            <label class="enabled"><input type="checkbox" .checked=${constraint.enabled !== false} @change=${(event: Event) => this.patch(constraint.id, { enabled: (event.currentTarget as HTMLInputElement).checked })}>${this.t('enabled')}</label>
+            <button class="danger" @click=${() => this.remove(constraint.id)}>${this.t('removeConstraint')}</button>
           </div>
         `)}
-        ${defaultTarget ? html`
-          <button @click=${() => this.emit({ kind: 'add', sourceId, targetId: defaultTarget, constraintKind: 'below', gap: 12, enabled: true })}>+ ${this.t('addConstraint')}</button>
-        ` : nothing}
+        ${defaultTarget ? html`<button @click=${() => this.add(sourceId, defaultTarget)}>+ ${this.t('addConstraint')}</button>` : nothing}
+        ${this.localError ? html`<div class="error">${this.localError}</div>` : nothing}
       </section>
     `;
   }
