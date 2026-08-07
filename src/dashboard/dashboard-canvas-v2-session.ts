@@ -109,9 +109,10 @@ export class DashboardCanvasV2Session {
       }
     } else {
       const targetId = this.interaction.itemId;
+      const handle = this.interaction.handle;
       items = this.source.items.map((item) => {
         if (item.id !== targetId || item.locked) return structuredClone(item);
-        const resized = resizeRect(item.frame, this.interaction.handle, delta, {
+        const resized = resizeRect(item.frame, handle, delta, {
           minWidth: item.minWidth,
           minHeight: item.minHeight,
           maxWidth: Math.min(this.source.layout.width, item.maxWidth ?? this.source.layout.width),
