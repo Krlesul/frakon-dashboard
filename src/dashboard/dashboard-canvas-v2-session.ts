@@ -1,3 +1,4 @@
+import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
 import { resizeRect, type ResizeHandle } from '../../packages/studio-engine/src/resize';
 import { applyDashboardCanvasV2Constraints } from './dashboard-canvas-v2-constraints';
 import {
@@ -17,12 +18,14 @@ export interface DashboardCanvasV2Preview {
   document: FrakonDashboardDocumentV2;
   collisionIds: string[];
   hasCollisions: boolean;
+  constraintDiagnostics: ConstraintDiagnostic[];
 }
 
 export interface DashboardCanvasV2CommitResult {
   status: 'committed' | 'collision' | 'unchanged';
   document: FrakonDashboardDocumentV2;
   collisionIds: string[];
+  constraintDiagnostics: ConstraintDiagnostic[];
 }
 
 function overlap(a: FrakonCanvasFrame, b: FrakonCanvasFrame): boolean {
@@ -135,12 +138,13 @@ export class DashboardCanvasV2Session {
     }
 
     const manual = normalizeDashboardV2({ ...this.source, items });
-    const constrained = applyDashboardCanvasV2Constraints(manual).document;
-    const collisionIds = canvasV2CollisionIds(constrained.items);
+    const constrained = applyDashboardCanvasV2Constraints(manual);
+    const collisionIds = canvasV2CollisionIds(constrained.document.items);
     return {
-      document: constrained,
+      document: constrained.document,
       collisionIds,
       hasCollisions: collisionIds.length > 0,
+      constraintDiagnostics: constrained.diagnostics,
     };
   }
 
@@ -151,6 +155,7 @@ export class DashboardCanvasV2Session {
         status: 'collision',
         document: structuredClone(this.source),
         collisionIds: preview.collisionIds,
+        constraintDiagnostics: preview.constraintDiagnostics,
       };
     }
 
@@ -166,6 +171,7 @@ export class DashboardCanvasV2Session {
       status: sameGeometry(this.source, document) ? 'unchanged' : 'committed',
       document,
       collisionIds: [],
+      constraintDiagnostics: preview.constraintDiagnostics,
     };
   }
 
