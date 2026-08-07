@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { DashboardEmergencyFocusState } from '../../../src/dashboard/dashboard-emergency-focus';
 import { presentDashboardEmergency } from '../../../src/dashboard/dashboard-emergency-presentation';
+import { dashboardEmergencyUiStrings } from '../../../src/dashboard/dashboard-emergency-ui-i18n';
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 
 const COLUMN_WIDTH = 96;
@@ -30,12 +31,13 @@ export class FrakonDashboardEmergencyFocusOverlay extends LitElement {
   render() {
     if (!this.focusState?.active || !this.document) return nothing;
     const activeItemId = this.activeItemId || this.focusState.primary?.itemId || '';
+    const strings = dashboardEmergencyUiStrings(this.locale);
     return html`<div class="veil"></div>${this.focusState.targets.map((target) => {
       const item = target.item;
       const active = target.itemId === activeItemId;
       const presentation = presentDashboardEmergency(target, this.locale);
       const style = `left:${item.x * COLUMN_WIDTH}px;top:${item.y * this.document!.rowHeight}px;width:${item.w * COLUMN_WIDTH - this.document!.gap}px;height:${item.h * this.document!.rowHeight - this.document!.gap}px`;
-      return html`<div class=${`focus ${active ? 'active' : 'muted'}`} style=${style}><div class="label"><strong>CRITICAL · ${presentation.title}</strong>${presentation.sourceLabel ? html`<span class="source">${presentation.sourceLabel}</span>` : nothing}${presentation.sourceEntityId ? html`<span class="technical">${presentation.sourceEntityId}</span>` : nothing}</div></div>`;
+      return html`<div class=${`focus ${active ? 'active' : 'muted'}`} style=${style}><div class="label"><strong>${strings.critical.toUpperCase()} · ${presentation.title}</strong>${presentation.sourceLabel ? html`<span class="source">${presentation.sourceLabel}</span>` : nothing}${presentation.sourceEntityId ? html`<span class="technical">${presentation.sourceEntityId}</span>` : nothing}</div></div>`;
     })}`;
   }
 }
