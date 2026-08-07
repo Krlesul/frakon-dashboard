@@ -67,24 +67,24 @@ export function normalizeCanvasFrame(frame: FrakonCanvasFrame, canvasWidth: numb
 }
 
 function normalizeCanvasItem(item: FrakonCanvasItem, canvasWidth: number): FrakonCanvasItem {
-  const minWidth = optionalPositive(item.minWidth);
-  const minHeight = optionalPositive(item.minHeight);
-  const maxWidth = optionalPositive(item.maxWidth);
-  const maxHeight = optionalPositive(item.maxHeight);
+  const requestedMinWidth = optionalPositive(item.minWidth);
+  const requestedMinHeight = optionalPositive(item.minHeight);
+  const requestedMaxWidth = optionalPositive(item.maxWidth);
+  const requestedMaxHeight = optionalPositive(item.maxHeight);
   const base = normalizeCanvasFrame(item.frame, canvasWidth);
-  const effectiveMinWidth = Math.min(canvasWidth, minWidth ?? 1);
-  const effectiveMaxWidth = Math.max(effectiveMinWidth, Math.min(canvasWidth, maxWidth ?? canvasWidth));
-  const effectiveMinHeight = minHeight ?? 1;
-  const effectiveMaxHeight = Math.max(effectiveMinHeight, maxHeight ?? Number.MAX_SAFE_INTEGER);
-  const width = Math.min(effectiveMaxWidth, Math.max(effectiveMinWidth, base.width));
-  const height = Math.min(effectiveMaxHeight, Math.max(effectiveMinHeight, base.height));
+  const minWidth = Math.min(canvasWidth, requestedMinWidth ?? 1);
+  const maxWidth = Math.max(minWidth, Math.min(canvasWidth, requestedMaxWidth ?? canvasWidth));
+  const minHeight = requestedMinHeight ?? 1;
+  const maxHeight = Math.max(minHeight, requestedMaxHeight ?? Number.MAX_SAFE_INTEGER);
+  const width = Math.min(maxWidth, Math.max(minWidth, base.width));
+  const height = Math.min(maxHeight, Math.max(minHeight, base.height));
 
   return {
     ...structuredClone(item),
-    minWidth,
-    minHeight,
-    maxWidth,
-    maxHeight,
+    minWidth: requestedMinWidth === undefined ? undefined : minWidth,
+    minHeight: requestedMinHeight === undefined ? undefined : minHeight,
+    maxWidth: requestedMaxWidth === undefined ? undefined : maxWidth,
+    maxHeight: requestedMaxHeight === undefined ? undefined : maxHeight,
     frame: {
       x: Math.max(0, Math.min(Math.max(0, canvasWidth - width), base.x)),
       y: base.y,
