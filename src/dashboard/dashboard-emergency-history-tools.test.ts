@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   calculateDashboardEmergencyHistoryStats,
+  calculateDashboardEmergencyHistoryTrend,
   exportDashboardEmergencyHistory,
   filterDashboardEmergencyHistory,
   mergeDashboardEmergencyHistory,
@@ -56,6 +57,36 @@ describe('Emergency Focus history tools', () => {
       averageDurationMs:undefined,
       averageAcknowledgementMs:undefined,
     });
+  });
+
+  it('calculates improving and worsening period trends', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = 100 * day;
+    const trendHistory: DashboardEmergencyHistoryState = {
+      active: [],
+      recent: [
+        { signature:'a', itemId:'a', sourceEntityIds:[], reasons:['generic'], startedAt:now-day, endedAt:now-day+1 },
+        { signature:'b', itemId:'b', sourceEntityIds:[], reasons:['generic'], startedAt:now-2*day, endedAt:now-2*day+1 },
+        { signature:'c', itemId:'c', sourceEntityIds:[], reasons:['generic'], startedAt:now-8*day, endedAt:now-8*day+1 },
+        { signature:'d', itemId:'d', sourceEntityIds:[], reasons:['generic'], startedAt:now-9*day, endedAt:now-9*day+1 },
+        { signature:'e', itemId:'e', sourceEntityIds:[], reasons:['generic'], startedAt:now-10*day, endedAt:now-10*day+1 },
+      ],
+    };
+    expect(calculateDashboardEmergencyHistoryTrend(trendHistory, 7, now)).toMatchObject({ currentCount:2, previousCount:3, change:-1, direction:'improving' });
+    expect(calculateDashboardEmergencyHistoryTrend(trendHistory, 14, now)).toMatchObject({ currentCount:5, previousCount:0, change:5, changeRate:undefined, direction:'worsening' });
+  });
+
+  it('uses deterministic boundaries for trend windows', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = 20 * day;
+    const trendHistory: DashboardEmergencyHistoryState = {
+      active: [],
+      recent: [
+        { signature:'current-edge', itemId:'current-edge', sourceEntityIds:[], reasons:['generic'], startedAt:now-7*day, endedAt:now-7*day },
+        { signature:'previous-edge', itemId:'previous-edge', sourceEntityIds:[], reasons:['generic'], startedAt:now-14*day, endedAt:now-14*day },
+      ],
+    };
+    expect(calculateDashboardEmergencyHistoryTrend(trendHistory, 7, now)).toMatchObject({ currentCount:1, previousCount:1, change:0, changeRate:0, direction:'stable' });
   });
 
   it('exports a versioned sanitized audit payload', () => {
