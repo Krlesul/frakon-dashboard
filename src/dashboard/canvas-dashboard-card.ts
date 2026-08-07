@@ -3,17 +3,19 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types';
 import { createHomeAssistantDashboardStorage, type DashboardStorageMode } from '../home-assistant/dashboard-storage-factory';
 import './card-host';
+import './canvas-v2-view';
 import { canvasDashboardTranslate, resolveCanvasDashboardLanguage } from './canvas-dashboard-i18n';
 import { DashboardCanvasSession, type DashboardCanvasPoint, type DashboardCanvasPreview } from './dashboard-canvas-session';
 import { projectDashboardGridToCanvas } from './dashboard-canvas-placement';
 import {
   dashboardLayoutCapabilitiesFromServer,
-  loadDashboardServerCapabilities,
   type DashboardServerCapabilities,
 } from './dashboard-server-capabilities';
 import { DashboardStorageController } from './dashboard-storage-controller';
 import { createDashboardV2MigrationPreview } from './dashboard-v2-migration-preview';
+import { loadDashboardV2ReadOnly } from './dashboard-v2-read-loader';
 import { normalizeDashboard, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
+import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 
 export interface FrakonCanvasDashboardCardConfig extends LovelaceCardConfig {
   type: 'custom:frakon-canvas-dashboard-card';
@@ -33,6 +35,8 @@ export class FrakonCanvasDashboardCard extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private config?: FrakonCanvasDashboardCardConfig;
   @state() private document?: FrakonDashboardDocument;
+  @state() private nativeV2Document?: FrakonDashboardDocumentV2;
+  @state() private nativeV2Revision?: string;
   @state() private selectedId?: string;
   @state() private preview?: DashboardCanvasPreview;
   @state() private message?: string;
@@ -82,10 +86,11 @@ export class FrakonCanvasDashboardCard extends LitElement {
       gap: config.gap ?? 12,
       items: config.items ?? [],
     });
+    this.nativeV2Document = undefined;
+    this.nativeV2Revision = undefined;
     this.configureStorage();
     this.cancelInteraction();
-    void this.loadStored(id);
-    void this.refreshServerCapabilities();
+    void this.loadDashboard(id);
   }
 
   static getStubConfig(): FrakonCanvasDashboardCardConfig {
@@ -109,15 +114,15 @@ export class FrakonCanvasDashboardCard extends LitElement {
       const next = entries[0]?.contentRect.width;
       if (next && Math.abs(next - this.width) > 1) this.width = next;
     });
-    const canvas = this.renderRoot.querySelector<HTMLElement>('.canvas');
-    if (canvas) this.resizeObserver.observe(canvas);
+    this.resizeObserver.observe(this);
   }
 
   protected updated(changed: PropertyValues<this>): void {
     if (!changed.has('hass')) return;
     const changedStorage = this.configureStorage();
-    if (changedStorage && this.document) void this.loadStored(this.document.id);
-    void this.refreshServerCapabilities();
+    if ((changedStorage || this.config?.storage === 'home-assistant') && this.document) {
+      void this.loadDashboard(this.document.id);
+    }
   }
 
   disconnectedCallback(): void {
@@ -148,36 +153,50 @@ export class FrakonCanvasDashboardCard extends LitElement {
     return true;
   }
 
-  private async refreshServerCapabilities(): Promise<void> {
-    if (this.config?.storage !== 'home-assistant') {
+  private async loadDashboard(id: string): Promise<void> {
+    this.nativeV2Document = undefined;
+    this.nativeV2Revision = undefined;
+
+    if (this.config?.storage === 'home-assistant' && this.hass?.callWS) {
+      const hass = this.hass;
+      try {
+        const result = await loadDashboardV2ReadOnly({
+          request: <T>(command: string, payload: Record<string, unknown>) => hass.callWS!<T>({ type: command, ...payload }),
+        }, id);
+        this.serverCapabilities = result.capabilities;
+        this.capabilitiesError = undefined;
+
+        if (result.status === 'loaded') {
+          if (this.document?.id !== id) return;
+          this.nativeV2Document = result.envelope.document;
+          this.nativeV2Revision = result.envelope.revision;
+          this.cancelInteraction();
+          return;
+        }
+        if (result.status === 'invalid' && result.reason === 'invalid-envelope') {
+          this.capabilitiesError = 'Invalid dashboard revision envelope returned by Home Assistant.';
+          return;
+        }
+      } catch (error) {
+        this.serverCapabilities = undefined;
+        this.capabilitiesError = error instanceof Error ? error.message : String(error);
+      }
+    } else {
       this.serverCapabilities = undefined;
       this.capabilitiesError = undefined;
-      return;
     }
-    const hass = this.hass;
-    if (!hass?.callWS) {
-      this.serverCapabilities = undefined;
-      this.capabilitiesError = 'Home Assistant WebSocket API is unavailable.';
-      return;
-    }
-    try {
-      this.serverCapabilities = await loadDashboardServerCapabilities({
-        request: <T>(command: string, payload: Record<string, unknown>) => hass.callWS!<T>({ type: command, ...payload }),
-      });
-      this.capabilitiesError = undefined;
-    } catch (error) {
-      this.serverCapabilities = undefined;
-      this.capabilitiesError = error instanceof Error ? error.message : String(error);
-    }
+
+    await this.loadStoredV1(id);
   }
 
-  private async loadStored(id: string): Promise<void> {
+  private async loadStoredV1(id: string): Promise<void> {
     const stored = await this.storageController.load(id);
     if (!stored || this.document?.id !== id) return;
     this.document = normalizeDashboard(stored);
   }
 
   private persist(document: FrakonDashboardDocument): void {
+    if (this.nativeV2Document) return;
     this.document = normalizeDashboard(document);
     void this.storageController.save(this.document);
     this.dispatchEvent(new CustomEvent('frakon-layout-changed', {
@@ -192,7 +211,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
   }
 
   private beginMove(event: PointerEvent, item: FrakonGridItem): void {
-    if (!this.document || item.locked || this.config?.edit_mode !== true || this.session || event.button !== 0) return;
+    if (this.nativeV2Document || !this.document || item.locked || this.config?.edit_mode !== true || this.session || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     this.selectedId = item.id;
@@ -208,7 +227,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
   }
 
   private beginResize(event: PointerEvent, item: FrakonGridItem): void {
-    if (!this.document || item.locked || this.config?.edit_mode !== true || this.session || event.button !== 0) return;
+    if (this.nativeV2Document || !this.document || item.locked || this.config?.edit_mode !== true || this.session || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     this.selectedId = item.id;
@@ -252,7 +271,42 @@ export class FrakonCanvasDashboardCard extends LitElement {
     return Math.max(1, this.renderRoot.querySelector<HTMLElement>('.canvas')?.getBoundingClientRect().width ?? this.width);
   }
 
+  private renderServerCapabilityBadges() {
+    const capabilities = this.serverCapabilities
+      ? dashboardLayoutCapabilitiesFromServer(this.serverCapabilities)
+      : undefined;
+    if (this.config?.storage !== 'home-assistant' || !capabilities) return nothing;
+    return html`
+      <span class="badge ${capabilities.readV2 ? 'ready' : 'blocked'}">${this.t(capabilities.readV2 ? 'v2ReadReady' : 'v2ReadBlocked')}</span>
+      <span class="badge ${capabilities.writeV2 ? 'ready' : 'blocked'}">${this.t(capabilities.writeV2 ? 'v2WriteReady' : 'v2WriteBlocked')}</span>
+    `;
+  }
+
+  private renderNativeV2() {
+    if (!this.nativeV2Document) return nothing;
+    return html`
+      <section class="shell">
+        <header>
+          <h2>${this.nativeV2Document.title}</h2>
+          <div class="badges">
+            <span class="badge experimental">${this.t('experimentalCanvas')}</span>
+            <span class="badge ready">${this.t('v2NativeReadOnly')}</span>
+            ${this.renderServerCapabilityBadges()}
+            ${this.nativeV2Revision ? html`<span class="badge">${this.nativeV2Revision}</span>` : nothing}
+          </div>
+        </header>
+        ${this.capabilitiesError ? html`<div class="message error">${this.t('capabilityFailed')}: ${this.capabilitiesError}</div>` : nothing}
+        <frakon-canvas-v2-view
+          .hass=${this.hass}
+          .document=${this.nativeV2Document}
+          .width=${Math.max(1, this.width)}
+        ></frakon-canvas-v2-view>
+      </section>
+    `;
+  }
+
   render() {
+    if (this.nativeV2Document) return this.renderNativeV2();
     if (!this.document) return nothing;
     const width = this.canvasWidth();
     const projected = projectDashboardGridToCanvas(this.document, width);
@@ -264,9 +318,6 @@ export class FrakonCanvasDashboardCard extends LitElement {
       ...placements.map((item) => item.y + item.height + 12),
     );
     const editMode = this.config?.edit_mode === true;
-    const serverLayoutCapabilities = this.serverCapabilities
-      ? dashboardLayoutCapabilitiesFromServer(this.serverCapabilities)
-      : undefined;
     const migration = createDashboardV2MigrationPreview(this.document, width);
 
     return html`
@@ -286,12 +337,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
               ${migration.lockedItemCount} ${this.t('lockedCards')} · ${migration.constraintCount} ${this.t('constraints')} ·
               ${Math.round(migration.canvasWidth)}×${Math.round(migration.estimatedCanvasHeight)} · ${this.t('writeLocked')}
             </span>
-            ${this.config?.storage === 'home-assistant' && serverLayoutCapabilities
-              ? html`
-                <span class="badge ${serverLayoutCapabilities.readV2 ? 'ready' : 'blocked'}">${this.t(serverLayoutCapabilities.readV2 ? 'v2ReadReady' : 'v2ReadBlocked')}</span>
-                <span class="badge ${serverLayoutCapabilities.writeV2 ? 'ready' : 'blocked'}">${this.t(serverLayoutCapabilities.writeV2 ? 'v2WriteReady' : 'v2WriteBlocked')}</span>
-              `
-              : nothing}
+            ${this.renderServerCapabilityBadges()}
           </div>
         </header>
         ${this.capabilitiesError ? html`<div class="message error">${this.t('capabilityFailed')}: ${this.capabilitiesError}</div>` : nothing}
