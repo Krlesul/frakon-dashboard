@@ -60,6 +60,16 @@ describe('DashboardCanvasV2Session', () => {
     expect(result.document.items.find((item) => item.id === 'locked')?.frame).toEqual({ x: 20, y: 140, width: 100, height: 60 });
   });
 
+  it('applies document constraints before collision validation', () => {
+    const source = document();
+    source.layout.snap.enabled = false;
+    source.constraints = [{ id: 'b-below-a', kind: 'below', sourceId: 'b', targetId: 'a', gap: 20 }];
+    const session = new DashboardCanvasV2Session(source, { kind: 'move', selectedIds: ['a'] }, { x: 0, y: 0 });
+    const preview = session.preview({ x: 40, y: 40 });
+    expect(preview.document.items.find((item) => item.id === 'a')?.frame).toMatchObject({ x: 60, y: 60 });
+    expect(preview.document.items.find((item) => item.id === 'b')?.frame.y).toBe(160);
+  });
+
   it('grows canvas minHeight when an item is moved below the current extent', () => {
     const session = new DashboardCanvasV2Session(document(), { kind: 'move', selectedIds: ['a'] }, { x: 0, y: 0 });
     const result = session.commit({ x: 0, y: 400 });
