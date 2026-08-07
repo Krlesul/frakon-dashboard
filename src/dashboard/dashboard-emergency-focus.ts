@@ -5,6 +5,8 @@ export interface DashboardEmergencyFocusTarget {
   itemId: string;
   item: FrakonGridItem;
   severity: 'critical';
+  reasons: string[];
+  sourceEntityIds: string[];
 }
 
 export interface DashboardEmergencyFocusState {
@@ -18,12 +20,21 @@ export function createDashboardEmergencyFocusState(
   context: DashboardIntelligenceContext | undefined,
 ): DashboardEmergencyFocusState {
   if (!context) return { active: false, targets: [] };
-  const criticalIds = new Set((context.usage ?? [])
+  const criticalById = new Map((context.usage ?? [])
     .filter((signal) => signal.urgent && signal.severity === 'critical')
-    .map((signal) => signal.itemId));
+    .map((signal) => [signal.itemId, signal]));
   const targets = document.items
-    .filter((item) => criticalIds.has(item.id))
-    .map((item) => ({ itemId: item.id, item: structuredClone(item), severity: 'critical' as const }))
+    .filter((item) => criticalById.has(item.id))
+    .map((item) => {
+      const signal = criticalById.get(item.id);
+      return {
+        itemId: item.id,
+        item: structuredClone(item),
+        severity: 'critical' as const,
+        reasons: [...(signal?.urgencyReasons ?? [])],
+        sourceEntityIds: [...(signal?.sourceEntityIds ?? [])],
+      };
+    })
     .sort((left, right) => left.item.y - right.item.y || left.item.x - right.item.x || left.itemId.localeCompare(right.itemId));
   return { active: targets.length > 0, targets, primary: targets[0] };
 }
