@@ -180,6 +180,11 @@ export class FrakonStudioCanvas extends LitElement {
     this.viewport = normalizeViewport(this.viewport);
   }
 
+  public selectItemById(itemId: string): void {
+    if (!itemId || !this.selectableElements().some((element) => element.dataset.frakonId === itemId)) return;
+    this.emitSelection(selectOnly(itemId));
+  }
+
   private localPoint(event: PointerEvent | WheelEvent): Point {
     const rect = this.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -345,7 +350,7 @@ export class FrakonStudioCanvas extends LitElement {
   }
 
   private marqueeStyle(): string | undefined {
-    if (this.gesture?.mode !== 'marquee') return undefined;
+    if (!this.gesture?.mode === 'marquee') return undefined;
     const { startScreen, currentScreen } = this.gesture;
     const left = Math.min(startScreen.x, currentScreen.x);
     const top = Math.min(startScreen.y, currentScreen.y);
