@@ -13,6 +13,7 @@ import {
   type DashboardServerCapabilities,
 } from './dashboard-server-capabilities';
 import { DashboardStorageController } from './dashboard-storage-controller';
+import { DashboardV2DraftController } from './dashboard-v2-draft-controller';
 import { createDashboardV2MigrationPreview } from './dashboard-v2-migration-preview';
 import { loadDashboardV2ReadOnly } from './dashboard-v2-read-loader';
 import { normalizeDashboard, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
@@ -39,6 +40,8 @@ export class FrakonCanvasDashboardCard extends LitElement {
   @state() private nativeV2Document?: FrakonDashboardDocumentV2;
   @state() private nativeV2Revision?: string;
   @state() private nativeV2DraftDirty = false;
+  @state() private nativeV2CanUndo = false;
+  @state() private nativeV2CanRedo = false;
   @state() private selectedId?: string;
   @state() private preview?: DashboardCanvasPreview;
   @state() private message?: string;
@@ -51,6 +54,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
   private resizeObserver?: ResizeObserver;
   private session?: DashboardCanvasSession;
   private pointerId?: number;
+  private nativeV2DraftController?: DashboardV2DraftController;
 
   static styles = css`
     :host { display: block; }
@@ -63,7 +67,9 @@ export class FrakonCanvasDashboardCard extends LitElement {
     .blocked { background: color-mix(in srgb, #ff4d67 18%, transparent); }
     .ready { background: color-mix(in srgb, #4bbf73 18%, transparent); }
     .migration { opacity: .86; }
-    .draft-action { border: 0; border-radius: 9px; padding: 6px 9px; color: inherit; background: color-mix(in srgb, #ff4d67 14%, transparent); cursor: pointer; font: inherit; }
+    .draft-action { border: 0; border-radius: 9px; padding: 6px 9px; color: inherit; background: color-mix(in srgb, var(--primary-color) 13%, transparent); cursor: pointer; font: inherit; }
+    .draft-action.danger { background: color-mix(in srgb, #ff4d67 14%, transparent); }
+    .draft-action:disabled { opacity: .4; cursor: default; }
     .message { margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12px; background: color-mix(in srgb, var(--primary-color) 12%, transparent); }
     .message.error { background: color-mix(in srgb, #ff4d67 16%, transparent); }
     .canvas { position: relative; min-height: 120px; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-color) 6%); }
@@ -89,9 +95,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
       gap: config.gap ?? 12,
       items: config.items ?? [],
     });
-    this.nativeV2Document = undefined;
-    this.nativeV2Revision = undefined;
-    this.nativeV2DraftDirty = false;
+    this.clearNativeV2State();
     this.configureStorage();
     this.cancelInteraction();
     void this.loadDashboard(id);
@@ -157,10 +161,24 @@ export class FrakonCanvasDashboardCard extends LitElement {
     return true;
   }
 
-  private async loadDashboard(id: string): Promise<void> {
+  private clearNativeV2State(): void {
     this.nativeV2Document = undefined;
     this.nativeV2Revision = undefined;
     this.nativeV2DraftDirty = false;
+    this.nativeV2CanUndo = false;
+    this.nativeV2CanRedo = false;
+    this.nativeV2DraftController = undefined;
+  }
+
+  private applyNativeV2Snapshot(snapshot: ReturnType<DashboardV2DraftController['undo']>): void {
+    this.nativeV2Document = snapshot.document;
+    this.nativeV2DraftDirty = snapshot.dirty;
+    this.nativeV2CanUndo = snapshot.canUndo;
+    this.nativeV2CanRedo = snapshot.canRedo;
+  }
+
+  private async loadDashboard(id: string): Promise<void> {
+    this.clearNativeV2State();
 
     if (this.config?.storage === 'home-assistant' && this.hass?.callWS) {
       const hass = this.hass;
@@ -173,8 +191,9 @@ export class FrakonCanvasDashboardCard extends LitElement {
 
         if (result.status === 'loaded') {
           if (this.document?.id !== id) return;
-          this.nativeV2Document = result.envelope.document;
           this.nativeV2Revision = result.envelope.revision;
+          this.nativeV2DraftController = new DashboardV2DraftController(result.envelope.document);
+          this.applyNativeV2Snapshot(this.nativeV2DraftController.snapshot);
           this.cancelInteraction();
           return;
         }
@@ -212,15 +231,38 @@ export class FrakonCanvasDashboardCard extends LitElement {
   }
 
   private onNativeV2Draft(event: CustomEvent<FrakonCanvasV2DraftDetail>): void {
-    if (!this.nativeV2Document) return;
+    const controller = this.nativeV2DraftController;
+    if (!controller) return;
     const result = event.detail;
     if (result.status === 'committed') {
-      this.nativeV2Document = result.document;
-      this.nativeV2DraftDirty = true;
-      this.message = this.t('v2DraftUnsaved');
+      this.applyNativeV2Snapshot(controller.apply(result));
+      this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
     } else if (result.status === 'collision') {
       this.message = `${this.t('collisionBlocked')}: ${result.collisionIds.join(', ')}`;
     }
+  }
+
+  private undoNativeV2Draft(): void {
+    const controller = this.nativeV2DraftController;
+    if (!controller || !controller.snapshot.canUndo) return;
+    this.applyNativeV2Snapshot(controller.undo());
+    this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
+  }
+
+  private redoNativeV2Draft(): void {
+    const controller = this.nativeV2DraftController;
+    if (!controller || !controller.snapshot.canRedo) return;
+    this.applyNativeV2Snapshot(controller.redo());
+    this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
+  }
+
+  private onNativeV2HistoryKeyDown(event: KeyboardEvent): void {
+    if (!this.nativeV2DraftController || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+    if (event.key.toLowerCase() !== 'z') return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.shiftKey) this.redoNativeV2Draft();
+    else this.undoNativeV2Draft();
   }
 
   private async discardNativeV2Draft(): Promise<void> {
@@ -309,7 +351,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
   private renderNativeV2() {
     if (!this.nativeV2Document) return nothing;
     return html`
-      <section class="shell">
+      <section class="shell" tabindex="0" @keydown=${this.onNativeV2HistoryKeyDown}>
         <header>
           <h2>${this.nativeV2Document.title}</h2>
           <div class="badges">
@@ -318,8 +360,12 @@ export class FrakonCanvasDashboardCard extends LitElement {
             ${this.nativeV2DraftDirty ? html`<span class="badge blocked">${this.t('v2DraftUnsaved')}</span>` : nothing}
             ${this.renderServerCapabilityBadges()}
             ${this.nativeV2Revision ? html`<span class="badge">${this.nativeV2Revision}</span>` : nothing}
+            ${this.config?.edit_mode === true ? html`
+              <button class="draft-action" ?disabled=${!this.nativeV2CanUndo} @click=${this.undoNativeV2Draft}>${this.t('undo')}</button>
+              <button class="draft-action" ?disabled=${!this.nativeV2CanRedo} @click=${this.redoNativeV2Draft}>${this.t('redo')}</button>
+            ` : nothing}
             ${this.nativeV2DraftDirty
-              ? html`<button class="draft-action" @click=${this.discardNativeV2Draft}>${this.t('discardDraft')}</button>`
+              ? html`<button class="draft-action danger" @click=${this.discardNativeV2Draft}>${this.t('discardDraft')}</button>`
               : nothing}
           </div>
         </header>
