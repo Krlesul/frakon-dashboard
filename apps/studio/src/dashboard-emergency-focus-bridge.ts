@@ -15,6 +15,7 @@ export class FrakonDashboardEmergencyFocusBridge extends LitElement {
   @property({ attribute: false }) document?: FrakonDashboardDocument;
   @property({ type: Boolean }) autoFocus = true;
   @property() activeItemId = '';
+  @property() locale = 'en';
   @property({ type: Number }) focusToken = 0;
   @property({ type: Number }) restoreToken = 0;
 
@@ -37,6 +38,7 @@ export class FrakonDashboardEmergencyFocusBridge extends LitElement {
     this.overlay.focusState = this.focusState;
     this.overlay.document = this.document;
     this.overlay.activeItemId = this.currentTarget()?.itemId ?? '';
+    this.overlay.locale = this.locale;
     if (this.overlay.parentElement !== canvas) canvas.append(this.overlay);
 
     if (this.restoreToken !== this.lastRestoreToken) {
