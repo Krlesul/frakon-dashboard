@@ -10,25 +10,27 @@ from homeassistant.core import HomeAssistant
 from .storage import FrakonDashboardStorage
 
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
+REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
+CLIENT_ID = vol.All(str, vol.Length(min=1, max=128))
 DASHBOARD_DOCUMENT = vol.Schema(
     {
         vol.Required("id"): DASHBOARD_ID,
         vol.Required("version"): vol.Coerce(int),
-        vol.Required("items"): list,
+        vol.Required("items"): vol.All(list, vol.Length(max=2000)),
     },
     extra=vol.ALLOW_EXTRA,
 )
 REVISION_ENVELOPE = vol.Schema(
     {
         vol.Required("document"): DASHBOARD_DOCUMENT,
-        vol.Required("revision"): str,
-        vol.Optional("parentRevision"): vol.Any(None, str),
+        vol.Required("revision"): REVISION_ID,
+        vol.Optional("parentRevision"): vol.Any(None, REVISION_ID),
         vol.Required("updatedAt"): vol.Coerce(int),
-        vol.Required("clientId"): str,
+        vol.Required("clientId"): CLIENT_ID,
     },
     extra=vol.ALLOW_EXTRA,
 )
-EXPECTED_REVISION = vol.Any(None, str)
+EXPECTED_REVISION = vol.Any(None, REVISION_ID)
 
 
 def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardStorage) -> None:
@@ -112,10 +114,25 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
     ) -> None:
         envelope = dict(msg["envelope"])
         document = envelope["document"]
+        expected_revision = msg.get("expectedRevision")
         if document.get("version") != 1:
             connection.send_error(msg["id"], "unsupported_version", "Only dashboard document version 1 is supported.")
             return
-        saved, remote = await storage.save_revision(envelope, msg.get("expectedRevision"))
+        if envelope.get("parentRevision") != expected_revision:
+            connection.send_error(
+                msg["id"],
+                "invalid_parent_revision",
+                "Envelope parentRevision must match expectedRevision.",
+            )
+            return
+        if expected_revision is not None and envelope.get("revision") == expected_revision:
+            connection.send_error(
+                msg["id"],
+                "invalid_revision",
+                "A saved revision must differ from its parent revision.",
+            )
+            return
+        saved, remote = await storage.save_revision(envelope, expected_revision)
         if saved:
             connection.send_result(msg["id"], {"status": "saved", "envelope": remote})
             return
