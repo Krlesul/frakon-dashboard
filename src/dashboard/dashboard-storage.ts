@@ -66,7 +66,7 @@ export class RemoteDashboardStorageAdapter implements DashboardStorageAdapter {
   ) {}
 
   async load(id: string): Promise<FrakonDashboardDocument | undefined> {
-    const document = await this.transport.request<FrakonDashboardDocument | undefined>(`${this.namespace}/load`, { id });
+    const document = await this.transport.request<FrakonDashboardDocument | undefined>(`${this.namespace}/load`, { dashboard_id: id });
     return document ? normalizeDashboard(document) : undefined;
   }
 
@@ -75,7 +75,7 @@ export class RemoteDashboardStorageAdapter implements DashboardStorageAdapter {
   }
 
   async remove(id: string): Promise<void> {
-    await this.transport.request(`${this.namespace}/remove`, { id });
+    await this.transport.request(`${this.namespace}/remove`, { dashboard_id: id });
   }
 }
 
