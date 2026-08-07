@@ -35,7 +35,7 @@ describe('RevisionedDashboardStorage', () => {
     await expect(storage.load('home')).resolves.toEqual(envelope);
     expect(transport.requests[0]).toEqual({
       command: 'frakon/dashboard/load_revision',
-      payload: { id: 'home' },
+      payload: { dashboard_id: 'home' },
     });
   });
 
@@ -72,5 +72,15 @@ describe('RevisionedDashboardStorage', () => {
     expect(result.comparison?.relation).toBe('conflict');
     expect(result.comparison?.local.document.title).toBe('Local');
     expect(result.comparison?.remote.document.title).toBe('Remote');
+  });
+
+  it('uses dashboard_id for revision removal without colliding with the WebSocket message id', async () => {
+    const transport = new Transport();
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet' });
+    await storage.remove('home', 'rev-1');
+    expect(transport.requests[0]).toEqual({
+      command: 'frakon/dashboard/remove_revision',
+      payload: { dashboard_id: 'home', expectedRevision: 'rev-1' },
+    });
   });
 });
