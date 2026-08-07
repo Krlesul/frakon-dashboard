@@ -14,6 +14,7 @@ import {
   type DashboardEmergencyHistoryState,
 } from '../../../src/dashboard/dashboard-emergency-history';
 import {
+  clearDashboardEmergencyHistory,
   loadDashboardEmergencyHistory,
   saveDashboardEmergencyHistory,
 } from '../../../src/dashboard/dashboard-emergency-history-storage';
@@ -24,6 +25,7 @@ import type { DashboardInteractionTracker } from '../../../src/dashboard/dashboa
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 import { homeAssistantLanguage, type HomeAssistantLike } from '../../../src/home-assistant/dashboard-intelligence-signal-bridge';
 import type { FrakonDashboardIntelligenceContextChangedDetail, FrakonDashboardIntelligenceStabilizationStatusDetail } from './dashboard-intelligence-signal-bridge';
+import './dashboard-emergency-audit-panel';
 import './dashboard-emergency-focus-bridge';
 import './dashboard-intelligence-safe-panel';
 import './dashboard-intelligence-signal-bridge';
@@ -84,6 +86,12 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
     this.emergencyHistory = saveDashboardEmergencyHistory(this.browserStorage(), history, { recentLimit: this.emergencyHistoryLimit });
   }
 
+  private clearEmergencyHistory(): void {
+    clearDashboardEmergencyHistory(this.browserStorage());
+    this.emergencyHistory = { active: [], recent: [] };
+    this.acknowledgedSignatures = [];
+  }
+
   private browserStorage(): Storage | undefined {
     try { return typeof window !== 'undefined' ? window.localStorage : undefined; }
     catch { return undefined; }
@@ -95,7 +103,7 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
 
   private renderEmergencyHistory(){ const locale=homeAssistantLanguage(this.hass); const strings=dashboardEmergencyUiStrings(locale); const formatter=new Intl.DateTimeFormat(locale,{hour:'2-digit',minute:'2-digit',second:'2-digit'}); const formatDuration=(ms:number)=>{const total=Math.max(0,Math.round(ms/1000));const minutes=Math.floor(total/60);const seconds=total%60;return minutes>0?`${minutes}m ${seconds}s`:`${seconds}s`;}; const active=this.emergencyHistory.active; const recent=this.emergencyHistory.recent.slice(0,5); if(active.length===0&&recent.length===0)return nothing; return html`<section class="history"><h4>${strings.history}</h4><div class="history-list">${active.map((entry)=>html`<div class="history-entry"><strong>${entry.itemId}</strong><small>${strings.activeSince}: ${formatter.format(entry.startedAt)} · ${strings.duration}: ${formatDuration(dashboardEmergencyDuration(entry))}</small>${entry.acknowledgedAt!==undefined?html`<small>${strings.acknowledgedAt}: ${formatter.format(entry.acknowledgedAt)}</small>`:nothing}</div>`)}${recent.length>0?html`<small>${strings.recentEvents}</small>`:html`<small class="history-empty">${strings.noRecentEvents}</small>`}${recent.map((entry)=>html`<div class="history-entry"><strong>${entry.itemId}</strong><small>${strings.endedAt}: ${formatter.format(entry.endedAt!)} · ${strings.duration}: ${formatDuration(entry.durationMs??0)}</small>${entry.acknowledgedAt!==undefined?html`<small>${strings.acknowledgedAt}: ${formatter.format(entry.acknowledgedAt)}</small>`:nothing}</div>`)}</div></section>`; }
 
-  render(){ const emergencyFocus=this.emergencyFocus(); const emergencyItemId=this.currentEmergencyItemId(emergencyFocus); const locale=homeAssistantLanguage(this.hass); return html`<frakon-dashboard-intelligence-signal-bridge .hass=${this.hass} .document=${this.document} .tracker=${this.tracker} .device=${this.device} .urgencyConfirmMs=${this.urgencyConfirmMs} .urgencyReleaseMs=${this.urgencyReleaseMs} .minimumEmissionIntervalMs=${this.minimumEmissionIntervalMs} @frakon-dashboard-intelligence-context-changed=${this.onContextChanged} @frakon-dashboard-intelligence-stabilization-status=${this.onStabilizationStatus}></frakon-dashboard-intelligence-signal-bridge><frakon-dashboard-emergency-focus-bridge .focusState=${emergencyFocus} .document=${this.document} .autoFocus=${this.emergencyAutoFocus} .activeItemId=${emergencyItemId} .locale=${locale} .acknowledgedSignatures=${this.acknowledgedSignatures} .focusToken=${this.emergencyFocusToken} .restoreToken=${this.emergencyRestoreToken}></frakon-dashboard-emergency-focus-bridge>${this.renderStatus()}${this.renderEmergencyControls(emergencyFocus)}${this.renderEmergencyHistory()}<frakon-dashboard-intelligence-safe-panel .document=${this.document} .automaticContext=${this.automaticContext}></frakon-dashboard-intelligence-safe-panel>`; }
+  render(){ const emergencyFocus=this.emergencyFocus(); const emergencyItemId=this.currentEmergencyItemId(emergencyFocus); const locale=homeAssistantLanguage(this.hass); return html`<frakon-dashboard-intelligence-signal-bridge .hass=${this.hass} .document=${this.document} .tracker=${this.tracker} .device=${this.device} .urgencyConfirmMs=${this.urgencyConfirmMs} .urgencyReleaseMs=${this.urgencyReleaseMs} .minimumEmissionIntervalMs=${this.minimumEmissionIntervalMs} @frakon-dashboard-intelligence-context-changed=${this.onContextChanged} @frakon-dashboard-intelligence-stabilization-status=${this.onStabilizationStatus}></frakon-dashboard-intelligence-signal-bridge><frakon-dashboard-emergency-focus-bridge .focusState=${emergencyFocus} .document=${this.document} .autoFocus=${this.emergencyAutoFocus} .activeItemId=${emergencyItemId} .locale=${locale} .acknowledgedSignatures=${this.acknowledgedSignatures} .focusToken=${this.emergencyFocusToken} .restoreToken=${this.emergencyRestoreToken}></frakon-dashboard-emergency-focus-bridge>${this.renderStatus()}${this.renderEmergencyControls(emergencyFocus)}${this.renderEmergencyHistory()}<frakon-dashboard-emergency-audit-panel .history=${this.emergencyHistory} .locale=${locale} @frakon-dashboard-emergency-history-clear=${()=>this.clearEmergencyHistory()}></frakon-dashboard-emergency-audit-panel><frakon-dashboard-intelligence-safe-panel .document=${this.document} .automaticContext=${this.automaticContext}></frakon-dashboard-intelligence-safe-panel>`; }
 }
 
 declare global{interface HTMLElementTagNameMap{'frakon-dashboard-intelligence-live-panel':FrakonDashboardIntelligenceLivePanel}}
