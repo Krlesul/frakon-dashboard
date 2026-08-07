@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types';
 import { createHomeAssistantDashboardStorage, type DashboardStorageMode } from '../home-assistant/dashboard-storage-factory';
 import './card-host';
+import { canvasDashboardTranslate, resolveCanvasDashboardLanguage } from './canvas-dashboard-i18n';
 import { DashboardCanvasSession, type DashboardCanvasPoint, type DashboardCanvasPreview } from './dashboard-canvas-session';
 import { projectDashboardGridToCanvas } from './dashboard-canvas-placement';
 import {
@@ -11,6 +12,7 @@ import {
   type DashboardServerCapabilities,
 } from './dashboard-server-capabilities';
 import { DashboardStorageController } from './dashboard-storage-controller';
+import { createDashboardV2MigrationPreview } from './dashboard-v2-migration-preview';
 import { normalizeDashboard, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
 
 export interface FrakonCanvasDashboardCardConfig extends LovelaceCardConfig {
@@ -54,6 +56,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
     .experimental { background: color-mix(in srgb, #f0a85a 22%, transparent); }
     .blocked { background: color-mix(in srgb, #ff4d67 18%, transparent); }
     .ready { background: color-mix(in srgb, #4bbf73 18%, transparent); }
+    .migration { opacity: .86; }
     .message { margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12px; background: color-mix(in srgb, var(--primary-color) 12%, transparent); }
     .message.error { background: color-mix(in srgb, #ff4d67 16%, transparent); }
     .canvas { position: relative; min-height: 120px; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-color) 6%); }
@@ -124,6 +127,18 @@ export class FrakonCanvasDashboardCard extends LitElement {
   }
 
   getCardSize(): number { return 8; }
+
+  private language() {
+    return resolveCanvasDashboardLanguage(
+      this.config?.language,
+      this.hass?.locale?.language,
+      this.hass?.language,
+    );
+  }
+
+  private t(key: Parameters<typeof canvasDashboardTranslate>[1]): string {
+    return canvasDashboardTranslate(this.language(), key);
+  }
 
   private configureStorage(): boolean {
     const next = createHomeAssistantDashboardStorage(this.config?.storage ?? 'local', this.hass);
@@ -221,9 +236,9 @@ export class FrakonCanvasDashboardCard extends LitElement {
     this.cancelInteraction();
     if (result.status === 'committed') {
       this.persist(result.document);
-      this.message = 'Canvas change committed to compatible grid storage.';
+      this.message = this.t('changeCommitted');
     } else if (result.status === 'collision') {
-      this.message = `Canvas change blocked by collision: ${result.collisionIds.join(', ')}`;
+      this.message = `${this.t('collisionBlocked')}: ${result.collisionIds.join(', ')}`;
     }
   }
 
@@ -252,6 +267,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
     const serverLayoutCapabilities = this.serverCapabilities
       ? dashboardLayoutCapabilitiesFromServer(this.serverCapabilities)
       : undefined;
+    const migration = createDashboardV2MigrationPreview(this.document, width);
 
     return html`
       <section
@@ -263,17 +279,22 @@ export class FrakonCanvasDashboardCard extends LitElement {
         <header>
           <h2>${this.document.title}</h2>
           <div class="badges">
-            <span class="badge experimental">EXPERIMENTAL CANVAS</span>
-            <span class="badge">v1 compatible commit</span>
+            <span class="badge experimental">${this.t('experimentalCanvas')}</span>
+            <span class="badge">${this.t('compatibleCommit')}</span>
+            <span class="badge migration">
+              ${this.t('migrationPreview')} · ${migration.itemCount} ${this.t('cards')} ·
+              ${migration.lockedItemCount} ${this.t('lockedCards')} · ${migration.constraintCount} ${this.t('constraints')} ·
+              ${Math.round(migration.canvasWidth)}×${Math.round(migration.estimatedCanvasHeight)} · ${this.t('writeLocked')}
+            </span>
             ${this.config?.storage === 'home-assistant' && serverLayoutCapabilities
               ? html`
-                <span class="badge ${serverLayoutCapabilities.readV2 ? 'ready' : 'blocked'}">v2 read ${serverLayoutCapabilities.readV2 ? 'ready' : 'blocked'}</span>
-                <span class="badge ${serverLayoutCapabilities.writeV2 ? 'ready' : 'blocked'}">v2 write ${serverLayoutCapabilities.writeV2 ? 'ready' : 'blocked'}</span>
+                <span class="badge ${serverLayoutCapabilities.readV2 ? 'ready' : 'blocked'}">${this.t(serverLayoutCapabilities.readV2 ? 'v2ReadReady' : 'v2ReadBlocked')}</span>
+                <span class="badge ${serverLayoutCapabilities.writeV2 ? 'ready' : 'blocked'}">${this.t(serverLayoutCapabilities.writeV2 ? 'v2WriteReady' : 'v2WriteBlocked')}</span>
               `
               : nothing}
           </div>
         </header>
-        ${this.capabilitiesError ? html`<div class="message error">Capability negotiation failed: ${this.capabilitiesError}</div>` : nothing}
+        ${this.capabilitiesError ? html`<div class="message error">${this.t('capabilityFailed')}: ${this.capabilitiesError}</div>` : nothing}
         ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
         <div class="canvas" style=${`height:${minHeight}px`}>
           ${this.document.items.map((item) => {
