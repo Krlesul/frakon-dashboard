@@ -7,6 +7,7 @@ export interface DashboardEmergencyFocusTarget {
   severity: 'critical';
   reasons: string[];
   sourceEntityIds: string[];
+  sourceEntityLabels: Record<string, string>;
 }
 
 export interface DashboardEmergencyFocusState {
@@ -33,6 +34,7 @@ export function createDashboardEmergencyFocusState(
         severity: 'critical' as const,
         reasons: [...(signal?.urgencyReasons ?? [])],
         sourceEntityIds: [...(signal?.sourceEntityIds ?? [])],
+        sourceEntityLabels: { ...(signal?.sourceEntityLabels ?? {}) },
       };
     })
     .sort((left, right) => left.item.y - right.item.y || left.item.x - right.item.x || left.itemId.localeCompare(right.itemId));
