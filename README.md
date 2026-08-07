@@ -20,7 +20,8 @@ The project currently includes:
 - undo and redo history
 - asynchronous storage controller with ordered writes and error reporting
 - local browser storage adapter
-- remote storage adapter and Home Assistant WebSocket transport foundation
+- Home Assistant server-side dashboard storage integration
+- revision-aware multi-device synchronization with optimistic concurrency
 - JSON import and export
 - visual dashboard configuration editor
 - visual per-card form editor with an advanced JSON mode
@@ -29,6 +30,8 @@ The project currently includes:
 - explainable card priority scoring with manual overrides
 - initial `apps/*` and `packages/*` monorepo boundaries for Dashboard Studio
 - platform-neutral Studio viewport engine with zoom, pan, coordinate transforms, fit-to-content and persistence
+- multi-selection, move, resize, smart guidelines and layout constraints in the Studio engine
+- Emergency Intelligence with occurrence-aware execution, durable idempotency, execution journal, restart recovery, evidence consistency checks and verify-before-retry safety
 
 ### Included cards
 
@@ -49,12 +52,14 @@ Requirements:
 
 - Node.js 20.19 or newer
 - npm
+- Python 3.13 for validating the Home Assistant custom integration
 
 ```bash
 npm install
 npm run lint
 npm test
 npm run build
+python -m compileall -q custom_components/frakon_dashboard
 ```
 
 Run all checks:
@@ -77,12 +82,14 @@ The current development build can be tested from a successful GitHub Actions art
 docs/home-assistant-alpha-test.md
 ```
 
-The short installation path is:
+The short frontend installation path is:
 
 1. Download the `frakon-dashboard` artifact from the latest successful CI run.
 2. Copy `frakon-dashboard.js` to `/config/www/frakon-dashboard/frakon-dashboard.js`.
 3. Register `/local/frakon-dashboard/frakon-dashboard.js?v=alpha-1` as a JavaScript module resource.
 4. Add the Manual card configuration below.
+
+For shared Home Assistant storage, also copy `custom_components/frakon_dashboard` to `/config/custom_components/frakon_dashboard`, restart Home Assistant and add **FRAKON Dashboard** from **Settings → Devices & services → Add integration**.
 
 After changing the bundle, change the query suffix to avoid browser and service-worker cache confusion.
 
@@ -185,30 +192,38 @@ charging_switch_entity: switch.vehicle_charging
 
 ## Persistence and backups
 
-The dashboard runtime talks to an asynchronous storage controller. The default adapter stores documents in the browser's `localStorage`, so layouts remain browser-profile specific in the current alpha.
+The dashboard runtime talks to an asynchronous storage controller. `storage: local` stores documents in the browser's `localStorage` and remains useful as a zero-backend fallback.
 
-A remote adapter, Home Assistant `callWS` transport and backend factory are implemented and tested. They expect these WebSocket commands:
+`storage: home-assistant` uses the included `custom_components/frakon_dashboard` backend and Home Assistant's authenticated WebSocket API. The backend persists dashboard revision envelopes through Home Assistant's `Store` helper and supports:
 
 ```text
 frakon/dashboard/load
 frakon/dashboard/save
 frakon/dashboard/remove
+frakon/dashboard/load_revision
+frakon/dashboard/save_revision
+frakon/dashboard/remove_revision
 ```
 
-The matching Home Assistant backend handlers are not part of this frontend repository yet. Until an integration provides them, use `storage: local`.
+Dashboard identifiers are sent as `dashboard_id` because Home Assistant reserves the WebSocket `id` field for numeric message correlation. Revision-aware saves use `expectedRevision`; a stale client receives a conflict instead of silently overwriting a newer dashboard.
+
+Loading is available to authenticated Home Assistant users. Server-side mutations require an administrator account.
 
 Use Export after important changes. Import validates the document version and normalizes the layout before saving it.
 
+See `docs/storage.md` for the complete storage and synchronization model.
+
 ## Architecture
 
-- `apps/home-assistant` — future Home Assistant application boundary
-- `apps/studio` — future standalone Dashboard Studio boundary
-- `packages/studio-engine` — platform-neutral viewport and automatic layout engine
+- `apps/home-assistant` — Home Assistant application boundary retained while the custom integration backend lives in `custom_components/frakon_dashboard`
+- `apps/studio` — standalone FRAKON Dashboard Studio boundary
+- `packages/studio-engine` — platform-neutral viewport, selection, movement, resize, guidelines, constraints and automatic layout engine
 - `packages/dashboard-engine` — planned platform-neutral dashboard document operations
-- `packages/design-system` — planned reusable FRAKON design system package
+- `packages/design-system` — reusable FRAKON surface styling and design primitives
 - `packages/widget-sdk` — planned widget authoring contracts
 - `packages/localization` — planned shared localization package
-- `packages/ha-adapter` — planned Home Assistant-only adapter package
+- `packages/ha-adapter` — Home Assistant-only adapter package boundary
+- `custom_components/frakon_dashboard` — Home Assistant server persistence and WebSocket backend
 - `src` — current production Home Assistant runtime retained during incremental migration
 
 Home Assistant is treated as the first adapter, not as the permanent owner of the FRAKON UI architecture.
@@ -217,6 +232,7 @@ Home Assistant is treated as the first adapter, not as the permanent owner of th
 
 GitHub Actions validates every push and pull request with:
 
+- Python syntax validation for the Home Assistant integration
 - ESLint
 - Vitest
 - TypeScript production build
@@ -225,23 +241,19 @@ GitHub Actions validates every push and pull request with:
 
 ## Known alpha limitations
 
-- the default dashboard persistence is currently local to each browser profile
-- Home Assistant remote storage requires backend WebSocket handlers that are not implemented in this frontend repository
-- drag-and-drop currently exchanges card positions rather than providing final free-canvas pointer placement
+- the default persistence mode is still browser-local unless `storage: home-assistant` is selected
+- Home Assistant backend packaging is currently manual; unified HACS distribution is not finished
+- drag-and-drop in the production Home Assistant card still exchanges positions rather than exposing every Studio free-canvas interaction
 - not every specialized card has its own full visual editor yet
-- automatic importance scoring is currently based on card type and optional manual priority, not live AI context
+- automatic importance scoring is currently based on card type and optional manual priority, not full live AI context
 - camera behavior depends on the entity image exposed by Home Assistant
-- public HACS release installation is not finished; current testing uses the CI artifact
 - real-device testing across multiple Home Assistant installations is still required
 
 ## Planned next milestones
 
-- perform the first real Home Assistant alpha installation test
-- free canvas, zoom and pan Studio UI
-- selection engine and multi-select
-- pointer resize handles and smart guidelines
-- Home Assistant integration implementing server-side dashboard storage handlers
+- perform the first real Home Assistant alpha installation test with server-side persistence
+- complete production free-canvas interaction parity with the Studio engine
 - broader visual editors for specialized cards
 - Energy, Alarm, Graph, Weather and Floorplan cards
 - screenshot and browser interaction tests
-- signed alpha release and public HACS distribution
+- unified/signed alpha packaging and public HACS distribution
