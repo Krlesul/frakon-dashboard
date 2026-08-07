@@ -65,6 +65,14 @@ export class RevisionedDashboardSyncController {
         return result.envelope;
       }
 
+      if (result.status === 'blocked') {
+        this.patchState({
+          conflict: undefined,
+          error: new Error('Dashboard persistence is disabled for this document version.'),
+        });
+        return undefined;
+      }
+
       if (!result.comparison) throw new Error('Revision conflict response did not include comparison data.');
       const base = this.baseEnvelope ?? this.state.envelope;
       if (!base) throw new Error('Cannot resolve a dashboard conflict without a common base revision.');
@@ -106,6 +114,9 @@ export class RevisionedDashboardSyncController {
     this.patchState({ saving: true, error: undefined });
     try {
       const result = await this.storage.save(resolved.document, conflict.comparison.remote);
+      if (result.status === 'blocked') {
+        throw new Error('Dashboard persistence became disabled while resolving the conflict.');
+      }
       if (result.status !== 'saved' || !result.envelope) {
         throw new Error('Dashboard changed again while resolving the conflict. Reload and try again.');
       }
