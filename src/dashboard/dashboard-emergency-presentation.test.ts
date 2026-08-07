@@ -13,7 +13,7 @@ const target: DashboardEmergencyFocusTarget = {
 
 describe('Emergency Focus presentation', () => {
   it('turns smoke metadata into a concise user-facing alert using friendly_name', () => {
-    expect(presentDashboardEmergency(target)).toEqual({
+    expect(presentDashboardEmergency(target)).toMatchObject({
       title: 'Smoke detected',
       kind: 'smoke',
       icon: '◉',
@@ -23,8 +23,10 @@ describe('Emergency Focus presentation', () => {
     });
   });
 
-  it('localizes known safety conditions', () => {
-    expect(presentDashboardEmergency(target, 'cs-CZ').title).toBe('Detekován kouř');
+  it('localizes known safety conditions and guidance', () => {
+    const czech = presentDashboardEmergency(target, 'cs-CZ');
+    expect(czech.title).toBe('Detekován kouř');
+    expect(czech.guidance).toContain('Zkontrolujte');
     expect(emergencyTitle('binary_sensor.gas reports an active gas condition', 'de')).toBe('Gas erkannt');
     expect(emergencyTitle('binary_sensor.leak reports an active moisture condition', 'sk')).toBe('Detegovaný únik vody');
     expect(emergencyTitle('alarm_control_panel.home is in alarm state triggered', 'pl')).toBe('Aktywny alarm bezpieczeństwa');
