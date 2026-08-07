@@ -11,6 +11,7 @@ export * from './dashboard-conflict-panel';
 export * from './dashboard-detailed-conflict-panel';
 export * from './dashboard-conflict-canvas-overlay';
 export * from './dashboard-conflict-canvas-bridge';
+export * from './dashboard-card-locator';
 export * from './dashboard-emergency-focus-overlay';
 export * from './dashboard-emergency-focus-bridge';
 export * from './dashboard-emergency-audit-panel';
