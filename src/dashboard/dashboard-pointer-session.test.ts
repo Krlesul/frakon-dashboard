@@ -42,6 +42,28 @@ describe('DashboardPointerSession', () => {
     expect(result.document.items.find((item) => item.id === 'a')).toMatchObject({ w: 1, h: 3 });
   });
 
+  it('re-solves layout constraints as part of the same pointer preview and commit', () => {
+    const constrained: FrakonDashboardDocument = {
+      ...document,
+      columns: 8,
+      items: [
+        { id: 'target', x: 0, y: 0, w: 1, h: 1, card: { type: 'custom:a' } },
+        { id: 'source', x: 0, y: 2, w: 1, h: 1, card: { type: 'custom:b' } },
+      ],
+      constraints: [
+        { id: 'align', kind: 'align-left', sourceId: 'source', targetId: 'target' },
+        { id: 'below', kind: 'below', sourceId: 'source', targetId: 'target', gap: 1 },
+      ],
+    };
+    const session = new DashboardPointerSession(constrained, { kind: 'move', selectedIds: ['target'] }, { x: 0, y: 0 }, 870);
+    const preview = session.preview({ x: 110, y: 60 });
+    expect(preview.items.find((item) => item.id === 'target')).toMatchObject({ x: 1, y: 1 });
+    expect(preview.items.find((item) => item.id === 'source')).toMatchObject({ x: 1, y: 3 });
+    const result = session.commit({ x: 110, y: 60 });
+    expect(result.status).toBe('committed');
+    expect(result.document.items.find((item) => item.id === 'source')).toMatchObject({ x: 1, y: 3 });
+  });
+
   it('reports unchanged when the pointer did not cross a grid step', () => {
     const session = new DashboardPointerSession(document, { kind: 'move', selectedIds: ['a'] }, { x: 0, y: 0 }, 430);
     expect(session.commit({ x: 20, y: 10 }).status).toBe('unchanged');
