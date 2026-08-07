@@ -11,6 +11,8 @@ export interface DashboardUsageSignal {
   lastUsedAt?: number;
   urgent?: boolean;
   severity?: DashboardUrgencySeverity;
+  urgencyReasons?: string[];
+  sourceEntityIds?: string[];
 }
 
 export interface DashboardIntelligenceContext {
