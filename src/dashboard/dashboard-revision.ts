@@ -56,12 +56,7 @@ function revisionId(clientId: string, updatedAt: number, document: FrakonDashboa
   const source = JSON.stringify({
     clientId,
     updatedAt,
-    id: document.id,
-    title: document.title,
-    items: document.items,
-    constraints: document.constraints,
-    surface: document.surface,
-    cardSurface: document.cardSurface,
+    document,
   });
   let hash = 2166136261;
   for (let index = 0; index < source.length; index += 1) {
