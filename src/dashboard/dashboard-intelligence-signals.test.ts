@@ -61,6 +61,21 @@ describe('Dashboard Intelligence automatic signals', () => {
     expect(battery.reasons[0]).toContain('low battery');
   });
 
+  it('keeps the critical reason and source entity for Emergency Focus', () => {
+    const smokeItem = { id: 'smoke', x: 0, y: 0, w: 3, h: 2, card: { type: 'custom:frakon-sensor-card', entity: 'binary_sensor.kitchen_smoke' } };
+    const urgency = deriveDashboardItemUrgency(smokeItem, {
+      'binary_sensor.kitchen_smoke': {
+        entity_id: 'binary_sensor.kitchen_smoke',
+        state: 'on',
+        attributes: { device_class: 'smoke' },
+      },
+    });
+
+    expect(urgency.severity).toBe('critical');
+    expect(urgency.sourceEntityIds).toEqual(['binary_sensor.kitchen_smoke']);
+    expect(urgency.reasons[0]).toContain('active smoke condition');
+  });
+
   it('builds a complete context from interaction and entity signals', () => {
     const now = new Date(2026, 7, 6, 20, 0).getTime();
     const context = buildAutomaticDashboardIntelligenceContext(document, {
@@ -78,7 +93,7 @@ describe('Dashboard Intelligence automatic signals', () => {
 
     expect(context.daypart).toBe('evening');
     expect(context.usage).toEqual([
-      expect.objectContaining({ itemId: 'gate', interactions30d: 2, urgent: true }),
+      expect.objectContaining({ itemId: 'gate', interactions30d: 2, urgent: true, sourceEntityIds: ['cover.gate'] }),
       expect.objectContaining({ itemId: 'battery', interactions30d: 0, urgent: false }),
     ]);
   });
