@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { DashboardEmergencyHistoryState } from '../../../src/dashboard/dashboard-emergency-history';
 import { filterDashboardEmergencyHistory, serializeDashboardEmergencyHistoryExport, type DashboardEmergencyAcknowledgementFilter } from '../../../src/dashboard/dashboard-emergency-history-tools';
-import { emergencyKind, type DashboardEmergencyKind } from '../../../src/dashboard/dashboard-emergency-presentation';
+import type { DashboardEmergencyKind } from '../../../src/dashboard/dashboard-emergency-presentation';
 
 const KINDS: Array<DashboardEmergencyKind | 'all'> = ['all','smoke','gas','water','safety','alarm','battery','climate','unavailable','generic'];
 
