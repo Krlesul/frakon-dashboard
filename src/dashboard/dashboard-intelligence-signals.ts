@@ -30,6 +30,7 @@ export interface DashboardUrgencyResult {
   severity: DashboardUrgencySeverity;
   reasons: string[];
   sourceEntityIds: string[];
+  sourceEntityLabels: Record<string, string>;
 }
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
@@ -63,10 +64,13 @@ export function deriveDashboardItemUrgency(
 ): DashboardUrgencyResult {
   const reasons: string[] = [];
   const sourceEntityIds = new Set<string>();
+  const sourceEntityLabels: Record<string, string> = {};
   let severity: DashboardUrgencySeverity = 'normal';
-  const add = (next: DashboardUrgencySeverity, entityId: string, reason: string): void => {
+  const add = (next: DashboardUrgencySeverity, entityId: string, entity: HomeAssistantStateLike, reason: string): void => {
     reasons.push(reason);
     sourceEntityIds.add(entityId);
+    const friendlyName = entity.attributes?.friendly_name;
+    if (typeof friendlyName === 'string' && friendlyName.trim()) sourceEntityLabels[entityId] = friendlyName.trim();
     if (SEVERITY_RANK[next] > SEVERITY_RANK[severity]) severity = next;
   };
 
@@ -77,18 +81,18 @@ export function deriveDashboardItemUrgency(
     const domain = entityId.split('.')[0] ?? '';
     const deviceClass = String(entity.attributes?.device_class ?? '');
 
-    if (state === 'unavailable' || state === 'unknown') add('warning', entityId, `${entityId} is ${state}`);
+    if (state === 'unavailable' || state === 'unknown') add('warning', entityId, entity, `${entityId} is ${state}`);
     if (domain === 'binary_sensor' && state === 'on') {
-      if (['smoke', 'gas', 'moisture', 'safety'].includes(deviceClass)) add('critical', entityId, `${entityId} reports an active ${deviceClass} condition`);
-      else if (['problem', 'tamper', 'door', 'garage_door', 'window'].includes(deviceClass)) add('warning', entityId, `${entityId} reports an active ${deviceClass} condition`);
+      if (['smoke', 'gas', 'moisture', 'safety'].includes(deviceClass)) add('critical', entityId, entity, `${entityId} reports an active ${deviceClass} condition`);
+      else if (['problem', 'tamper', 'door', 'garage_door', 'window'].includes(deviceClass)) add('warning', entityId, entity, `${entityId} reports an active ${deviceClass} condition`);
     }
-    if ((domain === 'lock' && state === 'unlocked') || (domain === 'cover' && ['open', 'opening'].includes(state))) add('warning', entityId, `${entityId} is ${state}`);
-    if (domain === 'alarm_control_panel' && !['disarmed', 'armed_home', 'armed_away', 'armed_night'].includes(state)) add('critical', entityId, `${entityId} is in alarm state ${state}`);
-    if (domain === 'sensor' && lowBattery(entity)) add('warning', entityId, `${entityId} has a low battery`);
-    if (domain === 'climate' && climateProblem(entity)) add('warning', entityId, `${entityId} reports a climate problem`);
+    if ((domain === 'lock' && state === 'unlocked') || (domain === 'cover' && ['open', 'opening'].includes(state))) add('warning', entityId, entity, `${entityId} is ${state}`);
+    if (domain === 'alarm_control_panel' && !['disarmed', 'armed_home', 'armed_away', 'armed_night'].includes(state)) add('critical', entityId, entity, `${entityId} is in alarm state ${state}`);
+    if (domain === 'sensor' && lowBattery(entity)) add('warning', entityId, entity, `${entityId} has a low battery`);
+    if (domain === 'climate' && climateProblem(entity)) add('warning', entityId, entity, `${entityId} reports a climate problem`);
   }
 
-  return { urgent: severity !== 'normal', severity, reasons, sourceEntityIds: [...sourceEntityIds] };
+  return { urgent: severity !== 'normal', severity, reasons, sourceEntityIds: [...sourceEntityIds], sourceEntityLabels };
 }
 
 export function buildAutomaticDashboardIntelligenceContext(
@@ -109,6 +113,7 @@ export function buildAutomaticDashboardIntelligenceContext(
       severity: urgency.severity,
       urgencyReasons: urgency.reasons,
       sourceEntityIds: urgency.sourceEntityIds,
+      sourceEntityLabels: urgency.sourceEntityLabels,
     } satisfies DashboardUsageSignal;
   });
   return { device: options.device, daypart: deriveDashboardDaypart(now), now, usage };
