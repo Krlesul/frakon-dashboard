@@ -1,4 +1,5 @@
 import { resizeRect, type ResizeHandle } from '../../packages/studio-engine/src/resize';
+import { applyDashboardCanvasV2Constraints } from './dashboard-canvas-v2-constraints';
 import {
   normalizeDashboardV2,
   type FrakonCanvasFrame,
@@ -133,10 +134,11 @@ export class DashboardCanvasV2Session {
       });
     }
 
-    const normalized = normalizeDashboardV2({ ...this.source, items });
-    const collisionIds = canvasV2CollisionIds(normalized.items);
+    const manual = normalizeDashboardV2({ ...this.source, items });
+    const constrained = applyDashboardCanvasV2Constraints(manual).document;
+    const collisionIds = canvasV2CollisionIds(constrained.items);
     return {
-      document: normalized,
+      document: constrained,
       collisionIds,
       hasCollisions: collisionIds.length > 0,
     };
