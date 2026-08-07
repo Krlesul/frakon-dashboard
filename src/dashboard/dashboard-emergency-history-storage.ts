@@ -79,6 +79,7 @@ function sanitizeEntry(value: unknown): DashboardEmergencyHistoryEntry | undefin
     signature: entry.signature,
     itemId: entry.itemId,
     sourceEntityIds: stringArray(entry.sourceEntityIds),
+    sourceEntityLabels: stringRecord(entry.sourceEntityLabels),
     reasons: stringArray(entry.reasons),
     startedAt: entry.startedAt!,
     acknowledgedAt,
@@ -98,6 +99,17 @@ function dedupe(entries: DashboardEmergencyHistoryEntry[]): DashboardEmergencyHi
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0).slice(0, 32) : [];
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const result: Record<string, string> = {};
+  for (const [key, label] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof label !== 'string' || !label.trim()) continue;
+    if (Object.keys(result).length >= 32) break;
+    result[key] = label.trim().slice(0, 256);
+  }
+  return result;
 }
 
 function finite(value: unknown): value is number {
