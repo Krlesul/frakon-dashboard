@@ -1,0 +1,14 @@
+{
+  "title": "FRAKON Dashboard",
+  "config": {
+    "step": {
+      "user": {
+        "title": "FRAKON Dashboard",
+        "description": "Povolí serverové ukladanie FRAKON dashboardov v Home Assistante."
+      }
+    },
+    "abort": {
+      "already_configured": "FRAKON Dashboard je už nastavený."
+    }
+  }
+}
