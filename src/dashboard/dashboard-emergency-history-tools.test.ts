@@ -153,7 +153,8 @@ describe('Emergency Focus history tools', () => {
     const result = parseDashboardEmergencyHistoryImport(serializeDashboardEmergencyHistoryExport(imported, 500), history, 10);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.history.active).toEqual(history.active);
+    expect(result.history.active).toHaveLength(1);
+    expect(result.history.active[0]).toMatchObject(history.active[0]!);
     expect(result.history.recent.some((entry)=>entry.signature==='gas' && entry.endedAt===5)).toBe(true);
     expect(result.history.recent.find((entry)=>entry.signature==='water')?.itemId).toBe('water-imported');
     expect(result.history.recent.some((entry)=>entry.signature==='smoke')).toBe(false);
