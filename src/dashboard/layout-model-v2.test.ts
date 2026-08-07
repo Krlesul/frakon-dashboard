@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest';
+import { isDashboardDocumentV2, migrateDashboardV1ToV2, normalizeDashboardV2 } from './layout-model-v2';
+import type { FrakonDashboardDocument } from './layout-model';
+
+const v1: FrakonDashboardDocument = {
+  version: 1,
+  id: 'home',
+  title: 'Home',
+  breakpoint: 'desktop',
+  columns: 4,
+  rowHeight: 50,
+  gap: 10,
+  items: [
+    { id: 'a', x: 1, y: 2, w: 2, h: 2, card: { type: 'custom:a' } },
+    { id: 'b', x: 0, y: 0, w: 1, h: 1, locked: true, card: { type: 'custom:b' } },
+  ],
+};
+
+describe('layout model v2', () => {
+  it('migrates a v1 grid into explicit canvas frames without changing card configs', () => {
+    const migrated = migrateDashboardV1ToV2(v1, 430);
+    expect(migrated.version).toBe(2);
+    expect(migrated.layout).toMatchObject({ mode: 'canvas', width: 430 });
+    expect(migrated.items.find((item) => item.id === 'a')).toMatchObject({
+      card: { type: 'custom:a' },
+      frame: { x: 110, y: 120, width: 210, height: 110 },
+    });
+    expect(migrated.items.find((item) => item.id === 'b')?.locked).toBe(true);
+  });
+
+  it('normalizes invalid frames and duplicate item ids deterministically', () => {
+    const normalized = normalizeDashboardV2({
+      version: 2,
+      id: 'home',
+      title: 'Home',
+      breakpoint: 'desktop',
+      layout: { mode: 'canvas', width: 300, minHeight: 200, snap: { enabled: true, size: 8 } },
+      items: [
+        { id: 'a', card: { type: 'custom:a' }, frame: { x: -20, y: -10, width: 900, height: 0 } },
+        { id: 'a', card: { type: 'custom:b' }, frame: { x: 260, y: 10, width: 80, height: 40 } },
+      ],
+    });
+    expect(normalized.items).toHaveLength(1);
+    expect(normalized.items[0]).toMatchObject({
+      card: { type: 'custom:b' },
+      frame: { x: 220, y: 10, width: 80, height: 40 },
+    });
+  });
+
+  it('drops constraints that reference items absent from the canvas document', () => {
+    const normalized = normalizeDashboardV2({
+      version: 2,
+      id: 'home',
+      title: 'Home',
+      breakpoint: 'desktop',
+      layout: { mode: 'canvas', width: 300, minHeight: 200, snap: { enabled: true, size: 8 } },
+      constraints: [
+        { id: 'valid', kind: 'below', sourceId: 'a', targetId: 'b' },
+        { id: 'missing', kind: 'below', sourceId: 'a', targetId: 'missing' },
+      ],
+      items: [
+        { id: 'a', card: { type: 'custom:a' }, frame: { x: 0, y: 0, width: 100, height: 50 } },
+        { id: 'b', card: { type: 'custom:b' }, frame: { x: 120, y: 0, width: 100, height: 50 } },
+      ],
+    });
+    expect(normalized.constraints?.map((constraint) => constraint.id)).toEqual(['valid']);
+  });
+
+  it('recognizes only version 2 canvas documents at the schema boundary', () => {
+    expect(isDashboardDocumentV2(migrateDashboardV1ToV2(v1, 430))).toBe(true);
+    expect(isDashboardDocumentV2(v1)).toBe(false);
+    expect(isDashboardDocumentV2({ version: 2, id: 'x', title: 'x', layout: { mode: 'grid' }, items: [] })).toBe(false);
+  });
+});
