@@ -1,0 +1,3 @@
+import type{DashboardEmergencyVerificationResult}from'./dashboard-emergency-action-verification';
+export interface DashboardEmergencyRecoveryResolution{resolved:boolean;message:string}
+export function resolveDashboardEmergencyRecoveryAfterVerification(result:DashboardEmergencyVerificationResult):DashboardEmergencyRecoveryResolution{if(result.status==='verified')return{resolved:true,message:'The physical device state is verified safe; restart recovery can be closed.'};return{resolved:false,message:result.reason??'The physical device state is not verified safe; restart recovery must remain active.'}}
