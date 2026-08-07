@@ -1,3 +1,4 @@
+import type { DashboardEntityMetadata } from './dashboard-intelligence';
 import type { DashboardEmergencyHistoryEntry, DashboardEmergencyHistoryState } from './dashboard-emergency-history';
 
 export interface DashboardEmergencyHistoryStorageLike {
@@ -80,6 +81,7 @@ function sanitizeEntry(value: unknown): DashboardEmergencyHistoryEntry | undefin
     itemId: entry.itemId,
     sourceEntityIds: stringArray(entry.sourceEntityIds),
     sourceEntityLabels: stringRecord(entry.sourceEntityLabels),
+    sourceEntityMetadata: entityMetadataRecord(entry.sourceEntityMetadata),
     reasons: stringArray(entry.reasons),
     startedAt: entry.startedAt!,
     acknowledgedAt,
@@ -110,6 +112,25 @@ function stringRecord(value: unknown): Record<string, string> {
     result[key] = label.trim().slice(0, 256);
   }
   return result;
+}
+
+function entityMetadataRecord(value: unknown): Record<string, DashboardEntityMetadata> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const result: Record<string, DashboardEntityMetadata> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const source = raw as Record<string, unknown>;
+    const areaName = cleanMetadataText(source.areaName);
+    const deviceName = cleanMetadataText(source.deviceName);
+    if (!areaName && !deviceName) continue;
+    if (Object.keys(result).length >= 32) break;
+    result[key] = { ...(areaName ? { areaName } : {}), ...(deviceName ? { deviceName } : {}) };
+  }
+  return result;
+}
+
+function cleanMetadataText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 256) : undefined;
 }
 
 function finite(value: unknown): value is number {
