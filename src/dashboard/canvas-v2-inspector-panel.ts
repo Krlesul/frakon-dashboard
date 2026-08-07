@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
 import type { SupportedLanguage } from '../i18n';
 import { canvasDashboardTranslate } from './canvas-dashboard-i18n';
+import './canvas-v2-constraint-editor';
 import { summarizeDashboardCanvasV2ConstraintDiagnostics } from './dashboard-canvas-v2-constraint-diagnostics';
 import type { DashboardCanvasV2InspectorItemPatch } from './dashboard-canvas-v2-inspector-actions';
 import { dashboardCanvasV2InspectorSelection } from './dashboard-canvas-v2-inspector';
@@ -113,6 +114,11 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
           </div>
           <label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>
         ` : nothing}
+        <frakon-canvas-v2-constraint-editor
+          .document=${this.document}
+          .selectedIds=${this.selectedIds}
+          .language=${this.language}
+        ></frakon-canvas-v2-constraint-editor>
         ${diagnostics.issues.length ? html`<div class="issues">${diagnostics.issues.map((issue) => html`<div class="issue">${issue.constraintId} · ${issue.status} · ${issue.message}</div>`)}</div>` : nothing}
       </section>
     `;
