@@ -18,6 +18,18 @@ export interface DashboardEmergencyHistoryExport {
   history: DashboardEmergencyHistoryState;
 }
 
+export interface DashboardEmergencyHistoryStats {
+  totalEvents: number;
+  activeEvents: number;
+  closedEvents: number;
+  acknowledgedEvents: number;
+  acknowledgementRate: number;
+  mostFrequentKind?: DashboardEmergencyKind;
+  mostFrequentKindCount: number;
+  averageDurationMs?: number;
+  averageAcknowledgementMs?: number;
+}
+
 export type DashboardEmergencyHistoryImportResult =
   | { ok: true; history: DashboardEmergencyHistoryState; importedRecent: number }
   | { ok: false; error: 'invalid-json' | 'invalid-format' | 'unsupported-version' };
@@ -37,6 +49,35 @@ export function filterDashboardEmergencyHistory(
     return true;
   };
   return { active: history.active.filter(matches), recent: history.recent.filter(matches) };
+}
+
+export function calculateDashboardEmergencyHistoryStats(
+  history: DashboardEmergencyHistoryState,
+  now = Date.now(),
+): DashboardEmergencyHistoryStats {
+  const entries = [...history.active, ...history.recent];
+  const acknowledged = entries.filter((entry) => entry.acknowledgedAt !== undefined);
+  const durations = entries.map((entry) => Math.max(0, (entry.endedAt ?? now) - entry.startedAt));
+  const acknowledgementTimes = acknowledged
+    .map((entry) => Math.max(0, entry.acknowledgedAt! - entry.startedAt));
+  const kindCounts = new Map<DashboardEmergencyKind, number>();
+  for (const entry of entries) {
+    const kind = emergencyKind(entry.reasons[0]);
+    kindCounts.set(kind, (kindCounts.get(kind) ?? 0) + 1);
+  }
+  const mostFrequent = [...kindCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  return {
+    totalEvents: entries.length,
+    activeEvents: history.active.length,
+    closedEvents: history.recent.length,
+    acknowledgedEvents: acknowledged.length,
+    acknowledgementRate: entries.length === 0 ? 0 : acknowledged.length / entries.length,
+    mostFrequentKind: mostFrequent?.[0],
+    mostFrequentKindCount: mostFrequent?.[1] ?? 0,
+    averageDurationMs: durations.length === 0 ? undefined : average(durations),
+    averageAcknowledgementMs: acknowledgementTimes.length === 0 ? undefined : average(acknowledgementTimes),
+  };
 }
 
 export function exportDashboardEmergencyHistory(
@@ -107,4 +148,8 @@ export function mergeDashboardEmergencyHistory(
       .sort((a, b) => (b.endedAt ?? b.startedAt) - (a.endedAt ?? a.startedAt))
       .slice(0, Math.max(1, recentLimit)),
   };
+}
+
+function average(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
