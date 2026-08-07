@@ -22,6 +22,7 @@ import type { DashboardPointerPreview } from './dashboard-pointer-grid';
 import { dashboardPointerGuidelines } from './dashboard-pointer-guidelines';
 import { dashboardPointerMoveSelection, selectDashboardCard } from './dashboard-card-selection';
 import { DashboardMarqueeSession, type DashboardMarqueePoint } from './dashboard-marquee-session';
+import { nudgeDashboardSelection } from './dashboard-keyboard-nudge';
 import {
   addGridItem,
   normalizeAndCompactDashboard,
@@ -58,7 +59,6 @@ export class FrakonDashboardCard extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private config?: FrakonDashboardCardConfig;
   @state() private document?: FrakonDashboardDocument;
-  @state() private draggingId?: string;
   @state() private selectedId?: string;
   @state() private selection: SelectionState = { ids: [] };
   @state() private message?: string;
@@ -97,8 +97,6 @@ export class FrakonDashboardCard extends LitElement {
     .item { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: 20px; border: 1px solid color-mix(in srgb, var(--primary-text-color) 10%, transparent); background: color-mix(in srgb, var(--card-background-color) 92%, var(--primary-color) 8%); }
     .item.selected { outline: 2px solid var(--primary-color); outline-offset: 2px; }
     .item.collision { outline: 2px solid #ff4d67; outline-offset: 2px; }
-    .item[draggable='true'] { cursor: grab; }
-    .item.dragging { opacity: .45; }
     .item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 11px; border-bottom: 1px solid color-mix(in srgb, var(--primary-text-color) 8%, transparent); font-size: 12px; }
     .item-id { border: 0; padding: 0; color: inherit; background: none; font: inherit; cursor: pointer; }
     .move-handle { cursor: grab; touch-action: none; user-select: none; font-weight: 700; }
@@ -415,10 +413,46 @@ export class FrakonDashboardCard extends LitElement {
   }
 
   private onKeyDown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape') return;
-    if (this.pointerSession || this.marqueeSession) {
-      event.preventDefault();
-      this.cancelInteractions();
+    const target = event.composedPath()[0];
+    if (
+      target instanceof HTMLInputElement
+      || target instanceof HTMLTextAreaElement
+      || target instanceof HTMLSelectElement
+      || (target instanceof HTMLElement && target.isContentEditable)
+    ) return;
+
+    if (event.key === 'Escape') {
+      if (this.pointerSession || this.marqueeSession) {
+        event.preventDefault();
+        this.cancelInteractions();
+      }
+      return;
+    }
+
+    if (
+      this.config?.edit_mode !== true
+      || !this.document
+      || !this.selection.ids.length
+      || this.pointerSession
+      || this.marqueeSession
+      || this.autoLayoutPreview
+    ) return;
+
+    const step = event.shiftKey ? 2 : 1;
+    const delta = event.key === 'ArrowLeft' ? { x: -step, y: 0 }
+      : event.key === 'ArrowRight' ? { x: step, y: 0 }
+        : event.key === 'ArrowUp' ? { x: 0, y: -step }
+          : event.key === 'ArrowDown' ? { x: 0, y: step }
+            : undefined;
+    if (!delta) return;
+
+    event.preventDefault();
+    const result = nudgeDashboardSelection(this.document, this.selection.ids, delta);
+    if (result.status === 'moved') {
+      this.persist(result.document);
+      this.message = 'Layout updated';
+    } else if (result.status === 'collision') {
+      this.message = `Move blocked by collision: ${result.collisionIds.join(', ')}`;
     }
   }
 
@@ -469,21 +503,6 @@ export class FrakonDashboardCard extends LitElement {
       items: this.document.items.map((item) => item.id === id ? { ...item, card } : item),
     });
     this.message = editorTranslate(this.language(), 'cardUpdated');
-  }
-
-  private onDrop(targetId: string): void {
-    if (!this.document || !this.draggingId || this.draggingId === targetId || this.pointerSession || this.marqueeSession) return;
-    this.clearAutoLayoutPreview();
-    const source = this.document.items.find((item) => item.id === this.draggingId);
-    const target = this.document.items.find((item) => item.id === targetId);
-    if (!source || !target || source.locked || target.locked) return;
-    const next = this.document.items.map((item) => {
-      if (item.id === source.id) return { ...item, x: target.x, y: target.y };
-      if (item.id === target.id) return { ...item, x: source.x, y: source.y };
-      return item;
-    });
-    this.persist(normalizeAndCompactDashboard({ ...this.document, items: next }));
-    this.draggingId = undefined;
   }
 
   private beginAutoLayout(): void {
@@ -657,12 +676,8 @@ export class FrakonDashboardCard extends LitElement {
             ? html`<div class="empty" style="grid-column:1/-1">${editorTranslate(lang, 'noItems')}</div>`
             : doc.items.map((item) => html`
               <article
-                class="item ${this.draggingId === item.id ? 'dragging' : ''} ${selectedIds.has(item.id) ? 'selected' : ''} ${collisions.has(item.id) ? 'collision' : ''}"
+                class="item ${selectedIds.has(item.id) ? 'selected' : ''} ${collisions.has(item.id) ? 'collision' : ''}"
                 style=${`grid-column:${item.x + 1}/span ${item.w};grid-row:${item.y + 1}/span ${item.h}`}
-                draggable=${String(editMode && !item.locked && !preview && !interactionActive)}
-                @dragstart=${() => { this.draggingId = item.id; }}
-                @dragover=${(event: DragEvent) => event.preventDefault()}
-                @drop=${() => this.onDrop(item.id)}
               >
                 ${editMode && !preview ? html`
                   <div class="item-head">
