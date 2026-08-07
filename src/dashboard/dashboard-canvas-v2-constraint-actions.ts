@@ -1,4 +1,4 @@
-import type { ConstraintKind, LayoutConstraint } from '../../packages/studio-engine/src/constraints';
+import type { ConstraintDiagnostic, ConstraintKind, LayoutConstraint } from '../../packages/studio-engine/src/constraints';
 import { applyDashboardCanvasV2Constraints } from './dashboard-canvas-v2-constraints';
 import { canvasV2CollisionIds } from './dashboard-canvas-v2-session';
 import { normalizeDashboardV2, type FrakonDashboardDocumentV2 } from './layout-model-v2';
@@ -16,11 +16,16 @@ export interface DashboardCanvasV2ConstraintEditResult {
   status: 'committed' | 'collision' | 'unchanged' | 'invalid';
   document: FrakonDashboardDocumentV2;
   collisionIds: string[];
+  constraintDiagnostics: ConstraintDiagnostic[];
   reason?: string;
 }
 
 function sameDocument(a: FrakonDashboardDocumentV2, b: FrakonDashboardDocumentV2): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function invalidResult(document: FrakonDashboardDocumentV2, reason: string): DashboardCanvasV2ConstraintEditResult {
+  return { status: 'invalid', document: structuredClone(document), collisionIds: [], constraintDiagnostics: [], reason };
 }
 
 function nextConstraintId(document: FrakonDashboardDocumentV2, sourceId: string, targetId: string, kind: ConstraintKind): string {
@@ -42,15 +47,21 @@ function validateRefs(document: FrakonDashboardDocumentV2, sourceId: string, tar
 
 function solveCandidate(source: FrakonDashboardDocumentV2, candidate: FrakonDashboardDocumentV2): DashboardCanvasV2ConstraintEditResult {
   const normalized = normalizeDashboardV2(candidate);
-  const constrained = applyDashboardCanvasV2Constraints(normalized).document;
-  const collisionIds = canvasV2CollisionIds(constrained.items);
+  const solved = applyDashboardCanvasV2Constraints(normalized);
+  const collisionIds = canvasV2CollisionIds(solved.document.items);
   if (collisionIds.length) {
-    return { status: 'collision', document: structuredClone(source), collisionIds };
+    return {
+      status: 'collision',
+      document: structuredClone(source),
+      collisionIds,
+      constraintDiagnostics: solved.diagnostics,
+    };
   }
   return {
-    status: sameDocument(source, constrained) ? 'unchanged' : 'committed',
-    document: constrained,
+    status: sameDocument(source, solved.document) ? 'unchanged' : 'committed',
+    document: solved.document,
     collisionIds: [],
+    constraintDiagnostics: solved.diagnostics,
   };
 }
 
@@ -59,10 +70,10 @@ export function addDashboardCanvasV2Constraint(
   input: Omit<LayoutConstraint, 'id'> & { id?: string },
 ): DashboardCanvasV2ConstraintEditResult {
   const invalid = validateRefs(document, input.sourceId, input.targetId);
-  if (invalid) return { status: 'invalid', document: structuredClone(document), collisionIds: [], reason: invalid };
+  if (invalid) return invalidResult(document, invalid);
   const id = input.id?.trim() || nextConstraintId(document, input.sourceId, input.targetId, input.kind);
   if ((document.constraints ?? []).some((constraint) => constraint.id === id)) {
-    return { status: 'invalid', document: structuredClone(document), collisionIds: [], reason: `Constraint ${id} already exists.` };
+    return invalidResult(document, `Constraint ${id} already exists.`);
   }
   const constraint: LayoutConstraint = {
     id,
@@ -82,11 +93,11 @@ export function patchDashboardCanvasV2Constraint(
   patch: DashboardCanvasV2ConstraintPatch,
 ): DashboardCanvasV2ConstraintEditResult {
   const existing = (document.constraints ?? []).find((constraint) => constraint.id === constraintId);
-  if (!existing) return { status: 'invalid', document: structuredClone(document), collisionIds: [], reason: `Missing constraint ${constraintId}.` };
+  if (!existing) return invalidResult(document, `Missing constraint ${constraintId}.`);
   const sourceId = patch.sourceId ?? existing.sourceId;
   const targetId = patch.targetId ?? existing.targetId;
   const invalid = validateRefs(document, sourceId, targetId);
-  if (invalid) return { status: 'invalid', document: structuredClone(document), collisionIds: [], reason: invalid };
+  if (invalid) return invalidResult(document, invalid);
   const next: LayoutConstraint = {
     ...existing,
     kind: patch.kind ?? existing.kind,
@@ -108,7 +119,7 @@ export function removeDashboardCanvasV2Constraint(
 ): DashboardCanvasV2ConstraintEditResult {
   const constraints = (document.constraints ?? []).filter((constraint) => constraint.id !== constraintId);
   if (constraints.length === (document.constraints ?? []).length) {
-    return { status: 'invalid', document: structuredClone(document), collisionIds: [], reason: `Missing constraint ${constraintId}.` };
+    return invalidResult(document, `Missing constraint ${constraintId}.`);
   }
   return solveCandidate(document, { ...document, constraints });
 }
