@@ -7,18 +7,41 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
+from .const import READABLE_DOCUMENT_VERSIONS, WRITABLE_DOCUMENT_VERSIONS
 from .storage import FrakonDashboardStorage
 
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
 REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
 CLIENT_ID = vol.All(str, vol.Length(min=1, max=128))
-DASHBOARD_DOCUMENT = vol.Schema(
-    {
-        vol.Required("id"): DASHBOARD_ID,
-        vol.Required("version"): vol.Coerce(int),
-        vol.Required("items"): vol.All(list, vol.Length(max=2000)),
-    },
-    extra=vol.ALLOW_EXTRA,
+
+
+def _validate_document_shape(document: dict[str, Any]) -> dict[str, Any]:
+    version = document.get("version")
+    if version not in READABLE_DOCUMENT_VERSIONS:
+        raise vol.Invalid(f"Unsupported dashboard document version: {version}.")
+
+    if version == 2:
+        layout = document.get("layout")
+        if not isinstance(layout, dict) or layout.get("mode") != "canvas":
+            raise vol.Invalid("Dashboard document version 2 requires layout.mode=canvas.")
+        if not isinstance(layout.get("width"), (int, float)) or layout["width"] <= 0:
+            raise vol.Invalid("Dashboard document version 2 requires a positive layout.width.")
+        if not isinstance(layout.get("minHeight"), (int, float)) or layout["minHeight"] <= 0:
+            raise vol.Invalid("Dashboard document version 2 requires a positive layout.minHeight.")
+
+    return document
+
+
+DASHBOARD_DOCUMENT = vol.All(
+    vol.Schema(
+        {
+            vol.Required("id"): DASHBOARD_ID,
+            vol.Required("version"): vol.Coerce(int),
+            vol.Required("items"): vol.All(list, vol.Length(max=2000)),
+        },
+        extra=vol.ALLOW_EXTRA,
+    ),
+    _validate_document_shape,
 )
 REVISION_ENVELOPE = vol.Schema(
     {
@@ -31,6 +54,23 @@ REVISION_ENVELOPE = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 EXPECTED_REVISION = vol.Any(None, REVISION_ID)
+
+
+def _document_write_enabled(document: dict[str, Any]) -> bool:
+    return document.get("version") in WRITABLE_DOCUMENT_VERSIONS
+
+
+def _send_write_version_error(
+    connection: websocket_api.ActiveConnection,
+    msg_id: int,
+    document: dict[str, Any],
+) -> None:
+    version = document.get("version")
+    connection.send_error(
+        msg_id,
+        "unsupported_write_version",
+        f"Dashboard document version {version} is readable but not enabled for server-side writes.",
+    )
 
 
 def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardStorage) -> None:
@@ -62,8 +102,8 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         msg: dict[str, Any],
     ) -> None:
         document = dict(msg["document"])
-        if document.get("version") != 1:
-            connection.send_error(msg["id"], "unsupported_version", "Only dashboard document version 1 is supported.")
+        if not _document_write_enabled(document):
+            _send_write_version_error(connection, msg["id"], document)
             return
         await storage.save(document)
         connection.send_result(msg["id"], None)
@@ -115,8 +155,8 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         envelope = dict(msg["envelope"])
         document = envelope["document"]
         expected_revision = msg.get("expectedRevision")
-        if document.get("version") != 1:
-            connection.send_error(msg["id"], "unsupported_version", "Only dashboard document version 1 is supported.")
+        if not _document_write_enabled(document):
+            _send_write_version_error(connection, msg["id"], document)
             return
         if envelope.get("parentRevision") != expected_revision:
             connection.send_error(
