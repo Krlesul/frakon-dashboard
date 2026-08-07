@@ -24,18 +24,22 @@ export class FrakonDashboardEmergencyFocusOverlay extends LitElement {
       animation:pulse 1.25s ease-in-out infinite alternate;
       transition:opacity 140ms ease,filter 140ms ease,box-shadow 140ms ease;
     }
-    .focus::after {
-      content:'CRITICAL · ' attr(data-label);
+    .label {
       position:absolute;
       left:8px;
       top:8px;
-      padding:5px 8px;
+      display:grid;
+      gap:2px;
+      max-width:calc(100% - 16px);
+      padding:6px 8px;
       border-radius:8px;
       color:white;
       background:rgb(151 19 31 / 94%);
-      font:800 10px/1.2 Inter,system-ui,sans-serif;
-      letter-spacing:.04em;
+      font:700 10px/1.25 Inter,system-ui,sans-serif;
     }
+    .label strong { font-weight:900; letter-spacing:.04em; }
+    .label span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:.92; }
+    .label small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:.7; }
     .focus.active {
       z-index:2;
       box-shadow:0 0 0 8px rgb(255 78 91 / 22%),0 0 54px rgb(255 78 91 / 64%);
@@ -55,7 +59,13 @@ export class FrakonDashboardEmergencyFocusOverlay extends LitElement {
         const item = target.item;
         const active = target.itemId === activeItemId;
         const style = `left:${item.x * COLUMN_WIDTH}px;top:${item.y * this.document!.rowHeight}px;width:${item.w * COLUMN_WIDTH - this.document!.gap}px;height:${item.h * this.document!.rowHeight - this.document!.gap}px`;
-        return html`<div class=${`focus ${active ? 'active' : 'muted'}`} data-label=${target.itemId} style=${style}></div>`;
+        return html`<div class=${`focus ${active ? 'active' : 'muted'}`} style=${style}>
+          <div class="label">
+            <strong>CRITICAL · ${target.itemId}</strong>
+            ${target.reasons[0] ? html`<span>${target.reasons[0]}</span>` : nothing}
+            ${target.sourceEntityIds.length > 0 ? html`<small>${target.sourceEntityIds.join(', ')}</small>` : nothing}
+          </div>
+        </div>`;
       })}
     `;
   }
