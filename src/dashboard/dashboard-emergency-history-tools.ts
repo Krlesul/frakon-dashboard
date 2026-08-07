@@ -30,6 +30,17 @@ export interface DashboardEmergencyHistoryStats {
   averageAcknowledgementMs?: number;
 }
 
+export type DashboardEmergencyTrendDirection = 'improving' | 'stable' | 'worsening';
+
+export interface DashboardEmergencyHistoryTrend {
+  days: number;
+  currentCount: number;
+  previousCount: number;
+  change: number;
+  changeRate?: number;
+  direction: DashboardEmergencyTrendDirection;
+}
+
 export type DashboardEmergencyHistoryImportResult =
   | { ok: true; history: DashboardEmergencyHistoryState; importedRecent: number }
   | { ok: false; error: 'invalid-json' | 'invalid-format' | 'unsupported-version' };
@@ -78,6 +89,24 @@ export function calculateDashboardEmergencyHistoryStats(
     averageDurationMs: durations.length === 0 ? undefined : average(durations),
     averageAcknowledgementMs: acknowledgementTimes.length === 0 ? undefined : average(acknowledgementTimes),
   };
+}
+
+export function calculateDashboardEmergencyHistoryTrend(
+  history: DashboardEmergencyHistoryState,
+  days: number,
+  now = Date.now(),
+): DashboardEmergencyHistoryTrend {
+  const normalizedDays = Math.max(1, Math.trunc(days));
+  const windowMs = normalizedDays * 24 * 60 * 60 * 1000;
+  const currentFrom = now - windowMs;
+  const previousFrom = currentFrom - windowMs;
+  const timestamps = [...history.active, ...history.recent].map((entry) => entry.startedAt);
+  const currentCount = timestamps.filter((timestamp) => timestamp >= currentFrom && timestamp <= now).length;
+  const previousCount = timestamps.filter((timestamp) => timestamp >= previousFrom && timestamp < currentFrom).length;
+  const change = currentCount - previousCount;
+  const changeRate = previousCount === 0 ? (currentCount === 0 ? 0 : undefined) : change / previousCount;
+  const direction: DashboardEmergencyTrendDirection = change < 0 ? 'improving' : change > 0 ? 'worsening' : 'stable';
+  return { days: normalizedDays, currentCount, previousCount, change, changeRate, direction };
 }
 
 export function exportDashboardEmergencyHistory(
