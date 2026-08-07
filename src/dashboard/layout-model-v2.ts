@@ -50,6 +50,11 @@ function finite(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function optionalPositive(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value)) return undefined;
+  return Math.max(1, value);
+}
+
 export function normalizeCanvasFrame(frame: FrakonCanvasFrame, canvasWidth: number): FrakonCanvasFrame {
   const width = Math.max(1, Math.min(canvasWidth, finite(frame.width, 1)));
   const height = Math.max(1, finite(frame.height, 1));
@@ -61,6 +66,34 @@ export function normalizeCanvasFrame(frame: FrakonCanvasFrame, canvasWidth: numb
   };
 }
 
+function normalizeCanvasItem(item: FrakonCanvasItem, canvasWidth: number): FrakonCanvasItem {
+  const minWidth = optionalPositive(item.minWidth);
+  const minHeight = optionalPositive(item.minHeight);
+  const maxWidth = optionalPositive(item.maxWidth);
+  const maxHeight = optionalPositive(item.maxHeight);
+  const base = normalizeCanvasFrame(item.frame, canvasWidth);
+  const effectiveMinWidth = Math.min(canvasWidth, minWidth ?? 1);
+  const effectiveMaxWidth = Math.max(effectiveMinWidth, Math.min(canvasWidth, maxWidth ?? canvasWidth));
+  const effectiveMinHeight = minHeight ?? 1;
+  const effectiveMaxHeight = Math.max(effectiveMinHeight, maxHeight ?? Number.MAX_SAFE_INTEGER);
+  const width = Math.min(effectiveMaxWidth, Math.max(effectiveMinWidth, base.width));
+  const height = Math.min(effectiveMaxHeight, Math.max(effectiveMinHeight, base.height));
+
+  return {
+    ...structuredClone(item),
+    minWidth,
+    minHeight,
+    maxWidth,
+    maxHeight,
+    frame: {
+      x: Math.max(0, Math.min(Math.max(0, canvasWidth - width), base.x)),
+      y: base.y,
+      width,
+      height,
+    },
+  };
+}
+
 export function normalizeDashboardV2(document: FrakonDashboardDocumentV2): FrakonDashboardDocumentV2 {
   const width = Math.max(1, finite(document.layout.width, 1));
   const minHeight = Math.max(1, finite(document.layout.minHeight, 1));
@@ -69,10 +102,7 @@ export function normalizeDashboardV2(document: FrakonDashboardDocumentV2): Frako
 
   for (const item of document.items) {
     if (!item.id) continue;
-    uniqueItems.set(item.id, {
-      ...structuredClone(item),
-      frame: normalizeCanvasFrame(item.frame, width),
-    });
+    uniqueItems.set(item.id, normalizeCanvasItem(item, width));
   }
 
   const ids = new Set(uniqueItems.keys());
@@ -105,6 +135,18 @@ function projectedMinHeight(document: FrakonDashboardDocument, canvasWidth: numb
   );
 }
 
+function gridSpanToPixelWidth(span: number | undefined, columnWidth: number, gap: number): number | undefined {
+  if (span === undefined) return undefined;
+  const safeSpan = Math.max(1, span);
+  return safeSpan * columnWidth + Math.max(0, safeSpan - 1) * gap;
+}
+
+function gridSpanToPixelHeight(span: number | undefined, rowHeight: number, gap: number): number | undefined {
+  if (span === undefined) return undefined;
+  const safeSpan = Math.max(1, span);
+  return safeSpan * rowHeight + Math.max(0, safeSpan - 1) * gap;
+}
+
 export function migrateDashboardV1ToV2(
   document: FrakonDashboardDocument,
   canvasWidth: number,
@@ -124,10 +166,10 @@ export function migrateDashboardV1ToV2(
         width: projected.width,
         height: projected.height,
       },
-      minWidth: item.minW,
-      minHeight: item.minH ? item.minH * document.rowHeight : undefined,
-      maxWidth: item.maxW,
-      maxHeight: item.maxH ? item.maxH * document.rowHeight : undefined,
+      minWidth: gridSpanToPixelWidth(item.minW, projection.columnWidth, document.gap),
+      minHeight: gridSpanToPixelHeight(item.minH, document.rowHeight, document.gap),
+      maxWidth: gridSpanToPixelWidth(item.maxW, projection.columnWidth, document.gap),
+      maxHeight: gridSpanToPixelHeight(item.maxH, document.rowHeight, document.gap),
       locked: item.locked,
       surface: item.surface ? structuredClone(item.surface) : undefined,
     };
