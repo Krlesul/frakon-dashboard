@@ -70,17 +70,19 @@ export class DashboardCanvasSession {
         return { ...item, ...bounded };
       });
     } else {
-      const target = this.projection.items.find((item) => item.id === this.interaction.itemId);
+      const itemId = this.interaction.itemId;
+      const handle = this.interaction.handle;
+      const target = this.projection.items.find((item) => item.id === itemId);
       if (!target || target.locked) {
         items = this.projection.items.map((item) => ({ ...item }));
       } else {
-        const resized = resizeRect(target, this.interaction.handle, delta, {
+        const resized = resizeRect(target, handle, delta, {
           minWidth: 24,
           minHeight: 24,
           maxWidth: this.canvasWidth,
         });
         const bounded = canvasPlacementWithinBounds(resized, this.canvasWidth);
-        items = this.projection.items.map((item) => item.id === target.id ? { ...item, ...bounded } : { ...item });
+        items = this.projection.items.map((item) => item.id === itemId ? { ...item, ...bounded } : { ...item });
       }
     }
 
