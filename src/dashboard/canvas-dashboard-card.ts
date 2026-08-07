@@ -5,6 +5,11 @@ import { createHomeAssistantDashboardStorage, type DashboardStorageMode } from '
 import './card-host';
 import { DashboardCanvasSession, type DashboardCanvasPoint, type DashboardCanvasPreview } from './dashboard-canvas-session';
 import { projectDashboardGridToCanvas } from './dashboard-canvas-placement';
+import {
+  dashboardLayoutCapabilitiesFromServer,
+  loadDashboardServerCapabilities,
+  type DashboardServerCapabilities,
+} from './dashboard-server-capabilities';
 import { DashboardStorageController } from './dashboard-storage-controller';
 import { normalizeDashboard, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
 
@@ -30,6 +35,8 @@ export class FrakonCanvasDashboardCard extends LitElement {
   @state() private preview?: DashboardCanvasPreview;
   @state() private message?: string;
   @state() private width = 1000;
+  @state() private serverCapabilities?: DashboardServerCapabilities;
+  @state() private capabilitiesError?: string;
 
   private storageController = new DashboardStorageController(createHomeAssistantDashboardStorage('local'));
   private storageKind = this.storageController.adapterKind;
@@ -45,7 +52,10 @@ export class FrakonCanvasDashboardCard extends LitElement {
     .badges { display: flex; gap: 6px; flex-wrap: wrap; }
     .badge { padding: 6px 10px; border-radius: 999px; font-size: 12px; background: color-mix(in srgb, var(--primary-color) 15%, transparent); }
     .experimental { background: color-mix(in srgb, #f0a85a 22%, transparent); }
+    .blocked { background: color-mix(in srgb, #ff4d67 18%, transparent); }
+    .ready { background: color-mix(in srgb, #4bbf73 18%, transparent); }
     .message { margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12px; background: color-mix(in srgb, var(--primary-color) 12%, transparent); }
+    .message.error { background: color-mix(in srgb, #ff4d67 16%, transparent); }
     .canvas { position: relative; min-height: 120px; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-color) 6%); }
     .item { position: absolute; min-width: 0; min-height: 0; overflow: hidden; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--primary-text-color) 10%, transparent); background: var(--card-background-color); box-sizing: border-box; }
     .item.selected { outline: 2px solid var(--primary-color); outline-offset: 2px; }
@@ -72,6 +82,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
     this.configureStorage();
     this.cancelInteraction();
     void this.loadStored(id);
+    void this.refreshServerCapabilities();
   }
 
   static getStubConfig(): FrakonCanvasDashboardCardConfig {
@@ -103,6 +114,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
     if (!changed.has('hass')) return;
     const changedStorage = this.configureStorage();
     if (changedStorage && this.document) void this.loadStored(this.document.id);
+    void this.refreshServerCapabilities();
   }
 
   disconnectedCallback(): void {
@@ -119,6 +131,29 @@ export class FrakonCanvasDashboardCard extends LitElement {
     this.storageController = new DashboardStorageController(next);
     this.storageKind = next.kind;
     return true;
+  }
+
+  private async refreshServerCapabilities(): Promise<void> {
+    if (this.config?.storage !== 'home-assistant') {
+      this.serverCapabilities = undefined;
+      this.capabilitiesError = undefined;
+      return;
+    }
+    const callWS = this.hass?.callWS;
+    if (!callWS) {
+      this.serverCapabilities = undefined;
+      this.capabilitiesError = 'Home Assistant WebSocket API is unavailable.';
+      return;
+    }
+    try {
+      this.serverCapabilities = await loadDashboardServerCapabilities({
+        request: <T>(command: string, payload: Record<string, unknown>) => callWS<T>({ type: command, ...payload }),
+      });
+      this.capabilitiesError = undefined;
+    } catch (error) {
+      this.serverCapabilities = undefined;
+      this.capabilitiesError = error instanceof Error ? error.message : String(error);
+    }
   }
 
   private async loadStored(id: string): Promise<void> {
@@ -214,6 +249,9 @@ export class FrakonCanvasDashboardCard extends LitElement {
       ...placements.map((item) => item.y + item.height + 12),
     );
     const editMode = this.config?.edit_mode === true;
+    const serverLayoutCapabilities = this.serverCapabilities
+      ? dashboardLayoutCapabilitiesFromServer(this.serverCapabilities)
+      : undefined;
 
     return html`
       <section
@@ -227,8 +265,15 @@ export class FrakonCanvasDashboardCard extends LitElement {
           <div class="badges">
             <span class="badge experimental">EXPERIMENTAL CANVAS</span>
             <span class="badge">v1 compatible commit</span>
+            ${this.config?.storage === 'home-assistant' && serverLayoutCapabilities
+              ? html`
+                <span class="badge ${serverLayoutCapabilities.readV2 ? 'ready' : 'blocked'}">v2 read ${serverLayoutCapabilities.readV2 ? 'ready' : 'blocked'}</span>
+                <span class="badge ${serverLayoutCapabilities.writeV2 ? 'ready' : 'blocked'}">v2 write ${serverLayoutCapabilities.writeV2 ? 'ready' : 'blocked'}</span>
+              `
+              : nothing}
           </div>
         </header>
+        ${this.capabilitiesError ? html`<div class="message error">Capability negotiation failed: ${this.capabilitiesError}</div>` : nothing}
         ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
         <div class="canvas" style=${`height:${minHeight}px`}>
           ${this.document.items.map((item) => {
