@@ -29,6 +29,7 @@ describe('dashboard canvas v2 constraint actions', () => {
     expect(result.status).toBe('committed');
     expect(result.document.constraints?.[0]?.id).toBe('b-below-a');
     expect(result.document.items.find((item) => item.id === 'b')?.frame.y).toBe(120);
+    expect(result.constraintDiagnostics[0]?.status).toBe('applied');
   });
 
   it('rejects self-referential constraints', () => {
@@ -37,6 +38,35 @@ describe('dashboard canvas v2 constraint actions', () => {
     });
     expect(result.status).toBe('invalid');
     expect(result.reason).toContain('different');
+  });
+
+  it('rejects duplicate source-kind-target relations', () => {
+    const source = doc();
+    source.constraints = [{ id: 'first', kind: 'below', sourceId: 'b', targetId: 'a', gap: 20 }];
+    const result = addDashboardCanvasV2Constraint(source, {
+      kind: 'below', sourceId: 'b', targetId: 'a', gap: 40,
+    });
+    expect(result.status).toBe('invalid');
+    expect(result.reason).toContain('Duplicate');
+  });
+
+  it('rejects enabled dependency cycles', () => {
+    const source = doc();
+    source.constraints = [{ id: 'b-to-a', kind: 'below', sourceId: 'b', targetId: 'a', enabled: true }];
+    const result = addDashboardCanvasV2Constraint(source, {
+      kind: 'right-of', sourceId: 'a', targetId: 'b', enabled: true,
+    });
+    expect(result.status).toBe('invalid');
+    expect(result.reason).toContain('cycle');
+  });
+
+  it('allows a disabled relation that would otherwise form a cycle', () => {
+    const source = doc();
+    source.constraints = [{ id: 'b-to-a', kind: 'below', sourceId: 'b', targetId: 'a', enabled: true }];
+    const result = addDashboardCanvasV2Constraint(source, {
+      kind: 'right-of', sourceId: 'a', targetId: 'b', enabled: false,
+    });
+    expect(result.status).toBe('committed');
   });
 
   it('updates kind, gap, priority and enabled state', () => {
