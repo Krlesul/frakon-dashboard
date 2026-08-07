@@ -62,7 +62,7 @@ function scoreItem(
 
   if (usage?.urgent) {
     const severity = usage.severity ?? 'warning';
-    const boost = severity === 'critical' ? 60 : severity === 'warning' ? 30 : 15;
+    const boost = severity === 'critical' ? 90 : severity === 'warning' ? 60 : 30;
     score += boost;
     reasons.push(`${severity} urgency adds ${boost} points`);
   }
