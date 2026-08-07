@@ -26,7 +26,15 @@ export type CanvasDashboardTranslationKey =
   | 'snap'
   | 'off'
   | 'locked'
-  | 'diagnostics';
+  | 'diagnostics'
+  | 'constraintEditor'
+  | 'addConstraint'
+  | 'removeConstraint'
+  | 'constraintKind'
+  | 'constraintTarget'
+  | 'constraintGap'
+  | 'constraintPriority'
+  | 'enabled';
 
 type Messages = Record<CanvasDashboardTranslationKey, string>;
 
@@ -38,6 +46,7 @@ const messages: Record<SupportedLanguage, Messages> = {
     capabilityFailed: 'Capability negotiation failed', changeCommitted: 'Canvas change committed to compatible grid storage.',
     collisionBlocked: 'Canvas change blocked by collision', migrationPreview: 'v2 migration preview', cards: 'cards', lockedCards: 'locked', constraints: 'constraints', writeLocked: 'write locked',
     inspector: 'Inspector', selected: 'selected', snap: 'Snap', off: 'off', locked: 'Locked', diagnostics: 'Diagnostics',
+    constraintEditor: 'Constraint editor', addConstraint: 'Add constraint', removeConstraint: 'Remove', constraintKind: 'Type', constraintTarget: 'Target', constraintGap: 'Gap', constraintPriority: 'Priority', enabled: 'Enabled',
   },
   cs: {
     experimentalCanvas: 'Experimentální canvas', compatibleCommit: 'kompatibilní zápis v1',
@@ -46,6 +55,7 @@ const messages: Record<SupportedLanguage, Messages> = {
     capabilityFailed: 'Vyjednání schopností serveru selhalo', changeCommitted: 'Změna canvasu byla bezpečně uložena do kompatibilního gridu.',
     collisionBlocked: 'Změna canvasu byla zablokována kvůli kolizi', migrationPreview: 'náhled migrace v2', cards: 'karet', lockedCards: 'zamčených', constraints: 'vazeb', writeLocked: 'zápis zamčen',
     inspector: 'Inspektor', selected: 'vybráno', snap: 'Přichytávání', off: 'vypnuto', locked: 'Zamčeno', diagnostics: 'Diagnostika',
+    constraintEditor: 'Editor vazeb', addConstraint: 'Přidat vazbu', removeConstraint: 'Odebrat', constraintKind: 'Typ', constraintTarget: 'Cíl', constraintGap: 'Odstup', constraintPriority: 'Priorita', enabled: 'Aktivní',
   },
   de: {
     experimentalCanvas: 'Experimentelle Canvas-Fläche', compatibleCommit: 'v1-kompatibles Speichern',
@@ -54,14 +64,16 @@ const messages: Record<SupportedLanguage, Messages> = {
     capabilityFailed: 'Aushandlung der Serverfähigkeiten fehlgeschlagen', changeCommitted: 'Canvas-Änderung wurde kompatibel im Grid gespeichert.',
     collisionBlocked: 'Canvas-Änderung wegen Kollision blockiert', migrationPreview: 'v2-Migrationsvorschau', cards: 'Karten', lockedCards: 'gesperrt', constraints: 'Constraints', writeLocked: 'Schreiben gesperrt',
     inspector: 'Inspektor', selected: 'ausgewählt', snap: 'Raster', off: 'aus', locked: 'Gesperrt', diagnostics: 'Diagnose',
+    constraintEditor: 'Constraint-Editor', addConstraint: 'Constraint hinzufügen', removeConstraint: 'Entfernen', constraintKind: 'Typ', constraintTarget: 'Ziel', constraintGap: 'Abstand', constraintPriority: 'Priorität', enabled: 'Aktiv',
   },
   sk: {
     experimentalCanvas: 'Experimentálny canvas', compatibleCommit: 'kompatibilný zápis v1',
     v2ReadReady: 'čítanie v2 pripravené', v2ReadBlocked: 'čítanie v2 blokované', v2WriteReady: 'zápis v2 pripravený', v2WriteBlocked: 'zápis v2 blokovaný', v2NativeReadOnly: 'natívne v2 · iba čítanie',
     v2DraftUnsaved: 'natívne v2 · neuložený lokálny návrh', discardDraft: 'Zahodiť návrh', draftDiscarded: 'Lokálny návrh v2 bol zahodený a obnovená serverová revízia.', undo: 'Späť', redo: 'Znova',
     capabilityFailed: 'Vyjednanie schopností servera zlyhalo', changeCommitted: 'Zmena canvasu bola bezpečne uložená do kompatibilného gridu.',
-    collisionBlocked: 'Zmena canvasu bola zablokovaná pre kolíziu', migrationPreview: 'náhľad migrácie v2', cards: 'kariet', lockedCards: 'zamknutých', constraints: 'väzieb', writeLocked: 'zápis zamknutý',
+    collisionBlocked: 'Zmena canvasu bola zablokovaná pre kolíziu', migrationPreview: 'náhled migrácie v2', cards: 'kariet', lockedCards: 'zamknutých', constraints: 'väzieb', writeLocked: 'zápis zamknutý',
     inspector: 'Inšpektor', selected: 'vybrané', snap: 'Prichytávanie', off: 'vypnuté', locked: 'Zamknuté', diagnostics: 'Diagnostika',
+    constraintEditor: 'Editor väzieb', addConstraint: 'Pridať väzbu', removeConstraint: 'Odobrať', constraintKind: 'Typ', constraintTarget: 'Cieľ', constraintGap: 'Odstup', constraintPriority: 'Priorita', enabled: 'Aktívna',
   },
   pl: {
     experimentalCanvas: 'Eksperymentalny canvas', compatibleCommit: 'zapis zgodny z v1',
@@ -70,6 +82,7 @@ const messages: Record<SupportedLanguage, Messages> = {
     capabilityFailed: 'Negocjacja możliwości serwera nie powiodła się', changeCommitted: 'Zmiana canvasu została bezpiecznie zapisana w zgodnej siatce.',
     collisionBlocked: 'Zmiana canvasu zablokowana z powodu kolizji', migrationPreview: 'podgląd migracji v2', cards: 'kart', lockedCards: 'zablokowanych', constraints: 'powiązań', writeLocked: 'zapis zablokowany',
     inspector: 'Inspektor', selected: 'wybrano', snap: 'Przyciąganie', off: 'wyłączone', locked: 'Zablokowane', diagnostics: 'Diagnostyka',
+    constraintEditor: 'Edytor powiązań', addConstraint: 'Dodaj powiązanie', removeConstraint: 'Usuń', constraintKind: 'Typ', constraintTarget: 'Cel', constraintGap: 'Odstęp', constraintPriority: 'Priorytet', enabled: 'Aktywne',
   },
 };
 
