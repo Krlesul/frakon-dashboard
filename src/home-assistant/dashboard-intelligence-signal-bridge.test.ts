@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDashboardIntelligenceContextFromHass, extractDashboardItemEntityIds } from './dashboard-intelligence-signal-bridge';
+import { buildDashboardIntelligenceContextFromHass, extractDashboardItemEntityIds, resolveHomeAssistantEntityMetadata } from './dashboard-intelligence-signal-bridge';
 import type { FrakonDashboardDocument } from '../dashboard/layout-model';
 
 const document: FrakonDashboardDocument = {
@@ -34,6 +34,27 @@ describe('Home Assistant Dashboard Intelligence signal bridge', () => {
     ]);
   });
 
+  it('resolves entity area and device names with entity area taking precedence', () => {
+    expect(resolveHomeAssistantEntityMetadata(
+      [
+        { entity_id: 'binary_sensor.water', device_id: 'device-water', area_id: 'utility' },
+        { entity_id: 'sensor.temperature', device_id: 'device-temp' },
+      ],
+      [
+        { id: 'device-water', area_id: 'basement', name: 'Aqara Water Leak Sensor' },
+        { id: 'device-temp', area_id: 'living', name: 'Temperature Sensor', name_by_user: 'Teploměr obývák' },
+      ],
+      [
+        { area_id: 'utility', name: 'Technická místnost' },
+        { area_id: 'basement', name: 'Sklep' },
+        { area_id: 'living', name: 'Obývací pokoj' },
+      ],
+    )).toEqual({
+      'binary_sensor.water': { areaName: 'Technická místnost', deviceName: 'Aqara Water Leak Sensor' },
+      'sensor.temperature': { areaName: 'Obývací pokoj', deviceName: 'Teploměr obývák' },
+    });
+  });
+
   it('builds an urgent automatic context from live hass states and interactions', () => {
     const now = new Date(2026, 7, 6, 20, 0, 0).getTime();
     const context = buildDashboardIntelligenceContextFromHass(document, {
@@ -47,6 +68,7 @@ describe('Home Assistant Dashboard Intelligence signal bridge', () => {
     }, {
       device: 'tablet',
       now,
+      entityMetadata: { 'cover.gate': { areaName: 'Vjezd', deviceName: 'CAME brána' } },
       tracker: {
         snapshot: () => [
           { itemId: 'gate', timestamp: now - 1000 },
@@ -58,7 +80,7 @@ describe('Home Assistant Dashboard Intelligence signal bridge', () => {
     expect(context.device).toBe('tablet');
     expect(context.daypart).toBe('evening');
     expect(context.usage).toEqual([
-      expect.objectContaining({ itemId: 'gate', interactions30d: 2, urgent: true }),
+      expect.objectContaining({ itemId: 'gate', interactions30d: 2, urgent: true, sourceEntityMetadata: { 'cover.gate': { areaName: 'Vjezd', deviceName: 'CAME brána' } } }),
     ]);
   });
 });
