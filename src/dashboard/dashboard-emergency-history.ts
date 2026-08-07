@@ -4,7 +4,7 @@ export interface DashboardEmergencyHistoryEntry {
   signature: string;
   itemId: string;
   sourceEntityIds: string[];
-  sourceEntityLabels: Record<string, string>;
+  sourceEntityLabels?: Record<string, string>;
   reasons: string[];
   startedAt: number;
   acknowledgedAt?: number;
@@ -37,7 +37,7 @@ export function updateDashboardEmergencyHistory(
       : existing?.acknowledgedAt;
     nextActive.push(existing ? {
       ...existing,
-      sourceEntityLabels: { ...existing.sourceEntityLabels, ...target.sourceEntityLabels },
+      sourceEntityLabels: { ...(existing.sourceEntityLabels ?? {}), ...target.sourceEntityLabels },
       acknowledgedAt,
     } : createEntry(target, signature, now, acknowledgedAt));
   }
