@@ -27,6 +27,17 @@ export interface DashboardCanvasCommitResult {
   collisionIds: string[];
 }
 
+function gridCollisionIds(document: FrakonDashboardDocument): string[] {
+  return collisionIds(document.items.map((item) => ({
+    id: item.id,
+    x: item.x,
+    y: item.y,
+    width: item.w,
+    height: item.h,
+    locked: item.locked,
+  })));
+}
+
 export class DashboardCanvasSession {
   private readonly projection;
   private latest?: DashboardCanvasPreview;
@@ -95,6 +106,16 @@ export class DashboardCanvasSession {
         this.canvasWidth,
       );
     });
+    const projectedDocument = { ...this.source, items };
+    const projectedCollisions = gridCollisionIds(projectedDocument);
+    if (projectedCollisions.length) {
+      return {
+        status: 'collision',
+        document: structuredClone(this.source),
+        collisionIds: projectedCollisions,
+      };
+    }
+
     const unchanged = items.every((item, index) => {
       const source = this.source.items[index];
       return source && item.x === source.x && item.y === source.y && item.w === source.w && item.h === source.h;
@@ -102,7 +123,7 @@ export class DashboardCanvasSession {
 
     return {
       status: unchanged ? 'unchanged' : 'committed',
-      document: { ...this.source, items },
+      document: projectedDocument,
       collisionIds: [],
     };
   }
