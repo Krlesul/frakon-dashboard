@@ -14,9 +14,10 @@ describe('canvas dashboard i18n', () => {
     expect(canvasDashboardTranslate('en', 'v2WriteBlocked')).toBe('v2 write blocked');
   });
 
-  it('contains localized capability and migration labels', () => {
+  it('contains localized capability, migration and history labels', () => {
     expect(canvasDashboardTranslate('cs', 'migrationPreview')).toBe('náhled migrace v2');
-    expect(canvasDashboardTranslate('de', 'v2ReadReady')).toContain('v2');
+    expect(canvasDashboardTranslate('cs', 'undo')).toBe('Zpět');
+    expect(canvasDashboardTranslate('de', 'redo')).toBe('Wiederholen');
     expect(canvasDashboardTranslate('pl', 'writeLocked')).toContain('zapis');
   });
 });
