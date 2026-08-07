@@ -13,6 +13,7 @@ export interface DashboardUsageSignal {
   severity?: DashboardUrgencySeverity;
   urgencyReasons?: string[];
   sourceEntityIds?: string[];
+  sourceEntityLabels?: Record<string, string>;
 }
 
 export interface DashboardIntelligenceContext {
