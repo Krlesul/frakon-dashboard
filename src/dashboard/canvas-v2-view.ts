@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
 import type { Guideline } from '../../packages/studio-engine/src/guidelines';
 import type { SelectionRect, SelectionState } from '../../packages/studio-engine/src/selection';
 import type { HomeAssistant } from '../home-assistant/types';
@@ -23,6 +24,7 @@ export interface FrakonCanvasV2DraftDetail {
   status: 'committed' | 'collision' | 'unchanged';
   document: FrakonDashboardDocumentV2;
   collisionIds: string[];
+  constraintDiagnostics?: ConstraintDiagnostic[];
 }
 
 @customElement('frakon-canvas-v2-view')
