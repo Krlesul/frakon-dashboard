@@ -1,3 +1,5 @@
+import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
+import { applyDashboardCanvasV2Constraints } from './dashboard-canvas-v2-constraints';
 import { canvasV2CollisionIds } from './dashboard-canvas-v2-session';
 import { normalizeDashboardV2, type FrakonDashboardDocumentV2 } from './layout-model-v2';
 
@@ -17,6 +19,7 @@ export interface DashboardCanvasV2InspectorEditResult {
   status: 'committed' | 'collision' | 'unchanged' | 'missing-item';
   document: FrakonDashboardDocumentV2;
   collisionIds: string[];
+  constraintDiagnostics: ConstraintDiagnostic[];
 }
 
 function sameDocument(left: FrakonDashboardDocumentV2, right: FrakonDashboardDocumentV2): boolean {
@@ -35,10 +38,10 @@ export function patchDashboardCanvasV2Item(
   patch: DashboardCanvasV2InspectorItemPatch,
 ): DashboardCanvasV2InspectorEditResult {
   if (!document.items.some((item) => item.id === itemId)) {
-    return { status: 'missing-item', document: structuredClone(document), collisionIds: [] };
+    return { status: 'missing-item', document: structuredClone(document), collisionIds: [], constraintDiagnostics: [] };
   }
 
-  const candidate = normalizeDashboardV2({
+  const manual = normalizeDashboardV2({
     ...document,
     items: document.items.map((item) => item.id === itemId
       ? {
@@ -58,14 +61,21 @@ export function patchDashboardCanvasV2Item(
       : structuredClone(item)),
   });
 
-  const collisionIds = canvasV2CollisionIds(candidate.items);
+  const constrained = applyDashboardCanvasV2Constraints(manual);
+  const collisionIds = canvasV2CollisionIds(constrained.document.items);
   if (collisionIds.length) {
-    return { status: 'collision', document: structuredClone(document), collisionIds };
+    return {
+      status: 'collision',
+      document: structuredClone(document),
+      collisionIds,
+      constraintDiagnostics: constrained.diagnostics,
+    };
   }
   return {
-    status: sameDocument(document, candidate) ? 'unchanged' : 'committed',
-    document: candidate,
+    status: sameDocument(document, constrained.document) ? 'unchanged' : 'committed',
+    document: constrained.document,
     collisionIds: [],
+    constraintDiagnostics: constrained.diagnostics,
   };
 }
 
@@ -87,5 +97,6 @@ export function patchDashboardCanvasV2Snap(
     status: sameDocument(document, candidate) ? 'unchanged' : 'committed',
     document: candidate,
     collisionIds: [],
+    constraintDiagnostics: [],
   };
 }
