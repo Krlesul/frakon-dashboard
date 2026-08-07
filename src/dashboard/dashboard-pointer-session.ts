@@ -1,5 +1,6 @@
 import type { ResizeHandle } from '../../packages/studio-engine/src/resize';
 import type { FrakonDashboardDocument } from './layout-model';
+import { applyDashboardConstraintsToPointerPreview } from './dashboard-pointer-constraints';
 import {
   previewDashboardPointerMove,
   previewDashboardPointerResize,
@@ -37,9 +38,10 @@ export class DashboardPointerSession {
       x: current.x - this.start.x,
       y: current.y - this.start.y,
     };
-    this.latest = this.interaction.kind === 'move'
+    const manual = this.interaction.kind === 'move'
       ? previewDashboardPointerMove(this.source, this.interaction.selectedIds, delta, this.containerWidth)
       : previewDashboardPointerResize(this.source, this.interaction.itemId, this.interaction.handle, delta, this.containerWidth);
+    this.latest = applyDashboardConstraintsToPointerPreview(this.source, manual);
     return this.latest;
   }
 
