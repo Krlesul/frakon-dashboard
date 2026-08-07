@@ -218,11 +218,11 @@ export class FrakonCanvasV2View extends LitElement {
   render() {
     const source = this.previewDocument ?? this.document;
     if (!source) return nothing;
-    this.selection = normalizeCanvasV2Selection(this.selection, source);
+    const normalizedSelection = normalizeCanvasV2Selection(this.selection, source);
     const model = dashboardCanvasRenderModel(source, Math.max(1, this.width));
     const sourceById = new Map(source.items.map((item) => [item.id, item]));
     const collisions = new Set(this.collisionIds);
-    const selectedIds = new Set(this.selection.ids);
+    const selectedIds = new Set(normalizedSelection.ids);
     return html`
       <div
         class="canvas"
@@ -244,10 +244,20 @@ export class FrakonCanvasV2View extends LitElement {
             >
               ${this.editMode ? html`
                 <div class="head">
-                  <button class="move" ?disabled=${sourceItem.locked} @pointerdown=${(event: PointerEvent) => this.beginMove(event, sourceItem)}>↕ ${item.id}</button>
+                  <button
+                    class="move"
+                    ?disabled=${sourceItem.locked}
+                    @click=${(event: MouseEvent) => event.stopPropagation()}
+                    @pointerdown=${(event: PointerEvent) => this.beginMove(event, sourceItem)}
+                  >↕ ${item.id}</button>
                 </div>
                 ${!sourceItem.locked
-                  ? html`<button class="resize" title="Resize" @pointerdown=${(event: PointerEvent) => this.beginResize(event, sourceItem)}></button>`
+                  ? html`<button
+                      class="resize"
+                      title="Resize"
+                      @click=${(event: MouseEvent) => event.stopPropagation()}
+                      @pointerdown=${(event: PointerEvent) => this.beginResize(event, sourceItem)}
+                    ></button>`
                   : nothing}
               ` : nothing}
               <div class="content"><frakon-card-host .hass=${this.hass} .config=${item.card}></frakon-card-host></div>
