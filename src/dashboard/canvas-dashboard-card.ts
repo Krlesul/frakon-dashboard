@@ -4,6 +4,7 @@ import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types'
 import { createHomeAssistantDashboardStorage, type DashboardStorageMode } from '../home-assistant/dashboard-storage-factory';
 import './card-host';
 import './canvas-v2-view';
+import type { FrakonCanvasV2DraftDetail } from './canvas-v2-view';
 import { canvasDashboardTranslate, resolveCanvasDashboardLanguage } from './canvas-dashboard-i18n';
 import { DashboardCanvasSession, type DashboardCanvasPoint, type DashboardCanvasPreview } from './dashboard-canvas-session';
 import { projectDashboardGridToCanvas } from './dashboard-canvas-placement';
@@ -37,6 +38,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
   @state() private document?: FrakonDashboardDocument;
   @state() private nativeV2Document?: FrakonDashboardDocumentV2;
   @state() private nativeV2Revision?: string;
+  @state() private nativeV2DraftDirty = false;
   @state() private selectedId?: string;
   @state() private preview?: DashboardCanvasPreview;
   @state() private message?: string;
@@ -55,12 +57,13 @@ export class FrakonCanvasDashboardCard extends LitElement {
     .shell { padding: 16px; border-radius: 24px; background: var(--card-background-color); }
     header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
     h2 { margin: 0; font-size: 21px; }
-    .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+    .badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .badge { padding: 6px 10px; border-radius: 999px; font-size: 12px; background: color-mix(in srgb, var(--primary-color) 15%, transparent); }
     .experimental { background: color-mix(in srgb, #f0a85a 22%, transparent); }
     .blocked { background: color-mix(in srgb, #ff4d67 18%, transparent); }
     .ready { background: color-mix(in srgb, #4bbf73 18%, transparent); }
     .migration { opacity: .86; }
+    .draft-action { border: 0; border-radius: 9px; padding: 6px 9px; color: inherit; background: color-mix(in srgb, #ff4d67 14%, transparent); cursor: pointer; font: inherit; }
     .message { margin-bottom: 10px; padding: 8px 10px; border-radius: 10px; font-size: 12px; background: color-mix(in srgb, var(--primary-color) 12%, transparent); }
     .message.error { background: color-mix(in srgb, #ff4d67 16%, transparent); }
     .canvas { position: relative; min-height: 120px; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-color) 6%); }
@@ -88,6 +91,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
     });
     this.nativeV2Document = undefined;
     this.nativeV2Revision = undefined;
+    this.nativeV2DraftDirty = false;
     this.configureStorage();
     this.cancelInteraction();
     void this.loadDashboard(id);
@@ -156,6 +160,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
   private async loadDashboard(id: string): Promise<void> {
     this.nativeV2Document = undefined;
     this.nativeV2Revision = undefined;
+    this.nativeV2DraftDirty = false;
 
     if (this.config?.storage === 'home-assistant' && this.hass?.callWS) {
       const hass = this.hass;
@@ -204,6 +209,25 @@ export class FrakonCanvasDashboardCard extends LitElement {
       bubbles: true,
       composed: true,
     }));
+  }
+
+  private onNativeV2Draft(event: CustomEvent<FrakonCanvasV2DraftDetail>): void {
+    if (!this.nativeV2Document) return;
+    const result = event.detail;
+    if (result.status === 'committed') {
+      this.nativeV2Document = result.document;
+      this.nativeV2DraftDirty = true;
+      this.message = this.t('v2DraftUnsaved');
+    } else if (result.status === 'collision') {
+      this.message = `${this.t('collisionBlocked')}: ${result.collisionIds.join(', ')}`;
+    }
+  }
+
+  private async discardNativeV2Draft(): Promise<void> {
+    const id = this.nativeV2Document?.id ?? this.document?.id;
+    if (!id) return;
+    await this.loadDashboard(id);
+    this.message = this.t('draftDiscarded');
   }
 
   private point(event: PointerEvent): DashboardCanvasPoint {
@@ -291,15 +315,22 @@ export class FrakonCanvasDashboardCard extends LitElement {
           <div class="badges">
             <span class="badge experimental">${this.t('experimentalCanvas')}</span>
             <span class="badge ready">${this.t('v2NativeReadOnly')}</span>
+            ${this.nativeV2DraftDirty ? html`<span class="badge blocked">${this.t('v2DraftUnsaved')}</span>` : nothing}
             ${this.renderServerCapabilityBadges()}
             ${this.nativeV2Revision ? html`<span class="badge">${this.nativeV2Revision}</span>` : nothing}
+            ${this.nativeV2DraftDirty
+              ? html`<button class="draft-action" @click=${this.discardNativeV2Draft}>${this.t('discardDraft')}</button>`
+              : nothing}
           </div>
         </header>
         ${this.capabilitiesError ? html`<div class="message error">${this.t('capabilityFailed')}: ${this.capabilitiesError}</div>` : nothing}
+        ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
         <frakon-canvas-v2-view
           .hass=${this.hass}
           .document=${this.nativeV2Document}
           .width=${Math.max(1, this.width)}
+          .editMode=${this.config?.edit_mode === true}
+          @frakon-canvas-v2-draft=${this.onNativeV2Draft}
         ></frakon-canvas-v2-view>
       </section>
     `;
