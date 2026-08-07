@@ -45,7 +45,42 @@ function validateRefs(document: FrakonDashboardDocumentV2, sourceId: string, tar
   return undefined;
 }
 
+function validateConstraintSet(constraints: LayoutConstraint[]): string | undefined {
+  const seen = new Set<string>();
+  for (const constraint of constraints) {
+    const key = `${constraint.sourceId}\u0000${constraint.kind}\u0000${constraint.targetId}`;
+    if (seen.has(key)) return `Duplicate constraint ${constraint.kind} from ${constraint.sourceId} to ${constraint.targetId}.`;
+    seen.add(key);
+  }
+
+  const graph = new Map<string, Set<string>>();
+  for (const constraint of constraints.filter((item) => item.enabled !== false)) {
+    const targets = graph.get(constraint.sourceId) ?? new Set<string>();
+    targets.add(constraint.targetId);
+    graph.set(constraint.sourceId, targets);
+  }
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (node: string): boolean => {
+    if (visiting.has(node)) return true;
+    if (visited.has(node)) return false;
+    visiting.add(node);
+    for (const target of graph.get(node) ?? []) {
+      if (visit(target)) return true;
+    }
+    visiting.delete(node);
+    visited.add(node);
+    return false;
+  };
+  for (const node of graph.keys()) {
+    if (visit(node)) return 'Enabled constraints contain a dependency cycle.';
+  }
+  return undefined;
+}
+
 function solveCandidate(source: FrakonDashboardDocumentV2, candidate: FrakonDashboardDocumentV2): DashboardCanvasV2ConstraintEditResult {
+  const structuralError = validateConstraintSet(candidate.constraints ?? []);
+  if (structuralError) return invalidResult(source, structuralError);
   const normalized = normalizeDashboardV2(candidate);
   const solved = applyDashboardCanvasV2Constraints(normalized);
   const collisionIds = canvasV2CollisionIds(solved.document.items);
