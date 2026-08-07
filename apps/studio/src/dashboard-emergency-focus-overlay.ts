@@ -9,6 +9,7 @@ const COLUMN_WIDTH = 96;
 export class FrakonDashboardEmergencyFocusOverlay extends LitElement {
   @property({ attribute: false }) focus?: DashboardEmergencyFocusState;
   @property({ attribute: false }) document?: FrakonDashboardDocument;
+  @property() activeItemId = '';
 
   static styles = css`
     :host { position:absolute; inset:0; z-index:30; display:block; pointer-events:none; }
@@ -21,6 +22,7 @@ export class FrakonDashboardEmergencyFocusOverlay extends LitElement {
       background:rgb(255 78 91 / 8%);
       box-shadow:0 0 0 7px rgb(255 78 91 / 16%),0 0 42px rgb(255 78 91 / 48%);
       animation:pulse 1.25s ease-in-out infinite alternate;
+      transition:opacity 140ms ease,filter 140ms ease,box-shadow 140ms ease;
     }
     .focus::after {
       content:'CRITICAL · ' attr(data-label);
@@ -34,18 +36,26 @@ export class FrakonDashboardEmergencyFocusOverlay extends LitElement {
       font:800 10px/1.2 Inter,system-ui,sans-serif;
       letter-spacing:.04em;
     }
+    .focus.active {
+      z-index:2;
+      box-shadow:0 0 0 8px rgb(255 78 91 / 22%),0 0 54px rgb(255 78 91 / 64%);
+      filter:brightness(1.16);
+    }
+    .focus.muted { opacity:.38; animation:none; }
     @keyframes pulse { from { filter:brightness(1); } to { filter:brightness(1.22); } }
     @media (prefers-reduced-motion:reduce) { .focus { animation:none; } }
   `;
 
   render() {
     if (!this.focus?.active || !this.document) return nothing;
+    const activeItemId = this.activeItemId || this.focus.primary?.itemId || '';
     return html`
       <div class="veil"></div>
       ${this.focus.targets.map((target) => {
         const item = target.item;
+        const active = target.itemId === activeItemId;
         const style = `left:${item.x * COLUMN_WIDTH}px;top:${item.y * this.document!.rowHeight}px;width:${item.w * COLUMN_WIDTH - this.document!.gap}px;height:${item.h * this.document!.rowHeight - this.document!.gap}px`;
-        return html`<div class="focus" data-label=${target.itemId} style=${style}></div>`;
+        return html`<div class=${`focus ${active ? 'active' : 'muted'}`} data-label=${target.itemId} style=${style}></div>`;
       })}
     `;
   }
