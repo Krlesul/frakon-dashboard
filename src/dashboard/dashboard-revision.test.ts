@@ -4,6 +4,7 @@ import {
   compareDashboardRevisions,
   createDashboardRevision,
 } from './dashboard-revision';
+import { migrateDashboardV1ToV2 } from './layout-model-v2';
 import type { FrakonDashboardDocument } from './layout-model';
 
 function dashboard(title: string): FrakonDashboardDocument {
@@ -61,5 +62,18 @@ describe('dashboard revision model', () => {
     const first = createDashboardRevision(firstDocument, 'client-a', undefined, 100);
     const second = createDashboardRevision(secondDocument, 'client-a', undefined, 100);
     expect(second.revision).not.toBe(first.revision);
+  });
+
+  it('carries version 2 canvas documents through the same revision relation model', () => {
+    const baseDocument = migrateDashboardV1ToV2(dashboard('Home'), 1200);
+    const base = createDashboardRevision(baseDocument, 'client-a', undefined, 100);
+    const changedDocument = {
+      ...baseDocument,
+      layout: { ...baseDocument.layout, minHeight: baseDocument.layout.minHeight + 100 },
+    };
+    const changed = createDashboardRevision(changedDocument, 'client-a', base, 200);
+    expect(changed.document.version).toBe(2);
+    expect(compareDashboardRevisions(changed, base).relation).toBe('local-ahead');
+    expect(changed.revision).not.toBe(base.revision);
   });
 });
