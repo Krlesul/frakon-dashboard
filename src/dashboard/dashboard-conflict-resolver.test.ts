@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mergeDashboardDocuments } from './dashboard-conflict-resolver';
+import { migrateDashboardV1ToV2 } from './layout-model-v2';
 import type { FrakonDashboardDocument, FrakonGridItem } from './layout-model';
 
 function item(id: string, x: number): FrakonGridItem {
@@ -61,5 +62,43 @@ describe('mergeDashboardDocuments', () => {
     expect(result.clean).toBe(false);
     expect(result.conflicts[0]?.path).toBe('title');
     expect(result.document.title).toBe('Local');
+  });
+
+  it('merges independent canvas frame changes in version 2 documents', () => {
+    const base = migrateDashboardV1ToV2(dashboard([item('light', 0), item('camera', 4)]), 1200);
+    const local = structuredClone(base);
+    const remote = structuredClone(base);
+    const localLight = local.items.find((entry) => entry.id === 'light');
+    const remoteCamera = remote.items.find((entry) => entry.id === 'camera');
+    if (!localLight || !remoteCamera) throw new Error('Missing v2 test items.');
+    localLight.frame.x += 25;
+    remoteCamera.frame.y += 30;
+
+    const result = mergeDashboardDocuments(base, local, remote);
+    expect(result.clean).toBe(true);
+    expect(result.document.version).toBe(2);
+    expect(result.document.items.find((entry) => entry.id === 'light')?.frame.x).toBe(localLight.frame.x);
+    expect(result.document.items.find((entry) => entry.id === 'camera')?.frame.y).toBe(remoteCamera.frame.y);
+  });
+
+  it('reports version 2 layout conflicts without applying grid fields', () => {
+    const base = migrateDashboardV1ToV2(dashboard([]), 1200);
+    const local = { ...structuredClone(base), layout: { ...base.layout, minHeight: 900 } };
+    const remote = { ...structuredClone(base), layout: { ...base.layout, minHeight: 1000 } };
+
+    const result = mergeDashboardDocuments(base, local, remote);
+    expect(result.clean).toBe(false);
+    expect(result.conflicts[0]?.path).toBe('layout');
+    expect(result.document.layout.minHeight).toBe(900);
+  });
+
+  it('rejects merge attempts across document versions', () => {
+    const base = dashboard([]);
+    const v2 = migrateDashboardV1ToV2(base, 1200);
+    expect(() => mergeDashboardDocuments(
+      base as unknown as typeof v2,
+      v2,
+      v2,
+    )).toThrow(/across document versions/);
   });
 });
