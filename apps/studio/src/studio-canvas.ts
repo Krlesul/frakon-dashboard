@@ -350,7 +350,7 @@ export class FrakonStudioCanvas extends LitElement {
   }
 
   private marqueeStyle(): string | undefined {
-    if (!this.gesture?.mode === 'marquee') return undefined;
+    if (this.gesture?.mode !== 'marquee') return undefined;
     const { startScreen, currentScreen } = this.gesture;
     const left = Math.min(startScreen.x, currentScreen.x);
     const top = Math.min(startScreen.y, currentScreen.y);
