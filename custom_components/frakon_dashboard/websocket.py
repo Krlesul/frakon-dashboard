@@ -119,6 +119,13 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         if saved:
             connection.send_result(msg["id"], {"status": "saved", "envelope": remote})
             return
+        if not remote:
+            connection.send_error(
+                msg["id"],
+                "revision_conflict",
+                "Dashboard was removed while this client still held an older revision.",
+            )
+            return
         connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
 
     @websocket_api.require_admin
