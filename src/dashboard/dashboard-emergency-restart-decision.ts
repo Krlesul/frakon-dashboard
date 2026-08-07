@@ -1,9 +1,10 @@
-import type{DashboardEmergencyActionAuditEntry}from'./dashboard-emergency-action-audit';import type{DashboardEmergencyIdempotencyRecord}from'./dashboard-emergency-idempotency';
+import type{DashboardEmergencyActionAuditEntry}from'./dashboard-emergency-action-audit';import type{DashboardEmergencyIdempotencyRecord}from'./dashboard-emergency-idempotency';import type{DashboardEmergencyExecutionJournalEntry}from'./dashboard-emergency-execution-journal';import{decideDashboardEmergencyExecutionJournalRecovery}from'./dashboard-emergency-execution-journal-recovery';
 export type DashboardEmergencyRestartDecisionKind='retry'|'verify-first'|'completed'|'blocked';
 export interface DashboardEmergencyRestartDecision{kind:DashboardEmergencyRestartDecisionKind;reason:string}
-export function decideDashboardEmergencyRestartAction(audit:DashboardEmergencyActionAuditEntry|undefined,idempotency:DashboardEmergencyIdempotencyRecord|undefined):DashboardEmergencyRestartDecision{
+export function decideDashboardEmergencyRestartAction(audit:DashboardEmergencyActionAuditEntry|undefined,idempotency:DashboardEmergencyIdempotencyRecord|undefined,journal?:DashboardEmergencyExecutionJournalEntry):DashboardEmergencyRestartDecision{
  if(!audit)return{kind:'blocked',reason:'No persisted action audit exists.'};
  if(audit.verificationStatus==='verified')return{kind:'completed',reason:'The physical state was already verified.'};
+ if(journal){const decision=decideDashboardEmergencyExecutionJournalRecovery(journal);return{kind:decision.kind,reason:decision.reason}}
  if(idempotency?.status==='completed')return{kind:'verify-first',reason:'The service call completed but the physical state still requires verification.'};
  if(idempotency?.status==='started')return{kind:'verify-first',reason:'The service call may have been sent before restart; verify state before any retry.'};
  if(idempotency?.status==='failed')return{kind:'retry',reason:'The previous service call failed and may be explicitly retried.'};
