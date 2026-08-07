@@ -54,6 +54,12 @@ export interface DashboardEmergencyTimelineBucket {
   kinds: Partial<Record<DashboardEmergencyKind, number>>;
 }
 
+export interface DashboardEmergencyHistoryDetailQuery {
+  kind?: DashboardEmergencyKind;
+  startAt?: number;
+  endAt?: number;
+}
+
 export type DashboardEmergencyHistoryImportResult =
   | { ok: true; history: DashboardEmergencyHistoryState; importedRecent: number }
   | { ok: false; error: 'invalid-json' | 'invalid-format' | 'unsupported-version' };
@@ -73,6 +79,20 @@ export function filterDashboardEmergencyHistory(
     return true;
   };
   return { active: history.active.filter(matches), recent: history.recent.filter(matches) };
+}
+
+export function selectDashboardEmergencyHistoryDetails(
+  history: DashboardEmergencyHistoryState,
+  query: DashboardEmergencyHistoryDetailQuery = {},
+): DashboardEmergencyHistoryEntry[] {
+  return [...history.active, ...history.recent]
+    .filter((entry) => {
+      if (query.kind && emergencyKind(entry.reasons[0]) !== query.kind) return false;
+      if (query.startAt !== undefined && entry.startedAt < query.startAt) return false;
+      if (query.endAt !== undefined && entry.startedAt >= query.endAt) return false;
+      return true;
+    })
+    .sort((left, right) => right.startedAt - left.startedAt || left.itemId.localeCompare(right.itemId));
 }
 
 export function calculateDashboardEmergencyHistoryStats(
