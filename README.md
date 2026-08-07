@@ -14,7 +14,13 @@ The project currently includes:
 - editable collision-safe dashboard grid
 - live nested FRAKON cards
 - card palette with search and categories
-- drag-and-drop position exchange
+- production pointer move and resize handles with live previews
+- multi-selection with Shift and Ctrl/Cmd selection semantics
+- marquee selection from empty dashboard space
+- atomic group movement with locked-card protection
+- collision feedback and rollback before persistence
+- live smart alignment guidelines during pointer movement
+- keyboard nudging of selected cards with arrow keys and larger Shift+arrow steps
 - width and height controls
 - locked items
 - undo and redo history
@@ -122,11 +128,14 @@ In edit mode you can:
 2. select a card template,
 3. choose a real Home Assistant entity,
 4. change its name, icon and advanced configuration,
-5. resize, lock, remove or move the card,
-6. undo and redo layout changes,
-7. preview several automatic layout proposals,
-8. apply a proposal or restore the original layout,
-9. export the dashboard as a backup JSON file.
+5. select one or multiple cards,
+6. move cards with pointer handles or arrow keys,
+7. resize cards with the pointer resize handle or width/height controls,
+8. use marquee selection and live alignment guides,
+9. lock, remove, undo and redo layout changes,
+10. preview several automatic layout proposals,
+11. apply a proposal or restore the original layout,
+12. export the dashboard as a backup JSON file.
 
 Set `edit_mode: false` when the layout is ready for normal use.
 
@@ -243,7 +252,7 @@ GitHub Actions validates every push and pull request with:
 
 - the default persistence mode is still browser-local unless `storage: home-assistant` is selected
 - Home Assistant backend packaging is currently manual; unified HACS distribution is not finished
-- drag-and-drop in the production Home Assistant card still exchanges positions rather than exposing every Studio free-canvas interaction
+- production editing is still grid-based; fully unconstrained floating/free-canvas placement remains a Studio milestone
 - not every specialized card has its own full visual editor yet
 - automatic importance scoring is currently based on card type and optional manual priority, not full live AI context
 - camera behavior depends on the entity image exposed by Home Assistant
@@ -252,7 +261,7 @@ GitHub Actions validates every push and pull request with:
 ## Planned next milestones
 
 - perform the first real Home Assistant alpha installation test with server-side persistence
-- complete production free-canvas interaction parity with the Studio engine
+- finish production/Studio interaction parity for advanced constraints and free-canvas placement
 - broader visual editors for specialized cards
 - Energy, Alarm, Graph, Weather and Floorplan cards
 - screenshot and browser interaction tests
