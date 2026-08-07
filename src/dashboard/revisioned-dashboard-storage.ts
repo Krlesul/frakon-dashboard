@@ -39,7 +39,7 @@ export class RevisionedDashboardStorage {
   load(id: string): Promise<DashboardRevisionEnvelope | undefined> {
     return this.transport.request<DashboardRevisionEnvelope | undefined>(
       `${this.namespace}/load_revision`,
-      { id },
+      { dashboard_id: id },
     );
   }
 
@@ -74,7 +74,7 @@ export class RevisionedDashboardStorage {
 
   remove(id: string, expectedRevision?: string): Promise<void> {
     return this.transport.request<void>(`${this.namespace}/remove_revision`, {
-      id,
+      dashboard_id: id,
       expectedRevision,
     });
   }
