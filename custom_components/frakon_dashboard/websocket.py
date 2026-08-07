@@ -76,6 +76,27 @@ def _send_write_version_error(
 def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardStorage) -> None:
     @websocket_api.websocket_command(
         {
+            vol.Required("type"): "frakon/dashboard/capabilities",
+        }
+    )
+    @websocket_api.async_response
+    async def handle_capabilities(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        connection.send_result(
+            msg["id"],
+            {
+                "readableDocumentVersions": sorted(READABLE_DOCUMENT_VERSIONS),
+                "writableDocumentVersions": sorted(WRITABLE_DOCUMENT_VERSIONS),
+                "revisionSync": True,
+                "maxItems": 2000,
+            },
+        )
+
+    @websocket_api.websocket_command(
+        {
             vol.Required("type"): "frakon/dashboard/load",
             vol.Required("dashboard_id"): DASHBOARD_ID,
         }
@@ -210,6 +231,7 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
             return
         connection.send_result(msg["id"], None)
 
+    websocket_api.async_register_command(hass, handle_capabilities)
     websocket_api.async_register_command(hass, handle_load)
     websocket_api.async_register_command(hass, handle_save)
     websocket_api.async_register_command(hass, handle_remove)
