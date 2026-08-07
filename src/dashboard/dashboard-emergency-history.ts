@@ -1,3 +1,4 @@
+import type { DashboardEntityMetadata } from './dashboard-intelligence';
 import { dashboardEmergencyFocusSignature, type DashboardEmergencyFocusState, type DashboardEmergencyFocusTarget } from './dashboard-emergency-focus';
 
 export interface DashboardEmergencyHistoryEntry {
@@ -5,6 +6,7 @@ export interface DashboardEmergencyHistoryEntry {
   itemId: string;
   sourceEntityIds: string[];
   sourceEntityLabels?: Record<string, string>;
+  sourceEntityMetadata?: Record<string, DashboardEntityMetadata>;
   reasons: string[];
   startedAt: number;
   acknowledgedAt?: number;
@@ -38,6 +40,7 @@ export function updateDashboardEmergencyHistory(
     nextActive.push(existing ? {
       ...existing,
       sourceEntityLabels: { ...(existing.sourceEntityLabels ?? {}), ...target.sourceEntityLabels },
+      sourceEntityMetadata: { ...(existing.sourceEntityMetadata ?? {}), ...target.sourceEntityMetadata },
       acknowledgedAt,
     } : createEntry(target, signature, now, acknowledgedAt));
   }
@@ -80,6 +83,7 @@ function createEntry(
     itemId: target.itemId,
     sourceEntityIds: [...target.sourceEntityIds],
     sourceEntityLabels: { ...target.sourceEntityLabels },
+    sourceEntityMetadata: structuredClone(target.sourceEntityMetadata),
     reasons: [...target.reasons],
     startedAt,
     acknowledgedAt,
