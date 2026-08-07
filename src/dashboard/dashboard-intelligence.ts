@@ -5,6 +5,11 @@ export type DashboardDeviceContext = 'mobile' | 'tablet' | 'wall' | 'desktop';
 export type DashboardDaypart = 'morning' | 'day' | 'evening' | 'night';
 export type DashboardUrgencySeverity = 'normal' | 'warning' | 'critical';
 
+export interface DashboardEntityMetadata {
+  areaName?: string;
+  deviceName?: string;
+}
+
 export interface DashboardUsageSignal {
   itemId: string;
   interactions30d?: number;
@@ -14,6 +19,7 @@ export interface DashboardUsageSignal {
   urgencyReasons?: string[];
   sourceEntityIds?: string[];
   sourceEntityLabels?: Record<string, string>;
+  sourceEntityMetadata?: Record<string, DashboardEntityMetadata>;
 }
 
 export interface DashboardIntelligenceContext {
@@ -102,21 +108,20 @@ function deviceAdjustment(type: string, device: DashboardDeviceContext): number 
   return 0;
 }
 
-function daypartAdjustment(type: string, daypart?: DashboardDaypart): number {
-  if (daypart === 'night' && (type.includes('camera') || type.includes('cover'))) return 10;
-  if (daypart === 'morning' && (type.includes('climate') || type.includes('vehicle'))) return 8;
-  if (daypart === 'evening' && (type.includes('light') || type.includes('media'))) return 8;
+function daypartAdjustment(type: string, daypart: DashboardDaypart | undefined): number {
+  if (daypart === 'night' && (type.includes('camera') || type.includes('sensor'))) return 10;
+  if (daypart === 'morning' && (type.includes('climate') || type.includes('vehicle'))) return 6;
+  if (daypart === 'evening' && (type.includes('media') || type.includes('light'))) return 6;
   return 0;
 }
 
-function recommendedWidth(item: FrakonGridItem, type: string, device: DashboardDeviceContext, preferred?: number): number {
-  if (device === 'mobile') return Math.min(item.w, 4);
-  if (device === 'wall' && type.includes('camera')) return Math.max(preferred ?? item.w, 6);
-  return preferred ?? item.w;
+function recommendedWidth(item: FrakonGridItem, type: string, device: DashboardDeviceContext, fallback: number): number {
+  if (device === 'mobile') return Math.max(2, Math.min(item.w, fallback));
+  if (type.includes('camera') || type.includes('room')) return Math.max(fallback, 4);
+  return fallback;
 }
 
-function recommendedHeight(item: FrakonGridItem, type: string, device: DashboardDeviceContext, preferred?: number): number {
-  if (device === 'mobile') return Math.min(item.h, 4);
-  if (device === 'wall' && type.includes('camera')) return Math.max(preferred ?? item.h, 5);
-  return preferred ?? item.h;
+function recommendedHeight(item: FrakonGridItem, type: string, device: DashboardDeviceContext, fallback: number): number {
+  if (device === 'wall' && type.includes('camera')) return Math.max(fallback, 4);
+  return Math.max(1, Math.min(Math.max(item.h, fallback), 8));
 }
