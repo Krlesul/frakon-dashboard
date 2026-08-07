@@ -8,6 +8,7 @@ import {
   filterDashboardEmergencyHistory,
   mergeDashboardEmergencyHistory,
   parseDashboardEmergencyHistoryImport,
+  selectDashboardEmergencyHistoryDetails,
   serializeDashboardEmergencyHistoryExport,
 } from './dashboard-emergency-history-tools';
 import type { DashboardEmergencyHistoryState } from './dashboard-emergency-history';
@@ -31,6 +32,12 @@ describe('Emergency Focus history tools', () => {
 
   it('filters by time range using event end or start time', () => {
     expect(filterDashboardEmergencyHistory(history, { from:45, to:90 }).recent.map((entry)=>entry.itemId)).toEqual(['alarm']);
+  });
+
+  it('selects drill-down details by type, time range and their combination', () => {
+    expect(selectDashboardEmergencyHistoryDetails(history, { kind:'smoke' }).map((entry)=>entry.itemId)).toEqual(['smoke']);
+    expect(selectDashboardEmergencyHistoryDetails(history, { startAt:40, endAt:101 }).map((entry)=>entry.itemId)).toEqual(['smoke','alarm']);
+    expect(selectDashboardEmergencyHistoryDetails(history, { kind:'alarm', startAt:40, endAt:60 }).map((entry)=>entry.itemId)).toEqual(['alarm']);
   });
 
   it('calculates audit statistics including acknowledgement latency', () => {
