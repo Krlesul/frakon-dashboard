@@ -1,10 +1,7 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types';
-import {
-  createHomeAssistantDashboardStorage,
-  type DashboardStorageMode,
-} from '../home-assistant/dashboard-storage-factory';
+import { createHomeAssistantDashboardStorage, type DashboardStorageMode } from '../home-assistant/dashboard-storage-factory';
 import './card-host';
 import './card-palette';
 import './item-inspector';
@@ -15,12 +12,11 @@ import type { FrakonItemUpdateDetail } from './item-inspector';
 import { DashboardHistory } from './layout-history';
 import { exportDashboard, importDashboard } from './layout-store';
 import { DashboardStorageController, type DashboardStorageControllerState } from './dashboard-storage-controller';
-import {
-  dashboardStorageStatusLabel,
-  resolveDashboardStorageStatus,
-} from './storage-status';
+import { dashboardStorageStatusLabel, resolveDashboardStorageStatus } from './storage-status';
 import { DashboardAutoLayoutSession, type DashboardAutoLayoutPreview } from './auto-layout-session';
 import { scoreDashboardItemPriority } from './auto-layout-priority';
+import { DashboardPointerSession, type DashboardPointerPoint } from './dashboard-pointer-session';
+import type { DashboardPointerPreview } from './dashboard-pointer-grid';
 import {
   addGridItem,
   normalizeAndCompactDashboard,
@@ -31,12 +27,7 @@ import {
   type FrakonDashboardDocument,
   type FrakonGridItem,
 } from './layout-model';
-import {
-  defaultResponsiveColumns,
-  detectBreakpoint,
-  documentForBreakpoint,
-  type ResponsiveColumns,
-} from './responsive-layout';
+import { defaultResponsiveColumns, detectBreakpoint, documentForBreakpoint, type ResponsiveColumns } from './responsive-layout';
 
 export interface FrakonDashboardCardConfig extends LovelaceCardConfig {
   type: 'custom:frakon-dashboard-card';
@@ -64,12 +55,15 @@ export class FrakonDashboardCard extends LitElement {
   @state() private paletteOpen = false;
   @state() private storageState: DashboardStorageControllerState = { loading:false, saving:false };
   @state() private autoLayoutPreview?: DashboardAutoLayoutPreview;
+  @state() private pointerPreview?: DashboardPointerPreview;
 
   private history?: DashboardHistory;
   private resizeObserver?: ResizeObserver;
   private storageController = new DashboardStorageController(createHomeAssistantDashboardStorage('local'));
   private unsubscribeStorage?: () => void;
   private autoLayoutSession?: DashboardAutoLayoutSession;
+  private pointerSession?: DashboardPointerSession;
+  private pointerId?: number;
 
   static styles = css`
     :host { display:block; }
@@ -83,12 +77,16 @@ export class FrakonDashboardCard extends LitElement {
     .preview-bar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 12px; padding:10px 12px; border-radius:14px; background:color-mix(in srgb,var(--primary-color) 14%,transparent); }
     .preview-label { font-size:13px; font-weight:600; }
     .grid { display:grid; position:relative; align-items:stretch; }
-    .item { min-width:0; min-height:0; overflow:hidden; border-radius:20px; border:1px solid color-mix(in srgb,var(--primary-text-color) 10%,transparent); background:color-mix(in srgb,var(--card-background-color) 92%,var(--primary-color) 8%); }
+    .item { position:relative; min-width:0; min-height:0; overflow:hidden; border-radius:20px; border:1px solid color-mix(in srgb,var(--primary-text-color) 10%,transparent); background:color-mix(in srgb,var(--card-background-color) 92%,var(--primary-color) 8%); }
     .item.selected { outline:2px solid var(--primary-color); outline-offset:2px; }
+    .item.collision { outline:2px solid #ff4d67; outline-offset:2px; }
     .item[draggable='true'] { cursor:grab; }
     .item.dragging { opacity:.45; }
     .item-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 11px; border-bottom:1px solid color-mix(in srgb,var(--primary-text-color) 8%,transparent); font-size:12px; }
     .item-id { border:0; padding:0; color:inherit; background:none; font:inherit; cursor:pointer; }
+    .move-handle { cursor:grab; touch-action:none; user-select:none; font-weight:700; }
+    .move-handle:active { cursor:grabbing; }
+    .resize-handle { position:absolute; z-index:4; right:3px; bottom:3px; width:18px; height:18px; border-radius:6px; cursor:nwse-resize; touch-action:none; background:color-mix(in srgb,var(--primary-color) 72%,transparent); box-shadow:0 0 0 2px color-mix(in srgb,var(--card-background-color) 70%,transparent); }
     .content { height:100%; min-height:0; }
     .item:has(.item-head) .content { height:calc(100% - 39px); }
     button,.file-label { border:0; border-radius:9px; padding:6px 9px; color:inherit; background:color-mix(in srgb,var(--primary-text-color) 9%,transparent); cursor:pointer; font:inherit; }
@@ -101,10 +99,7 @@ export class FrakonDashboardCard extends LitElement {
     .message.error { background:color-mix(in srgb,#ff4d67 16%,transparent); }
   `;
 
-  connectedCallback(): void {
-    super.connectedCallback();
-    this.subscribeToStorage();
-  }
+  connectedCallback(): void { super.connectedCallback(); this.subscribeToStorage(); }
 
   setConfig(config: FrakonDashboardCardConfig): void {
     const id = config.dashboard_id ?? 'default';
@@ -118,16 +113,13 @@ export class FrakonDashboardCard extends LitElement {
     this.document = fallback;
     this.history = new DashboardHistory(fallback);
     this.clearAutoLayoutPreview();
+    this.cancelPointerInteraction();
     void this.loadStoredDocument(id);
   }
 
   static getConfigElement(): HTMLElement { return document.createElement('frakon-dashboard-card-editor'); }
   static getStubConfig(): FrakonDashboardCardConfig {
-    return {
-      type:'custom:frakon-dashboard-card', entity:'sensor.placeholder', dashboard_id:'home',
-      title:'FRAKON Dashboard', columns:12, row_height:48, gap:12, edit_mode:true,
-      storage:'local', responsive_columns:defaultResponsiveColumns, items:[],
-    };
+    return { type:'custom:frakon-dashboard-card', entity:'sensor.placeholder', dashboard_id:'home', title:'FRAKON Dashboard', columns:12, row_height:48, gap:12, edit_mode:true, storage:'local', responsive_columns:defaultResponsiveColumns, items:[] };
   }
 
   firstUpdated(): void {
@@ -149,22 +141,13 @@ export class FrakonDashboardCard extends LitElement {
     this.resizeObserver?.disconnect();
     this.unsubscribeStorage?.();
     this.unsubscribeStorage = undefined;
+    this.cancelPointerInteraction();
     super.disconnectedCallback();
   }
 
   getCardSize(): number { return 8; }
-
-  private language() {
-    return resolveEditorLanguage(this.config?.language, this.hass?.locale?.language, this.hass?.language);
-  }
-
-  private subscribeToStorage(): void {
-    this.unsubscribeStorage?.();
-    this.unsubscribeStorage = this.storageController.subscribe((state) => {
-      this.storageState = state;
-    });
-  }
-
+  private language() { return resolveEditorLanguage(this.config?.language, this.hass?.locale?.language, this.hass?.language); }
+  private subscribeToStorage(): void { this.unsubscribeStorage?.(); this.unsubscribeStorage = this.storageController.subscribe((state) => { this.storageState = state; }); }
   private configureStorage(mode: DashboardStorageMode): boolean {
     const nextAdapter = createHomeAssistantDashboardStorage(mode, this.hass);
     if (nextAdapter.kind === this.storageController.adapterKind) return false;
@@ -179,225 +162,130 @@ export class FrakonDashboardCard extends LitElement {
     this.document = stored;
     this.history = new DashboardHistory(stored);
     this.clearAutoLayoutPreview();
+    this.cancelPointerInteraction();
   }
 
   private persist(document: FrakonDashboardDocument, recordHistory = true): void {
     const next = normalizeAndCompactDashboard(document);
     this.document = recordHistory && this.history ? this.history.push(next) : next;
     void this.storageController.save(this.document);
-    this.dispatchEvent(new CustomEvent('frakon-layout-changed', {
-      detail:{ document:this.document }, bubbles:true, composed:true,
-    }));
+    this.dispatchEvent(new CustomEvent('frakon-layout-changed', { detail:{ document:this.document }, bubbles:true, composed:true }));
   }
 
-  private undo(): void {
-    if (!this.history?.canUndo) return;
-    this.clearAutoLayoutPreview();
-    this.persist(this.history.undo(), false);
-    this.message = editorTranslate(this.language(), 'layoutUndone');
-  }
+  private undo(): void { if (!this.history?.canUndo) return; this.clearAutoLayoutPreview(); this.cancelPointerInteraction(); this.persist(this.history.undo(), false); this.message = editorTranslate(this.language(), 'layoutUndone'); }
+  private redo(): void { if (!this.history?.canRedo) return; this.clearAutoLayoutPreview(); this.cancelPointerInteraction(); this.persist(this.history.redo(), false); this.message = editorTranslate(this.language(), 'layoutRestored'); }
+  private resize(item: FrakonGridItem, dw: number, dh: number): void { if (!this.document) return; this.clearAutoLayoutPreview(); this.persist(updateGridItemCollisionSafe(this.document, item.id, { w:item.w + dw, h:item.h + dh })); }
 
-  private redo(): void {
-    if (!this.history?.canRedo) return;
-    this.clearAutoLayoutPreview();
-    this.persist(this.history.redo(), false);
-    this.message = editorTranslate(this.language(), 'layoutRestored');
+  private pointerPoint(event: PointerEvent): DashboardPointerPoint { return { x:event.clientX, y:event.clientY }; }
+  private pointerContainerWidth(): number { return this.renderRoot.querySelector<HTMLElement>('.grid')?.getBoundingClientRect().width ?? this.containerWidth; }
+  private beginPointerMove(event: PointerEvent, item: FrakonGridItem): void {
+    if (!this.document || item.locked || this.autoLayoutPreview || this.pointerSession || event.button !== 0) return;
+    event.preventDefault(); event.stopPropagation();
+    this.selectedId = item.id; this.clearAutoLayoutPreview();
+    this.pointerSession = new DashboardPointerSession(this.document, { kind:'move', selectedIds:[item.id] }, this.pointerPoint(event), this.pointerContainerWidth());
+    this.pointerId = event.pointerId; this.pointerPreview = this.pointerSession.preview(this.pointerPoint(event));
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
   }
-
-  private resize(item: FrakonGridItem, dw: number, dh: number): void {
-    if (!this.document) return;
-    this.clearAutoLayoutPreview();
-    this.persist(updateGridItemCollisionSafe(this.document, item.id, { w:item.w + dw, h:item.h + dh }));
+  private beginPointerResize(event: PointerEvent, item: FrakonGridItem): void {
+    if (!this.document || item.locked || this.autoLayoutPreview || this.pointerSession || event.button !== 0) return;
+    event.preventDefault(); event.stopPropagation();
+    this.selectedId = item.id; this.clearAutoLayoutPreview();
+    this.pointerSession = new DashboardPointerSession(this.document, { kind:'resize', itemId:item.id, handle:'se' }, this.pointerPoint(event), this.pointerContainerWidth());
+    this.pointerId = event.pointerId; this.pointerPreview = this.pointerSession.preview(this.pointerPoint(event));
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
   }
+  private onPointerMove(event: PointerEvent): void {
+    if (!this.pointerSession || this.pointerId !== event.pointerId) return;
+    event.preventDefault(); this.pointerPreview = this.pointerSession.preview(this.pointerPoint(event));
+  }
+  private endPointerInteraction(event: PointerEvent): void {
+    if (!this.pointerSession || this.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const result = this.pointerSession.commit(this.pointerPoint(event));
+    this.pointerSession = undefined; this.pointerId = undefined; this.pointerPreview = undefined;
+    if (result.status === 'committed') { this.persist(result.document); this.message = 'Layout updated'; }
+    else if (result.status === 'collision') this.message = `Move blocked by collision: ${result.collisionIds.join(', ')}`;
+  }
+  private cancelPointerInteraction(): void { this.pointerSession = undefined; this.pointerId = undefined; this.pointerPreview = undefined; }
 
   private addTemplate(event: CustomEvent<FrakonCardTemplateSelectedDetail>): void {
     if (!this.document) return;
-    this.clearAutoLayoutPreview();
-    const { template } = event.detail;
+    this.clearAutoLayoutPreview(); const { template } = event.detail;
     const id = `${template.name.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString(36)}`;
     const y = this.document.items.reduce((maximum, item) => Math.max(maximum, item.y + item.h), 0);
-    this.persist(addGridItem(this.document, {
-      id, x:0, y,
-      w:Math.min(template.defaultWidth, this.document.columns),
-      h:template.defaultHeight,
-      card:template.createConfig(),
-    }));
-    this.selectedId = id;
-    this.paletteOpen = false;
-    this.message = editorTranslate(this.language(), 'cardAdded');
+    this.persist(addGridItem(this.document, { id, x:0, y, w:Math.min(template.defaultWidth, this.document.columns), h:template.defaultHeight, card:template.createConfig() }));
+    this.selectedId = id; this.paletteOpen = false; this.message = editorTranslate(this.language(), 'cardAdded');
   }
-
-  private removeItem(item: FrakonGridItem): void {
-    if (!this.document) return;
-    this.clearAutoLayoutPreview();
-    this.persist(removeGridItem(this.document, item.id));
-    if (this.selectedId === item.id) this.selectedId = undefined;
-  }
-
-  private toggleLock(item: FrakonGridItem): void {
-    if (!this.document) return;
-    this.clearAutoLayoutPreview();
-    this.persist(setGridItemLocked(this.document, item.id, !item.locked));
-  }
-
-  private updateItemCard(event: CustomEvent<FrakonItemUpdateDetail>): void {
-    if (!this.document) return;
-    this.clearAutoLayoutPreview();
-    const { id, card } = event.detail;
-    this.persist({ ...this.document, items:this.document.items.map((item) => item.id === id ? { ...item, card } : item) });
-    this.message = editorTranslate(this.language(), 'cardUpdated');
-  }
+  private removeItem(item: FrakonGridItem): void { if (!this.document) return; this.clearAutoLayoutPreview(); this.persist(removeGridItem(this.document, item.id)); if (this.selectedId === item.id) this.selectedId = undefined; }
+  private toggleLock(item: FrakonGridItem): void { if (!this.document) return; this.clearAutoLayoutPreview(); this.persist(setGridItemLocked(this.document, item.id, !item.locked)); }
+  private updateItemCard(event: CustomEvent<FrakonItemUpdateDetail>): void { if (!this.document) return; this.clearAutoLayoutPreview(); const { id, card } = event.detail; this.persist({ ...this.document, items:this.document.items.map((item) => item.id === id ? { ...item, card } : item) }); this.message = editorTranslate(this.language(), 'cardUpdated'); }
 
   private onDrop(targetId: string): void {
     if (!this.document || !this.draggingId || this.draggingId === targetId) return;
     this.clearAutoLayoutPreview();
-    const source = this.document.items.find((item) => item.id === this.draggingId);
-    const target = this.document.items.find((item) => item.id === targetId);
+    const source = this.document.items.find((item) => item.id === this.draggingId); const target = this.document.items.find((item) => item.id === targetId);
     if (!source || !target || source.locked || target.locked) return;
-    const next = this.document.items.map((item) => {
-      if (item.id === source.id) return { ...item, x:target.x, y:target.y };
-      if (item.id === target.id) return { ...item, x:source.x, y:source.y };
-      return item;
-    });
-    this.persist(normalizeAndCompactDashboard({ ...this.document, items:next }));
-    this.draggingId = undefined;
+    const next = this.document.items.map((item) => item.id === source.id ? { ...item, x:target.x, y:target.y } : item.id === target.id ? { ...item, x:source.x, y:source.y } : item);
+    this.persist(normalizeAndCompactDashboard({ ...this.document, items:next })); this.draggingId = undefined;
   }
 
-  private beginAutoLayout(): void {
-    if (!this.document || this.document.items.length === 0) return;
-    this.autoLayoutSession = new DashboardAutoLayoutSession(this.document, scoreDashboardItemPriority);
-    this.autoLayoutPreview = this.autoLayoutSession.next();
-    this.message = autoLayoutTranslate(this.language(), 'autoLayoutPreviewReady');
-  }
+  private beginAutoLayout(): void { if (!this.document || this.document.items.length === 0) return; this.cancelPointerInteraction(); this.autoLayoutSession = new DashboardAutoLayoutSession(this.document, scoreDashboardItemPriority); this.autoLayoutPreview = this.autoLayoutSession.next(); this.message = autoLayoutTranslate(this.language(), 'autoLayoutPreviewReady'); }
+  private nextAutoLayout(): void { if (!this.autoLayoutSession) { this.beginAutoLayout(); return; } this.autoLayoutPreview = this.autoLayoutSession.next(); this.message = autoLayoutTranslate(this.language(), 'autoLayoutPreviewReady'); }
+  private applyAutoLayout(): void { if (!this.autoLayoutSession || !this.autoLayoutPreview) return; const applied = this.autoLayoutSession.apply(this.autoLayoutPreview); this.clearAutoLayoutPreview(); this.persist(applied); this.message = autoLayoutTranslate(this.language(), 'autoLayoutApplied'); }
+  private revertAutoLayout(): void { if (!this.autoLayoutSession) return; this.document = this.autoLayoutSession.revert(); this.clearAutoLayoutPreview(); this.message = autoLayoutTranslate(this.language(), 'autoLayoutReverted'); }
+  private clearAutoLayoutPreview(): void { this.autoLayoutSession = undefined; this.autoLayoutPreview = undefined; }
 
-  private nextAutoLayout(): void {
-    if (!this.autoLayoutSession) {
-      this.beginAutoLayout();
-      return;
-    }
-    this.autoLayoutPreview = this.autoLayoutSession.next();
-    this.message = autoLayoutTranslate(this.language(), 'autoLayoutPreviewReady');
-  }
-
-  private applyAutoLayout(): void {
-    if (!this.autoLayoutSession || !this.autoLayoutPreview) return;
-    const applied = this.autoLayoutSession.apply(this.autoLayoutPreview);
-    this.clearAutoLayoutPreview();
-    this.persist(applied);
-    this.message = autoLayoutTranslate(this.language(), 'autoLayoutApplied');
-  }
-
-  private revertAutoLayout(): void {
-    if (!this.autoLayoutSession) return;
-    this.document = this.autoLayoutSession.revert();
-    this.clearAutoLayoutPreview();
-    this.message = autoLayoutTranslate(this.language(), 'autoLayoutReverted');
-  }
-
-  private clearAutoLayoutPreview(): void {
-    this.autoLayoutSession = undefined;
-    this.autoLayoutPreview = undefined;
-  }
-
-  private downloadExport(): void {
-    if (!this.document) return;
-    const blob = new Blob([exportDashboard(this.document)], { type:'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${this.document.id}.frakon-dashboard.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    this.message = editorTranslate(this.language(), 'dashboardExported');
-  }
-
+  private downloadExport(): void { if (!this.document) return; const blob = new Blob([exportDashboard(this.document)], { type:'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `${this.document.id}.frakon-dashboard.json`; link.click(); URL.revokeObjectURL(url); this.message = editorTranslate(this.language(), 'dashboardExported'); }
   private async uploadImport(event: Event): Promise<void> {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    try {
-      const imported = normalizeAndCompactDashboard(importDashboard(await file.text()));
-      this.history = new DashboardHistory(imported);
-      this.selectedId = undefined;
-      this.clearAutoLayoutPreview();
-      this.persist(imported, false);
-      this.message = editorTranslate(this.language(), 'dashboardImported');
-    } catch {
-      this.message = editorTranslate(this.language(), 'dashboardImportFailed');
-    } finally {
-      (event.target as HTMLInputElement).value = '';
-    }
+    const file = (event.target as HTMLInputElement).files?.[0]; if (!file) return;
+    try { const imported = normalizeAndCompactDashboard(importDashboard(await file.text())); this.history = new DashboardHistory(imported); this.selectedId = undefined; this.clearAutoLayoutPreview(); this.cancelPointerInteraction(); this.persist(imported, false); this.message = editorTranslate(this.language(), 'dashboardImported'); }
+    catch { this.message = editorTranslate(this.language(), 'dashboardImportFailed'); }
+    finally { (event.target as HTMLInputElement).value = ''; }
   }
 
   render() {
-    const canonical = this.autoLayoutPreview?.proposal ?? this.document;
+    const pointerDocument = this.pointerPreview && this.document ? { ...this.document, items:this.pointerPreview.items } : undefined;
+    const canonical = this.autoLayoutPreview?.proposal ?? pointerDocument ?? this.document;
     if (!canonical) return nothing;
-    const lang = this.language();
-    const editMode = this.config?.edit_mode === true;
-    const breakpoint = detectBreakpoint(this.containerWidth);
+    const lang = this.language(); const editMode = this.config?.edit_mode === true; const breakpoint = detectBreakpoint(this.containerWidth);
     const responsiveColumns: ResponsiveColumns = { ...defaultResponsiveColumns, ...this.config?.responsive_columns };
     const doc = editMode ? canonical : normalizeDashboard(documentForBreakpoint(canonical, breakpoint, responsiveColumns));
-    const selected = editMode ? canonical.items.find((item) => item.id === this.selectedId) : undefined;
+    const selected = editMode ? (this.document ?? canonical).items.find((item) => item.id === this.selectedId) : undefined;
     const style = `grid-template-columns:repeat(${doc.columns},minmax(0,1fr));grid-auto-rows:${doc.rowHeight}px;gap:${doc.gap}px`;
-    const storageStatus = resolveDashboardStorageStatus(
-      this.storageState,
-      this.storageController.adapterKind,
-      this.config?.storage ?? 'local',
-    );
-    const storageActivity = dashboardStorageStatusLabel(lang, storageStatus);
-    const preview = this.autoLayoutPreview;
+    const storageStatus = resolveDashboardStorageStatus(this.storageState, this.storageController.adapterKind, this.config?.storage ?? 'local');
+    const storageActivity = dashboardStorageStatusLabel(lang, storageStatus); const preview = this.autoLayoutPreview; const collisions = new Set(this.pointerPreview?.collisionIds ?? []);
 
-    return html`
-      <section class="shell">
-        <header><h2>${doc.title}</h2><div class="actions">
-          <span class="badge">${editMode ? editorTranslate(lang,'editMode') : breakpoint.toUpperCase()}</span>
-          <span class="badge storage-badge ${storageStatus === 'fallback' ? 'fallback' : ''}">${storageActivity}</span>
-          ${editMode ? html`
-            <button ?disabled=${!this.history?.canUndo || Boolean(preview)} @click=${this.undo}>${editorTranslate(lang,'undo')}</button>
-            <button ?disabled=${!this.history?.canRedo || Boolean(preview)} @click=${this.redo}>${editorTranslate(lang,'redo')}</button>
-            <button class="primary" @click=${() => { this.paletteOpen = !this.paletteOpen; }}>${editorTranslate(lang,this.paletteOpen ? 'closePalette' : 'addCard')}</button>
-            <button ?disabled=${doc.items.length === 0 || Boolean(preview)} @click=${this.beginAutoLayout}>${autoLayoutTranslate(lang,'autoLayout')}</button>
-            <button @click=${this.downloadExport}>${editorTranslate(lang,'export')}</button>
-            <label class="file-label">${editorTranslate(lang,'import')}<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>
-          ` : nothing}
-        </div></header>
-        ${preview ? html`
-          <div class="preview-bar">
-            <span class="preview-label">${autoLayoutTranslate(lang,'autoLayoutPreview')} · ${preview.strategy} · #${preview.variant + 1}</span>
-            <div class="preview-actions">
-              <button @click=${this.nextAutoLayout}>${autoLayoutTranslate(lang,'nextProposal')}</button>
-              <button class="primary" @click=${this.applyAutoLayout}>${autoLayoutTranslate(lang,'applyProposal')}</button>
-              <button @click=${this.revertAutoLayout}>${autoLayoutTranslate(lang,'revertOriginal')}</button>
-            </div>
-          </div>
-        ` : nothing}
-        ${this.storageState.error ? html`<div class="message error">${this.storageState.error.message}</div>` : nothing}
-        ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
-        ${editMode && this.paletteOpen ? html`<frakon-card-palette .language=${lang} @frakon-card-template-selected=${this.addTemplate}></frakon-card-palette>` : nothing}
-        ${selected && !preview ? html`<frakon-item-inspector .item=${selected} .hass=${this.hass} .language=${lang}
-          @frakon-item-config-changed=${this.updateItemCard}
-          @frakon-item-inspector-close=${() => { this.selectedId = undefined; }}></frakon-item-inspector>` : nothing}
-        <div class="grid" style=${style}>
-          ${doc.items.length === 0 ? html`<div class="empty" style="grid-column:1/-1">${editorTranslate(lang,'noItems')}</div>` : doc.items.map((item) => html`
-            <article class="item ${this.draggingId === item.id ? 'dragging' : ''} ${this.selectedId === item.id ? 'selected' : ''}"
-              style=${`grid-column:${item.x + 1}/span ${item.w};grid-row:${item.y + 1}/span ${item.h}`}
-              draggable=${String(editMode && !item.locked && !preview)}
-              @dragstart=${() => { this.draggingId = item.id; }}
-              @dragover=${(event:DragEvent) => event.preventDefault()}
-              @drop=${() => this.onDrop(item.id)}>
-              ${editMode && !preview ? html`<div class="item-head">
-                <button class="item-id" @click=${() => { this.selectedId = item.id; }}>${item.id}${item.locked ? ` · ${editorTranslate(lang,'locked')}` : ''}</button>
-                <div class="controls">
-                  <button @click=${() => this.toggleLock(item)}>${editorTranslate(lang,item.locked ? 'unlock' : 'lock')}</button>
-                  <button ?disabled=${item.locked} @click=${() => this.resize(item,-1,0)}>−W</button>
-                  <button ?disabled=${item.locked} @click=${() => this.resize(item,1,0)}>+W</button>
-                  <button ?disabled=${item.locked} @click=${() => this.resize(item,0,-1)}>−H</button>
-                  <button ?disabled=${item.locked} @click=${() => this.resize(item,0,1)}>+H</button>
-                  <button class="danger" ?disabled=${item.locked} @click=${() => this.removeItem(item)}>${editorTranslate(lang,'remove')}</button>
-                </div></div>` : nothing}
-              <div class="content"><frakon-card-host .hass=${this.hass} .config=${item.card}></frakon-card-host></div>
-            </article>`)}
-        </div>
-      </section>`;
+    return html`<section class="shell" @pointermove=${this.onPointerMove} @pointerup=${this.endPointerInteraction} @pointercancel=${this.cancelPointerInteraction}>
+      <header><h2>${doc.title}</h2><div class="actions">
+        <span class="badge">${editMode ? editorTranslate(lang,'editMode') : breakpoint.toUpperCase()}</span>
+        <span class="badge storage-badge ${storageStatus === 'fallback' ? 'fallback' : ''}">${storageActivity}</span>
+        ${editMode ? html`
+          <button ?disabled=${!this.history?.canUndo || Boolean(preview) || Boolean(this.pointerSession)} @click=${this.undo}>${editorTranslate(lang,'undo')}</button>
+          <button ?disabled=${!this.history?.canRedo || Boolean(preview) || Boolean(this.pointerSession)} @click=${this.redo}>${editorTranslate(lang,'redo')}</button>
+          <button class="primary" @click=${() => { this.paletteOpen = !this.paletteOpen; }}>${editorTranslate(lang,this.paletteOpen ? 'closePalette' : 'addCard')}</button>
+          <button ?disabled=${doc.items.length === 0 || Boolean(preview) || Boolean(this.pointerSession)} @click=${this.beginAutoLayout}>${autoLayoutTranslate(lang,'autoLayout')}</button>
+          <button @click=${this.downloadExport}>${editorTranslate(lang,'export')}</button>
+          <label class="file-label">${editorTranslate(lang,'import')}<input type="file" accept="application/json,.json" @change=${this.uploadImport}></label>` : nothing}
+      </div></header>
+      ${preview ? html`<div class="preview-bar"><span class="preview-label">${autoLayoutTranslate(lang,'autoLayoutPreview')} · ${preview.strategy} · #${preview.variant + 1}</span><div class="preview-actions"><button @click=${this.nextAutoLayout}>${autoLayoutTranslate(lang,'nextProposal')}</button><button class="primary" @click=${this.applyAutoLayout}>${autoLayoutTranslate(lang,'applyProposal')}</button><button @click=${this.revertAutoLayout}>${autoLayoutTranslate(lang,'revertOriginal')}</button></div></div>` : nothing}
+      ${this.storageState.error ? html`<div class="message error">${this.storageState.error.message}</div>` : nothing}
+      ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
+      ${editMode && this.paletteOpen ? html`<frakon-card-palette .language=${lang} @frakon-card-template-selected=${this.addTemplate}></frakon-card-palette>` : nothing}
+      ${selected && !preview && !this.pointerSession ? html`<frakon-item-inspector .item=${selected} .hass=${this.hass} .language=${lang} @frakon-item-config-changed=${this.updateItemCard} @frakon-item-inspector-close=${() => { this.selectedId = undefined; }}></frakon-item-inspector>` : nothing}
+      <div class="grid" style=${style}>
+        ${doc.items.length === 0 ? html`<div class="empty" style="grid-column:1/-1">${editorTranslate(lang,'noItems')}</div>` : doc.items.map((item) => html`
+          <article class="item ${this.draggingId === item.id ? 'dragging' : ''} ${this.selectedId === item.id ? 'selected' : ''} ${collisions.has(item.id) ? 'collision' : ''}" style=${`grid-column:${item.x + 1}/span ${item.w};grid-row:${item.y + 1}/span ${item.h}`} draggable=${String(editMode && !item.locked && !preview && !this.pointerSession)} @dragstart=${() => { this.draggingId = item.id; }} @dragover=${(event:DragEvent) => event.preventDefault()} @drop=${() => this.onDrop(item.id)}>
+            ${editMode && !preview ? html`<div class="item-head"><button class="item-id" @click=${() => { this.selectedId = item.id; }}>${item.id}${item.locked ? ` · ${editorTranslate(lang,'locked')}` : ''}</button><div class="controls">
+              <button class="move-handle" title="Move" ?disabled=${item.locked} @pointerdown=${(event:PointerEvent) => this.beginPointerMove(event,item)}>↕</button>
+              <button @click=${() => this.toggleLock(item)}>${editorTranslate(lang,item.locked ? 'unlock' : 'lock')}</button>
+              <button ?disabled=${item.locked} @click=${() => this.resize(item,-1,0)}>−W</button><button ?disabled=${item.locked} @click=${() => this.resize(item,1,0)}>+W</button>
+              <button ?disabled=${item.locked} @click=${() => this.resize(item,0,-1)}>−H</button><button ?disabled=${item.locked} @click=${() => this.resize(item,0,1)}>+H</button>
+              <button class="danger" ?disabled=${item.locked} @click=${() => this.removeItem(item)}>${editorTranslate(lang,'remove')}</button>
+            </div></div>${!item.locked ? html`<div class="resize-handle" title="Resize" @pointerdown=${(event:PointerEvent) => this.beginPointerResize(event,item)}></div>` : nothing}` : nothing}
+            <div class="content"><frakon-card-host .hass=${this.hass} .config=${item.card}></frakon-card-host></div>
+          </article>`)}
+      </div>
+    </section>`;
   }
 }
 
