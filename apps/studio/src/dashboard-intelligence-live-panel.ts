@@ -6,6 +6,7 @@ import {
   nextDashboardEmergencyFocusTarget,
   type DashboardEmergencyFocusState,
 } from '../../../src/dashboard/dashboard-emergency-focus';
+import { dashboardEmergencyUiStrings } from '../../../src/dashboard/dashboard-emergency-ui-i18n';
 import type { DashboardDeviceContext, DashboardIntelligenceContext } from '../../../src/dashboard/dashboard-intelligence';
 import type { DashboardIntelligenceUrgencyDiagnostic } from '../../../src/dashboard/dashboard-intelligence-stabilizer';
 import type { DashboardInteractionTracker } from '../../../src/dashboard/dashboard-interaction-tracker';
@@ -86,20 +87,34 @@ export class FrakonDashboardIntelligenceLivePanel extends LitElement {
   private refocusEmergencyView(): void { this.emergencyFocusToken += 1; }
 
   private renderStatus() {
+    const strings = dashboardEmergencyUiStrings(homeAssistantLanguage(this.hass));
     const confirming = this.diagnostics.filter((diagnostic) => diagnostic.phase === 'confirming').length;
     const cooldown = this.diagnostics.filter((diagnostic) => diagnostic.phase === 'cooldown').length;
     const stableUrgent = this.diagnostics.filter((diagnostic) => diagnostic.phase === 'stable' && diagnostic.stableUrgent).length;
     const critical = this.diagnostics.filter((diagnostic) => diagnostic.stableUrgent && diagnostic.severity === 'critical').length;
     if (confirming === 0 && cooldown === 0 && stableUrgent === 0) return nothing;
     const nextSeconds = this.nextEvaluationAt === undefined ? undefined : Math.max(0, Math.ceil((this.nextEvaluationAt - Date.now()) / 1_000));
-    return html`<div class="status" aria-live="polite">${critical > 0 ? html`<span class="pill critical">${critical} critical · Emergency Focus active</span>` : nothing}${stableUrgent > 0 ? html`<span class="pill stable">${stableUrgent} urgent</span>` : nothing}${confirming > 0 ? html`<span class="pill confirming">${confirming} confirming</span>` : nothing}${cooldown > 0 ? html`<span class="pill cooldown">${cooldown} cooling down</span>` : nothing}${nextSeconds !== undefined ? html`<span class="next">Next check in ${nextSeconds}s</span>` : nothing}</div>`;
+    return html`<div class="status" aria-live="polite">
+      ${critical > 0 ? html`<span class="pill critical">${critical} ${strings.critical} · ${strings.emergencyFocusActive}</span>` : nothing}
+      ${stableUrgent > 0 ? html`<span class="pill stable">${stableUrgent} ${strings.urgent}</span>` : nothing}
+      ${confirming > 0 ? html`<span class="pill confirming">${confirming} ${strings.confirming}</span>` : nothing}
+      ${cooldown > 0 ? html`<span class="pill cooldown">${cooldown} ${strings.coolingDown}</span>` : nothing}
+      ${nextSeconds !== undefined ? html`<span class="next">${strings.nextCheckIn(nextSeconds)}</span>` : nothing}
+    </div>`;
   }
 
   private renderEmergencyControls(focus: DashboardEmergencyFocusState) {
     if (!focus.active) return nothing;
+    const strings = dashboardEmergencyUiStrings(homeAssistantLanguage(this.hass));
     const currentId = this.currentEmergencyItemId(focus);
     const index = dashboardEmergencyFocusIndex(focus, currentId);
-    return html`<div class="emergency-controls" role="group" aria-label="Emergency Focus navigation"><strong>Critical ${Math.max(0, index) + 1} of ${focus.targets.length} · ${currentId}</strong><button ?disabled=${focus.targets.length <= 1} @click=${() => this.moveEmergencyFocus(-1)}>Previous</button><button ?disabled=${focus.targets.length <= 1} @click=${() => this.moveEmergencyFocus(1)}>Next</button><button @click=${this.restoreEmergencyView}>Return to previous view</button><button class="primary" @click=${this.refocusEmergencyView}>Focus again</button></div>`;
+    return html`<div class="emergency-controls" role="group" aria-label=${strings.navigationLabel}>
+      <strong>${strings.criticalPosition(Math.max(0, index) + 1, focus.targets.length, currentId)}</strong>
+      <button ?disabled=${focus.targets.length <= 1} @click=${() => this.moveEmergencyFocus(-1)}>${strings.previous}</button>
+      <button ?disabled=${focus.targets.length <= 1} @click=${() => this.moveEmergencyFocus(1)}>${strings.next}</button>
+      <button @click=${this.restoreEmergencyView}>${strings.returnToPreviousView}</button>
+      <button class="primary" @click=${this.refocusEmergencyView}>${strings.focusAgain}</button>
+    </div>`;
   }
 
   render() {
