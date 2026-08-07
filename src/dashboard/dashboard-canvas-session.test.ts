@@ -39,6 +39,23 @@ describe('DashboardCanvasSession', () => {
     expect(result.collisionIds).toEqual(['a', 'b']);
   });
 
+  it('rejects a collision introduced only by legacy-grid projection', () => {
+    const adjacent: FrakonDashboardDocument = {
+      ...document,
+      items: [
+        { id: 'a', x: 0, y: 0, w: 1, h: 1, card: { type: 'custom:a' } },
+        { id: 'b', x: 1, y: 0, w: 1, h: 1, card: { type: 'custom:b' } },
+      ],
+    };
+    const session = new DashboardCanvasSession(adjacent, { kind: 'resize', itemId: 'a', handle: 'w' }, { x: 0, y: 0 }, 430);
+    const preview = session.preview({ x: 60, y: 0 });
+    expect(preview.hasCollisions).toBe(false);
+    const result = session.commit({ x: 60, y: 0 });
+    expect(result.status).toBe('collision');
+    expect(result.collisionIds).toEqual(['a', 'b']);
+    expect(result.document.items.find((item) => item.id === 'a')).toMatchObject({ x: 0, w: 1 });
+  });
+
   it('keeps locked members stationary during group movement', () => {
     const session = new DashboardCanvasSession(document, { kind: 'move', selectedIds: ['a', 'locked'] }, { x: 0, y: 0 }, 430);
     const preview = session.preview({ x: 35, y: 20 });
