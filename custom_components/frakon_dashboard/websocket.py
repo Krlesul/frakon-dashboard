@@ -35,13 +35,14 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
     ) -> None:
         connection.send_result(msg["id"], await storage.load(msg["dashboard_id"]))
 
+    @websocket_api.require_admin
+    @websocket_api.async_response
     @websocket_api.websocket_command(
         {
             vol.Required("type"): "frakon/dashboard/save",
             vol.Required("document"): DASHBOARD_DOCUMENT,
         }
     )
-    @websocket_api.async_response
     async def handle_save(
         hass: HomeAssistant,
         connection: websocket_api.ActiveConnection,
@@ -54,13 +55,14 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         await storage.save(document)
         connection.send_result(msg["id"], None)
 
+    @websocket_api.require_admin
+    @websocket_api.async_response
     @websocket_api.websocket_command(
         {
             vol.Required("type"): "frakon/dashboard/remove",
             vol.Required("dashboard_id"): DASHBOARD_ID,
         }
     )
-    @websocket_api.async_response
     async def handle_remove(
         hass: HomeAssistant,
         connection: websocket_api.ActiveConnection,
