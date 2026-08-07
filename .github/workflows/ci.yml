@@ -17,6 +17,10 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m compileall -q custom_components/frakon_dashboard
       - run: npm install
       - run: npm run lint
       - run: npm test
