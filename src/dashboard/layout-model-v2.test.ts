@@ -11,7 +11,7 @@ const v1: FrakonDashboardDocument = {
   rowHeight: 50,
   gap: 10,
   items: [
-    { id: 'a', x: 1, y: 2, w: 2, h: 2, card: { type: 'custom:a' } },
+    { id: 'a', x: 1, y: 2, w: 2, h: 2, minW: 2, minH: 2, maxW: 3, maxH: 4, card: { type: 'custom:a' } },
     { id: 'b', x: 0, y: 0, w: 1, h: 1, locked: true, card: { type: 'custom:b' } },
   ],
 };
@@ -24,11 +24,15 @@ describe('layout model v2', () => {
     expect(migrated.items.find((item) => item.id === 'a')).toMatchObject({
       card: { type: 'custom:a' },
       frame: { x: 110, y: 120, width: 210, height: 110 },
+      minWidth: 210,
+      minHeight: 110,
+      maxWidth: 320,
+      maxHeight: 230,
     });
     expect(migrated.items.find((item) => item.id === 'b')?.locked).toBe(true);
   });
 
-  it('normalizes invalid frames and duplicate item ids deterministically', () => {
+  it('normalizes invalid frames, duplicate ids and item size constraints deterministically', () => {
     const normalized = normalizeDashboardV2({
       version: 2,
       id: 'home',
@@ -37,13 +41,13 @@ describe('layout model v2', () => {
       layout: { mode: 'canvas', width: 300, minHeight: 200, snap: { enabled: true, size: 8 } },
       items: [
         { id: 'a', card: { type: 'custom:a' }, frame: { x: -20, y: -10, width: 900, height: 0 } },
-        { id: 'a', card: { type: 'custom:b' }, frame: { x: 260, y: 10, width: 80, height: 40 } },
+        { id: 'a', card: { type: 'custom:b' }, minWidth: 120, maxWidth: 160, minHeight: 60, frame: { x: 260, y: 10, width: 80, height: 40 } },
       ],
     });
     expect(normalized.items).toHaveLength(1);
     expect(normalized.items[0]).toMatchObject({
       card: { type: 'custom:b' },
-      frame: { x: 220, y: 10, width: 80, height: 40 },
+      frame: { x: 180, y: 10, width: 120, height: 60 },
     });
   });
 
