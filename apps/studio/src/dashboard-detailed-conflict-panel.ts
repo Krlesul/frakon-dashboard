@@ -74,16 +74,12 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
     this.selections = { ...this.selections, [path]: side };
     this.dispatchEvent(new CustomEvent<FrakonDetailedConflictPreviewChangedDetail>(
       'frakon-dashboard-detailed-conflict-preview-changed',
-      {
-        detail: { selections: { ...this.selections } },
-        bubbles: true,
-        composed: true,
-      },
+      { detail: { selections: { ...this.selections } }, bubbles: true, composed: true },
     ));
     this.focusActiveCard();
   }
 
-  private focus(path: string): void {
+  private focusConflict(path: string): void {
     this.activePath = path;
     this.focusActiveCard();
   }
@@ -118,23 +114,13 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
   private apply(): void {
     if (!this.merge || this.merge.conflicts.some((conflict) => !this.selections[conflict.path])) return;
     this.dispatchEvent(new CustomEvent<FrakonDetailedConflictResolvedDetail>('frakon-dashboard-detailed-conflict-resolved', {
-      detail: { selections: { ...this.selections } },
-      bubbles: true,
-      composed: true,
+      detail: { selections: { ...this.selections } }, bubbles: true, composed: true,
     }));
   }
 
   private conflictSession(): DashboardConflictSession | undefined {
     if (!this.local || !this.remote || !this.merge) return undefined;
-    return {
-      comparison: {
-        relation: 'conflict',
-        local: this.local,
-        remote: this.remote,
-      },
-      base: this.local,
-      merge: this.merge,
-    };
+    return { comparison: { relation: 'conflict', local: this.local, remote: this.remote }, base: this.local, merge: this.merge };
   }
 
   render() {
@@ -148,65 +134,21 @@ export class FrakonDashboardDetailedConflictPanel extends LitElement {
 
     return html`
       <section class="panel" role="alert">
-        <div>
-          <h3>Resolve dashboard changes individually</h3>
-          <p>${resolved} of ${this.merge.conflicts.length} conflicts resolved. Card choices are previewed live on the canvas.</p>
-        </div>
-        <div class="toolbar" aria-label="Conflict navigation">
-          <output>Conflict ${activeIndex + 1} of ${this.merge.conflicts.length} · ${unresolved} unresolved</output>
-          <button @click=${() => this.navigate(-1)}>Previous</button>
-          <button @click=${() => this.navigate(1)}>Next</button>
-          <button ?disabled=${unresolved === 0} @click=${this.nextUnresolved}>Next unresolved</button>
-        </div>
-        <div class="legend" aria-label="Conflict preview layers">
-          <strong>Canvas layers</strong>
-          <button class=${this.showLocal ? '' : 'layer-off'} @click=${() => { this.showLocal = !this.showLocal; }}><span class="swatch local"></span>Local</button>
-          <button class=${this.showRemote ? '' : 'layer-off'} @click=${() => { this.showRemote = !this.showRemote; }}><span class="swatch remote"></span>Home Assistant</button>
-          <button class=${this.showResult ? '' : 'layer-off'} @click=${() => { this.showResult = !this.showResult; }}><span class="swatch result"></span>Result</button>
-        </div>
+        <div><h3>Resolve dashboard changes individually</h3><p>${resolved} of ${this.merge.conflicts.length} conflicts resolved. Card choices are previewed live on the canvas.</p></div>
+        <div class="toolbar" aria-label="Conflict navigation"><output>Conflict ${activeIndex + 1} of ${this.merge.conflicts.length} · ${unresolved} unresolved</output><button @click=${() => this.navigate(-1)}>Previous</button><button @click=${() => this.navigate(1)}>Next</button><button ?disabled=${unresolved === 0} @click=${this.nextUnresolved}>Next unresolved</button></div>
+        <div class="legend" aria-label="Conflict preview layers"><strong>Canvas layers</strong><button class=${this.showLocal ? '' : 'layer-off'} @click=${() => { this.showLocal = !this.showLocal; }}><span class="swatch local"></span>Local</button><button class=${this.showRemote ? '' : 'layer-off'} @click=${() => { this.showRemote = !this.showRemote; }}><span class="swatch remote"></span>Home Assistant</button><button class=${this.showResult ? '' : 'layer-off'} @click=${() => { this.showResult = !this.showResult; }}><span class="swatch result"></span>Result</button></div>
         <div class="list">
           ${this.merge.conflicts.map((conflict) => {
             const presentation = presentDashboardConflict(conflict);
             const cardId = this.cardId(conflict.path);
-            return html`
-              <div class=${`row ${this.activePath === conflict.path ? 'active' : ''}`}>
-                <div>
-                  <code>${presentation.label}</code>
-                  <small>${conflict.path}</small>
-                  <div class="values">
-                    <span class="local-value">Local: ${presentation.local}</span>
-                    <span class="remote-value">Home Assistant: ${presentation.remote}</span>
-                  </div>
-                </div>
-                <div class="choices">
-                  ${cardId ? html`<button @click=${() => this.focus(conflict.path)}>Focus card</button>` : nothing}
-                  <button class=${this.selections[conflict.path] === 'local' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'local')}>Local</button>
-                  <button class=${this.selections[conflict.path] === 'remote' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'remote')}>Home Assistant</button>
-                </div>
-              </div>
-            `;
+            return html`<div class=${`row ${this.activePath === conflict.path ? 'active' : ''}`}><div><code>${presentation.label}</code><small>${conflict.path}</small><div class="values"><span class="local-value">Local: ${presentation.localSummary}</span><span class="remote-value">Home Assistant: ${presentation.remoteSummary}</span></div></div><div class="choices">${cardId ? html`<button @click=${() => this.focusConflict(conflict.path)}>Focus card</button>` : nothing}<button class=${this.selections[conflict.path] === 'local' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'local')}>Local</button><button class=${this.selections[conflict.path] === 'remote' ? 'selected' : ''} @click=${() => this.select(conflict.path, 'remote')}>Home Assistant</button></div></div>`;
           })}
         </div>
-        <div class="actions">
-          <button class="primary" ?disabled=${resolved !== this.merge.conflicts.length} @click=${this.apply}>Apply selected resolutions</button>
-        </div>
+        <div class="actions"><button class="primary" ?disabled=${resolved !== this.merge.conflicts.length} @click=${this.apply}>Apply selected resolutions</button></div>
       </section>
-      <frakon-dashboard-conflict-canvas-bridge
-        .preview=${preview}
-        .document=${this.local.document}
-        .visible=${true}
-        .showLocal=${this.showLocal}
-        .showRemote=${this.showRemote}
-        .showResult=${this.showResult}
-        .activeId=${activeId}
-        .focusToken=${this.focusToken}
-      ></frakon-dashboard-conflict-canvas-bridge>
+      <frakon-dashboard-conflict-canvas-bridge .preview=${preview} .document=${this.local.document} .visible=${true} .showLocal=${this.showLocal} .showRemote=${this.showRemote} .showResult=${this.showResult} .activeId=${activeId} .focusToken=${this.focusToken}></frakon-dashboard-conflict-canvas-bridge>
     `;
   }
 }
 
-declare global {
-  interface HTMLElementTagNameMap {
-    'frakon-dashboard-detailed-conflict-panel': FrakonDashboardDetailedConflictPanel;
-  }
-}
+declare global { interface HTMLElementTagNameMap { 'frakon-dashboard-detailed-conflict-panel': FrakonDashboardDetailedConflictPanel; } }
