@@ -11,7 +11,7 @@ const document = {
 
 const criticalContext: DashboardIntelligenceContext = {
   device: 'wall',
-  usage: [{ itemId: 'smoke', urgent: true, severity: 'critical', urgencyReasons: ['binary_sensor.smoke reports an active smoke condition'], sourceEntityIds: ['binary_sensor.smoke'] }],
+  usage: [{ itemId: 'smoke', urgent: true, severity: 'critical', urgencyReasons: ['binary_sensor.smoke reports an active smoke condition'], sourceEntityIds: ['binary_sensor.smoke'], sourceEntityLabels: { 'binary_sensor.smoke': 'Kouřové čidlo kuchyň' } }],
 };
 
 describe('Emergency Focus history', () => {
@@ -20,13 +20,14 @@ describe('Emergency Focus history', () => {
     const signature = dashboardEmergencyFocusSignature(focus.targets[0]!);
     let history = updateDashboardEmergencyHistory({ active: [], recent: [] }, focus, 1_000);
     expect(history.active[0]?.startedAt).toBe(1_000);
+    expect(history.active[0]?.sourceEntityLabels).toEqual({ 'binary_sensor.smoke': 'Kouřové čidlo kuchyň' });
 
     history = acknowledgeDashboardEmergencyHistory(history, signature, 1_500);
     expect(history.active[0]?.acknowledgedAt).toBe(1_500);
 
     history = updateDashboardEmergencyHistory(history, { active: false, targets: [] }, 4_000);
     expect(history.active).toHaveLength(0);
-    expect(history.recent[0]).toMatchObject({ startedAt: 1_000, acknowledgedAt: 1_500, endedAt: 4_000, durationMs: 3_000 });
+    expect(history.recent[0]).toMatchObject({ startedAt: 1_000, acknowledgedAt: 1_500, endedAt: 4_000, durationMs: 3_000, sourceEntityLabels: { 'binary_sensor.smoke': 'Kouřové čidlo kuchyň' } });
   });
 
   it('does not restart the same live event on repeated updates', () => {
