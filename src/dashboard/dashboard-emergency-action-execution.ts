@@ -1,7 +1,7 @@
 import { evaluateDashboardEmergencyActionPolicy,type DashboardEmergencyActionPolicyContext,type DashboardEmergencyActionPolicyDecision,type DashboardEmergencyExecutableAction } from './dashboard-emergency-action-policy';
 
 export interface DashboardEmergencyServiceCall { domain:string; service:string; serviceData:Record<string,unknown>; }
-export interface DashboardEmergencyExecutionPlan { id:string; action:DashboardEmergencyExecutableAction; policy:DashboardEmergencyActionPolicyDecision; call?:DashboardEmergencyServiceCall; confirmationText?:string; }
+export interface DashboardEmergencyExecutionPlan { id:string; action:DashboardEmergencyExecutableAction; policy:DashboardEmergencyActionPolicyDecision; call?:DashboardEmergencyServiceCall; confirmationText?:string; incidentOccurrenceId?:string; }
 
 export function createDashboardEmergencyExecutionPlan(action:DashboardEmergencyExecutableAction,context:DashboardEmergencyActionPolicyContext,locale='en'):DashboardEmergencyExecutionPlan{
  const policy=evaluateDashboardEmergencyActionPolicy(action,context);const call=serviceCall(action);const id=[action.kind,action.entityId??'',action.domain??'',action.service??''].join(':');
