@@ -47,7 +47,11 @@ export class FrakonCanvasV2ConstraintEditor extends LitElement {
       this.localError = result.reason ?? 'Invalid constraint.';
       return;
     }
-    this.localError = undefined;
+    if (result.status === 'collision') {
+      this.localError = `Constraint edit blocked by collision: ${result.collisionIds.join(', ')}.`;
+    } else {
+      this.localError = undefined;
+    }
     this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', {
       detail: {
         status: result.status,
