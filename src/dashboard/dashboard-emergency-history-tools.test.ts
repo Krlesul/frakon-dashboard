@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildDashboardEmergencyTimeline,
   calculateDashboardEmergencyHistoryStats,
   calculateDashboardEmergencyHistoryTrend,
+  calculateDashboardEmergencyKindBreakdown,
   exportDashboardEmergencyHistory,
   filterDashboardEmergencyHistory,
   mergeDashboardEmergencyHistory,
@@ -87,6 +89,38 @@ describe('Emergency Focus history tools', () => {
       ],
     };
     expect(calculateDashboardEmergencyHistoryTrend(trendHistory, 7, now)).toMatchObject({ currentCount:1, previousCount:1, change:0, changeRate:0, direction:'stable' });
+  });
+
+  it('builds a sorted event-kind breakdown with shares', () => {
+    const breakdown = calculateDashboardEmergencyKindBreakdown({
+      active: [],
+      recent: [
+        { signature:'w1', itemId:'w1', sourceEntityIds:[], reasons:['binary_sensor.water reports an active moisture condition'], startedAt:1 },
+        { signature:'w2', itemId:'w2', sourceEntityIds:[], reasons:['binary_sensor.water reports an active moisture condition'], startedAt:2 },
+        { signature:'s1', itemId:'s1', sourceEntityIds:[], reasons:['binary_sensor.smoke reports an active smoke condition'], startedAt:3 },
+      ],
+    });
+    expect(breakdown).toEqual([
+      { kind:'water', count:2, share:2/3 },
+      { kind:'smoke', count:1, share:1/3 },
+    ]);
+  });
+
+  it('builds fixed daily timeline buckets including empty days', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = new Date(2026, 7, 7, 12, 0, 0).getTime();
+    const todayStart = new Date(2026, 7, 7, 0, 0, 0).getTime();
+    const timeline = buildDashboardEmergencyTimeline({
+      active: [],
+      recent: [
+        { signature:'today-water', itemId:'today-water', sourceEntityIds:[], reasons:['binary_sensor.water reports an active moisture condition'], startedAt:todayStart+1000 },
+        { signature:'two-days-smoke', itemId:'two-days-smoke', sourceEntityIds:[], reasons:['binary_sensor.smoke reports an active smoke condition'], startedAt:todayStart-2*day+1000 },
+      ],
+    }, 3, now);
+    expect(timeline).toHaveLength(3);
+    expect(timeline.map((bucket)=>bucket.count)).toEqual([1,0,1]);
+    expect(timeline[0]?.kinds.smoke).toBe(1);
+    expect(timeline[2]?.kinds.water).toBe(1);
   });
 
   it('exports a versioned sanitized audit payload', () => {
