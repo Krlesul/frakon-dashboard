@@ -52,7 +52,7 @@ describe('dashboard storage adapters', () => {
     expect(await storage.load('home')).toBeUndefined();
   });
 
-  it('maps remote operations to transport commands', async () => {
+  it('maps remote operations to Home Assistant-safe transport commands', async () => {
     const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
     const transport: DashboardStorageTransport = {
       async request<T>(command: string, payload: Record<string, unknown>): Promise<T> {
@@ -67,9 +67,9 @@ describe('dashboard storage adapters', () => {
     await storage.remove('home');
 
     expect(calls).toEqual([
-      { command: 'frakon/dashboard/load', payload: { id: 'home' } },
+      { command: 'frakon/dashboard/load', payload: { dashboard_id: 'home' } },
       { command: 'frakon/dashboard/save', payload: { document } },
-      { command: 'frakon/dashboard/remove', payload: { id: 'home' } },
+      { command: 'frakon/dashboard/remove', payload: { dashboard_id: 'home' } },
     ]);
   });
 });
