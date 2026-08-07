@@ -24,7 +24,7 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
     @websocket_api.websocket_command(
         {
             vol.Required("type"): "frakon/dashboard/load",
-            vol.Required("id"): DASHBOARD_ID,
+            vol.Required("dashboard_id"): DASHBOARD_ID,
         }
     )
     @websocket_api.async_response
@@ -33,7 +33,7 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        connection.send_result(msg["id"], await storage.load(msg["id"]))
+        connection.send_result(msg["id"], await storage.load(msg["dashboard_id"]))
 
     @websocket_api.websocket_command(
         {
@@ -57,7 +57,7 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
     @websocket_api.websocket_command(
         {
             vol.Required("type"): "frakon/dashboard/remove",
-            vol.Required("id"): DASHBOARD_ID,
+            vol.Required("dashboard_id"): DASHBOARD_ID,
         }
     )
     @websocket_api.async_response
@@ -66,7 +66,7 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        await storage.remove(msg["id"])
+        await storage.remove(msg["dashboard_id"])
         connection.send_result(msg["id"], None)
 
     websocket_api.async_register_command(hass, handle_load)
