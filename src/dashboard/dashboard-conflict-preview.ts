@@ -1,6 +1,6 @@
 import type { DashboardConflictSession } from './dashboard-conflict-coordinator';
 import {
-  resolveDashboardConflictSelections,
+  resolveDashboardConflicts,
   type DashboardConflictSelections,
 } from './dashboard-selective-conflict-resolution';
 import type { FrakonGridItem } from './layout-model';
@@ -35,13 +35,8 @@ export function createDashboardConflictPreview(
     if (match?.[1]) itemIds.add(match[1]);
   }
 
-  let resolvedDocumentAvailable = false;
-  try {
-    resolveDashboardConflictSelections(session.merge, selections);
-    resolvedDocumentAvailable = true;
-  } catch {
-    resolvedDocumentAvailable = false;
-  }
+  const selective = resolveDashboardConflicts(session.merge, selections);
+  const resolvedDocumentAvailable = selective.complete;
 
   const cards = [...itemIds].sort().map((id) => {
     const path = `items.${id}`;
@@ -64,7 +59,7 @@ export function createDashboardConflictPreview(
 
   return {
     cards,
-    unresolved: session.merge.conflicts.filter((conflict) => !selections[conflict.path]).length,
+    unresolved: selective.unresolved.length,
     resolvedDocumentAvailable,
   };
 }
