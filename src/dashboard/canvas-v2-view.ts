@@ -1,8 +1,10 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import type { Guideline } from '../../packages/studio-engine/src/guidelines';
 import type { SelectionRect, SelectionState } from '../../packages/studio-engine/src/selection';
 import type { HomeAssistant } from '../home-assistant/types';
 import './card-host';
+import { dashboardCanvasV2Guidelines } from './dashboard-canvas-v2-guidelines';
 import {
   canvasV2MoveSelection,
   normalizeCanvasV2Selection,
@@ -32,9 +34,11 @@ export class FrakonCanvasV2View extends LitElement {
   @state() private collisionIds: string[] = [];
   @state() private selection: SelectionState = { ids: [] };
   @state() private marqueeRect?: SelectionRect;
+  @state() private guidelines: Guideline[] = [];
 
   private session?: DashboardCanvasV2Session;
   private pointerId?: number;
+  private movingIds: string[] = [];
   private marqueeStart?: DashboardCanvasV2Point;
   private marqueeBaseSelection?: SelectionState;
   private marqueePointerId?: number;
@@ -51,6 +55,9 @@ export class FrakonCanvasV2View extends LitElement {
     .move:active { cursor: grabbing; }
     .resize { position: absolute; z-index: 6; right: 4px; bottom: 4px; width: 18px; height: 18px; border: 0; border-radius: 6px; padding: 0; cursor: nwse-resize; touch-action: none; background: color-mix(in srgb, var(--primary-color) 72%, transparent); }
     .marquee { position: absolute; z-index: 20; pointer-events: none; border: 1px solid var(--primary-color); background: color-mix(in srgb, var(--primary-color) 14%, transparent); }
+    .guideline { position: absolute; z-index: 19; pointer-events: none; background: var(--primary-color); opacity: .82; box-shadow: 0 0 7px color-mix(in srgb, var(--primary-color) 55%, transparent); }
+    .guideline.x { top: 0; bottom: 0; width: 1px; }
+    .guideline.y { left: 0; right: 0; height: 1px; }
     .content { width: 100%; height: 100%; min-width: 0; min-height: 0; }
   `;
 
@@ -88,6 +95,7 @@ export class FrakonCanvasV2View extends LitElement {
     this.selection = nextSelection;
     const selectedIds = canvasV2MoveSelection(nextSelection, item.id, this.document);
     if (!selectedIds.length) return;
+    this.movingIds = [...selectedIds];
     this.session = new DashboardCanvasV2Session(
       this.document,
       { kind: 'move', selectedIds },
@@ -103,6 +111,8 @@ export class FrakonCanvasV2View extends LitElement {
     event.preventDefault();
     event.stopPropagation();
     this.selection = selectCanvasV2Item(this.selection, item.id);
+    this.movingIds = [];
+    this.guidelines = [];
     this.session = new DashboardCanvasV2Session(
       this.document,
       { kind: 'resize', itemId: item.id, handle: 'se' },
@@ -131,6 +141,9 @@ export class FrakonCanvasV2View extends LitElement {
     const preview = this.session.preview(this.documentPoint(event));
     this.previewDocument = preview.document;
     this.collisionIds = preview.collisionIds;
+    this.guidelines = this.movingIds.length
+      ? dashboardCanvasV2Guidelines(preview.document, this.movingIds)
+      : [];
   }
 
   private updateMarquee(event: PointerEvent): void {
@@ -192,6 +205,8 @@ export class FrakonCanvasV2View extends LitElement {
     this.pointerId = undefined;
     this.previewDocument = undefined;
     this.collisionIds = [];
+    this.movingIds = [];
+    this.guidelines = [];
   }
 
   private clearMarquee(restore: boolean): void {
@@ -215,6 +230,17 @@ export class FrakonCanvasV2View extends LitElement {
     return `left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
   }
 
+  private renderedGuidelines(document: FrakonDashboardDocumentV2): Array<Guideline & { renderedPosition: number }> {
+    const scale = Math.max(1, this.width) / Math.max(1, document.layout.width);
+    const seen = new Set<string>();
+    return this.guidelines.flatMap((guideline) => {
+      const key = `${guideline.axis}:${Math.round(guideline.position * 10) / 10}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ ...guideline, renderedPosition: guideline.position * scale }];
+    });
+  }
+
   render() {
     const source = this.previewDocument ?? this.document;
     if (!source) return nothing;
@@ -223,6 +249,7 @@ export class FrakonCanvasV2View extends LitElement {
     const sourceById = new Map(source.items.map((item) => [item.id, item]));
     const collisions = new Set(this.collisionIds);
     const selectedIds = new Set(normalizedSelection.ids);
+    const guidelines = this.renderedGuidelines(source);
     return html`
       <div
         class="canvas"
@@ -264,6 +291,14 @@ export class FrakonCanvasV2View extends LitElement {
             </article>
           `;
         })}
+        ${guidelines.map((guideline) => html`
+          <div
+            class="guideline ${guideline.axis}"
+            style=${guideline.axis === 'x'
+              ? `left:${guideline.renderedPosition}px`
+              : `top:${guideline.renderedPosition}px`}
+          ></div>
+        `)}
         ${this.marqueeStyle(source) ? html`<div class="marquee" style=${this.marqueeStyle(source)}></div>` : nothing}
       </div>
     `;
