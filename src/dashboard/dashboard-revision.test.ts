@@ -54,4 +54,12 @@ describe('dashboard revision model', () => {
     expect(changed.revision).not.toBe(first.revision);
     expect(changed.parentRevision).toBe(first.revision);
   });
+
+  it('fingerprints layout metadata even when items and timestamp are unchanged', () => {
+    const firstDocument = dashboard('Home');
+    const secondDocument = { ...dashboard('Home'), gap: 24 };
+    const first = createDashboardRevision(firstDocument, 'client-a', undefined, 100);
+    const second = createDashboardRevision(secondDocument, 'client-a', undefined, 100);
+    expect(second.revision).not.toBe(first.revision);
+  });
 });
