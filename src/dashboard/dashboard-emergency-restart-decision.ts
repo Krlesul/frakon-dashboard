@@ -7,7 +7,8 @@ export function decideDashboardEmergencyRestartAction(audit:DashboardEmergencyAc
  if(idempotency?.status==='completed')return{kind:'verify-first',reason:'The service call completed but the physical state still requires verification.'};
  if(idempotency?.status==='started')return{kind:'verify-first',reason:'The service call may have been sent before restart; verify state before any retry.'};
  if(idempotency?.status==='failed')return{kind:'retry',reason:'The previous service call failed and may be explicitly retried.'};
- if(audit.executionStatus==='failed')return{kind:'retry',reason:'The audited execution failed before completion.'};
+ if(audit.executionStatus==='failed'||audit.executionStatus==='blocked')return{kind:'retry',reason:'The audited execution did not complete and may be explicitly retried.'};
  if(audit.executionStatus==='executed')return{kind:'verify-first',reason:'The audit records execution; verify physical state before retry.'};
+ if(audit.confirmed)return{kind:'verify-first',reason:'A confirmed legacy attempt has no durable execution marker; its physical outcome is ambiguous and must be verified before retry.'};
  return{kind:'retry',reason:'No evidence exists that the physical service call was sent.'};
 }
