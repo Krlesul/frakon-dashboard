@@ -41,6 +41,19 @@ export interface DashboardEmergencyHistoryTrend {
   direction: DashboardEmergencyTrendDirection;
 }
 
+export interface DashboardEmergencyKindBreakdownEntry {
+  kind: DashboardEmergencyKind;
+  count: number;
+  share: number;
+}
+
+export interface DashboardEmergencyTimelineBucket {
+  startAt: number;
+  endAt: number;
+  count: number;
+  kinds: Partial<Record<DashboardEmergencyKind, number>>;
+}
+
 export type DashboardEmergencyHistoryImportResult =
   | { ok: true; history: DashboardEmergencyHistoryState; importedRecent: number }
   | { ok: false; error: 'invalid-json' | 'invalid-format' | 'unsupported-version' };
@@ -107,6 +120,47 @@ export function calculateDashboardEmergencyHistoryTrend(
   const changeRate = previousCount === 0 ? (currentCount === 0 ? 0 : undefined) : change / previousCount;
   const direction: DashboardEmergencyTrendDirection = change < 0 ? 'improving' : change > 0 ? 'worsening' : 'stable';
   return { days: normalizedDays, currentCount, previousCount, change, changeRate, direction };
+}
+
+export function calculateDashboardEmergencyKindBreakdown(
+  history: DashboardEmergencyHistoryState,
+): DashboardEmergencyKindBreakdownEntry[] {
+  const entries = [...history.active, ...history.recent];
+  const counts = new Map<DashboardEmergencyKind, number>();
+  for (const entry of entries) {
+    const kind = emergencyKind(entry.reasons[0]);
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([kind, count]) => ({ kind, count, share: entries.length === 0 ? 0 : count / entries.length }))
+    .sort((left, right) => right.count - left.count || left.kind.localeCompare(right.kind));
+}
+
+export function buildDashboardEmergencyTimeline(
+  history: DashboardEmergencyHistoryState,
+  days = 30,
+  now = Date.now(),
+): DashboardEmergencyTimelineBucket[] {
+  const normalizedDays = Math.max(1, Math.trunc(days));
+  const dayMs = 24 * 60 * 60 * 1000;
+  const endOfToday = startOfDay(now) + dayMs;
+  const firstStart = endOfToday - normalizedDays * dayMs;
+  const buckets: DashboardEmergencyTimelineBucket[] = Array.from({ length: normalizedDays }, (_, index) => ({
+    startAt: firstStart + index * dayMs,
+    endAt: firstStart + (index + 1) * dayMs,
+    count: 0,
+    kinds: {},
+  }));
+  for (const entry of [...history.active, ...history.recent]) {
+    if (entry.startedAt < firstStart || entry.startedAt >= endOfToday) continue;
+    const index = Math.floor((entry.startedAt - firstStart) / dayMs);
+    const bucket = buckets[index];
+    if (!bucket) continue;
+    const kind = emergencyKind(entry.reasons[0]);
+    bucket.count += 1;
+    bucket.kinds[kind] = (bucket.kinds[kind] ?? 0) + 1;
+  }
+  return buckets;
 }
 
 export function exportDashboardEmergencyHistory(
@@ -181,4 +235,10 @@ export function mergeDashboardEmergencyHistory(
 
 function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function startOfDay(timestamp: number): number {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
 }
