@@ -1,0 +1,12 @@
+import { evaluateDashboardEmergencyActionPolicy,type DashboardEmergencyActionPolicyContext,type DashboardEmergencyActionPolicyDecision,type DashboardEmergencyExecutableAction } from './dashboard-emergency-action-policy';
+
+export interface DashboardEmergencyServiceCall { domain:string; service:string; serviceData:Record<string,unknown>; }
+export interface DashboardEmergencyExecutionPlan { id:string; action:DashboardEmergencyExecutableAction; policy:DashboardEmergencyActionPolicyDecision; call?:DashboardEmergencyServiceCall; confirmationText?:string; }
+
+export function createDashboardEmergencyExecutionPlan(action:DashboardEmergencyExecutableAction,context:DashboardEmergencyActionPolicyContext,locale='en'):DashboardEmergencyExecutionPlan{
+ const policy=evaluateDashboardEmergencyActionPolicy(action,context);const call=serviceCall(action);const id=[action.kind,action.entityId??'',action.domain??'',action.service??''].join(':');
+ return{id,action,policy,call:policy.allowed?call:undefined,confirmationText:policy.requiresConfirmation&&call?confirmation(call,locale):undefined};
+}
+export function canExecuteDashboardEmergencyPlan(plan:DashboardEmergencyExecutionPlan,confirmed=false):boolean{return plan.policy.allowed&&Boolean(plan.call)&&(!plan.policy.requiresConfirmation||confirmed);}
+function serviceCall(action:DashboardEmergencyExecutableAction):DashboardEmergencyServiceCall|undefined{if(!action.domain||!action.service)return undefined;return{domain:action.domain,service:action.service,serviceData:action.entityId?{entity_id:action.entityId}:{}};}
+function confirmation(call:DashboardEmergencyServiceCall,locale:string):string{const entity=String(call.serviceData.entity_id??'');const language=locale.toLowerCase().split(/[-_]/)[0];if(language==='cs')return`Potvrďte akci ${call.domain}.${call.service}${entity?` pro ${entity}`:''}. Tato akce změní stav zařízení.`;if(language==='de')return`Aktion ${call.domain}.${call.service}${entity?` für ${entity}`:''} bestätigen. Diese Aktion ändert den Gerätezustand.`;if(language==='sk')return`Potvrďte akciu ${call.domain}.${call.service}${entity?` pre ${entity}`:''}. Táto akcia zmení stav zariadenia.`;if(language==='pl')return`Potwierdź akcję ${call.domain}.${call.service}${entity?` dla ${entity}`:''}. Ta akcja zmieni stan urządzenia.`;return`Confirm ${call.domain}.${call.service}${entity?` for ${entity}`:''}. This action will change device state.`;}
