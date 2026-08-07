@@ -1,7 +1,10 @@
+import type { FrakonDashboardAnyDocument } from './dashboard-document-codec';
 import type { FrakonDashboardDocument } from './layout-model';
 
-export interface DashboardRevisionEnvelope {
-  document: FrakonDashboardDocument;
+export interface DashboardRevisionEnvelope<
+  TDocument extends FrakonDashboardAnyDocument = FrakonDashboardDocument,
+> {
+  document: TDocument;
   revision: string;
   parentRevision?: string;
   updatedAt: number;
@@ -14,18 +17,22 @@ export type DashboardRevisionRelation =
   | 'remote-ahead'
   | 'conflict';
 
-export interface DashboardRevisionComparison {
+export interface DashboardRevisionComparison<
+  TDocument extends FrakonDashboardAnyDocument = FrakonDashboardDocument,
+> {
   relation: DashboardRevisionRelation;
-  local: DashboardRevisionEnvelope;
-  remote: DashboardRevisionEnvelope;
+  local: DashboardRevisionEnvelope<TDocument>;
+  remote: DashboardRevisionEnvelope<TDocument>;
 }
 
-export function createDashboardRevision(
-  document: FrakonDashboardDocument,
+export function createDashboardRevision<
+  TDocument extends FrakonDashboardAnyDocument = FrakonDashboardDocument,
+>(
+  document: TDocument,
   clientId: string,
-  previous?: DashboardRevisionEnvelope,
+  previous?: DashboardRevisionEnvelope<TDocument>,
   updatedAt = Date.now(),
-): DashboardRevisionEnvelope {
+): DashboardRevisionEnvelope<TDocument> {
   return {
     document: structuredClone(document),
     revision: revisionId(clientId, updatedAt, document),
@@ -35,24 +42,28 @@ export function createDashboardRevision(
   };
 }
 
-export function compareDashboardRevisions(
-  local: DashboardRevisionEnvelope,
-  remote: DashboardRevisionEnvelope,
-): DashboardRevisionComparison {
+export function compareDashboardRevisions<
+  TDocument extends FrakonDashboardAnyDocument = FrakonDashboardDocument,
+>(
+  local: DashboardRevisionEnvelope<TDocument>,
+  remote: DashboardRevisionEnvelope<TDocument>,
+): DashboardRevisionComparison<TDocument> {
   if (local.revision === remote.revision) return { relation: 'same', local, remote };
   if (local.parentRevision === remote.revision) return { relation: 'local-ahead', local, remote };
   if (remote.parentRevision === local.revision) return { relation: 'remote-ahead', local, remote };
   return { relation: 'conflict', local, remote };
 }
 
-export function chooseDashboardRevision(
-  comparison: DashboardRevisionComparison,
+export function chooseDashboardRevision<
+  TDocument extends FrakonDashboardAnyDocument = FrakonDashboardDocument,
+>(
+  comparison: DashboardRevisionComparison<TDocument>,
   choice: 'local' | 'remote',
-): DashboardRevisionEnvelope {
+): DashboardRevisionEnvelope<TDocument> {
   return structuredClone(choice === 'local' ? comparison.local : comparison.remote);
 }
 
-function revisionId(clientId: string, updatedAt: number, document: FrakonDashboardDocument): string {
+function revisionId(clientId: string, updatedAt: number, document: FrakonDashboardAnyDocument): string {
   const source = JSON.stringify({
     clientId,
     updatedAt,
