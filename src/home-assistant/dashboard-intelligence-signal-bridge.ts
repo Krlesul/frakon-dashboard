@@ -2,7 +2,7 @@ import {
   buildAutomaticDashboardIntelligenceContext,
   type HomeAssistantStateLike as IntelligenceHomeAssistantState,
 } from '../dashboard/dashboard-intelligence-signals';
-import type { DashboardDeviceContext, DashboardIntelligenceContext } from '../dashboard/dashboard-intelligence';
+import type { DashboardDeviceContext, DashboardEntityMetadata, DashboardIntelligenceContext } from '../dashboard/dashboard-intelligence';
 import type { DashboardInteractionTracker } from '../dashboard/dashboard-interaction-tracker';
 import type { FrakonDashboardDocument, FrakonGridItem } from '../dashboard/layout-model';
 
@@ -17,12 +17,32 @@ export interface HomeAssistantLike {
   states: Record<string, HomeAssistantStateLike>;
   language?: string;
   locale?: { language?: string };
+  callWS?<T>(message: Record<string, unknown>): Promise<T>;
+}
+
+export interface HomeAssistantEntityRegistryEntry {
+  entity_id: string;
+  device_id?: string | null;
+  area_id?: string | null;
+}
+
+export interface HomeAssistantDeviceRegistryEntry {
+  id: string;
+  area_id?: string | null;
+  name?: string | null;
+  name_by_user?: string | null;
+}
+
+export interface HomeAssistantAreaRegistryEntry {
+  area_id: string;
+  name: string;
 }
 
 export interface DashboardIntelligenceSignalBridgeOptions {
   device: DashboardDeviceContext;
   tracker?: Pick<DashboardInteractionTracker, 'snapshot'>;
   now?: number;
+  entityMetadata?: Record<string, DashboardEntityMetadata | undefined>;
 }
 
 export function homeAssistantLanguage(hass: HomeAssistantLike | undefined): string {
@@ -50,13 +70,53 @@ export function buildDashboardIntelligenceContextFromHass(
     now: options.now,
     interactions: options.tracker?.snapshot(options.now),
     states,
+    entityMetadata: options.entityMetadata,
   });
+}
+
+export async function loadHomeAssistantEntityMetadata(
+  hass: HomeAssistantLike | undefined,
+): Promise<Record<string, DashboardEntityMetadata>> {
+  if (!hass?.callWS) return {};
+  try {
+    const [entities, devices, areas] = await Promise.all([
+      hass.callWS<HomeAssistantEntityRegistryEntry[]>({ type: 'config/entity_registry/list' }),
+      hass.callWS<HomeAssistantDeviceRegistryEntry[]>({ type: 'config/device_registry/list' }),
+      hass.callWS<HomeAssistantAreaRegistryEntry[]>({ type: 'config/area_registry/list' }),
+    ]);
+    return resolveHomeAssistantEntityMetadata(entities, devices, areas);
+  } catch {
+    return {};
+  }
+}
+
+export function resolveHomeAssistantEntityMetadata(
+  entities: HomeAssistantEntityRegistryEntry[],
+  devices: HomeAssistantDeviceRegistryEntry[],
+  areas: HomeAssistantAreaRegistryEntry[],
+): Record<string, DashboardEntityMetadata> {
+  const devicesById = new Map(devices.map((device) => [device.id, device]));
+  const areasById = new Map(areas.map((area) => [area.area_id, area]));
+  const result: Record<string, DashboardEntityMetadata> = {};
+  for (const entity of entities) {
+    if (!entity.entity_id) continue;
+    const device = entity.device_id ? devicesById.get(entity.device_id) : undefined;
+    const areaId = entity.area_id || device?.area_id || undefined;
+    const areaName = areaId ? areasById.get(areaId)?.name : undefined;
+    const deviceName = cleanName(device?.name_by_user) || cleanName(device?.name) || undefined;
+    if (areaName || deviceName) result[entity.entity_id] = { ...(areaName ? { areaName } : {}), ...(deviceName ? { deviceName } : {}) };
+  }
+  return result;
 }
 
 export function extractDashboardItemEntityIds(item: FrakonGridItem): string[] {
   const ids = new Set<string>();
   collectEntityIds(item.card, ids, new Set<object>());
   return [...ids].sort();
+}
+
+function cleanName(value: string | null | undefined): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function collectEntityIds(value: unknown, ids: Set<string>, visited: Set<object>): void {
