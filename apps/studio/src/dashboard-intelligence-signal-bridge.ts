@@ -1,6 +1,6 @@
 import { LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { DashboardDeviceContext, DashboardIntelligenceContext } from '../../../src/dashboard/dashboard-intelligence';
+import type { DashboardDeviceContext, DashboardEntityMetadata, DashboardIntelligenceContext } from '../../../src/dashboard/dashboard-intelligence';
 import {
   DashboardIntelligenceStabilizer,
   type DashboardIntelligenceUrgencyDiagnostic,
@@ -9,6 +9,7 @@ import type { DashboardInteractionTracker } from '../../../src/dashboard/dashboa
 import type { FrakonDashboardDocument } from '../../../src/dashboard/layout-model';
 import {
   buildDashboardIntelligenceContextFromHass,
+  loadHomeAssistantEntityMetadata,
   type HomeAssistantLike,
 } from '../../../src/home-assistant/dashboard-intelligence-signal-bridge';
 
@@ -35,6 +36,8 @@ export class FrakonDashboardIntelligenceSignalBridge extends LitElement {
   private refreshTimer?: number;
   private evaluationTimer?: number;
   private stabilizer = this.createStabilizer();
+  private entityMetadata: Record<string, DashboardEntityMetadata> = {};
+  private metadataHass?: HomeAssistantLike;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -53,6 +56,16 @@ export class FrakonDashboardIntelligenceSignalBridge extends LitElement {
       this.stabilizer = this.createStabilizer();
     }
     if (changed.has('document')) this.stabilizer.reset();
+    if (changed.has('hass') && this.hass !== this.metadataHass) void this.refreshEntityMetadata();
+    this.emitContext();
+  }
+
+  private async refreshEntityMetadata(): Promise<void> {
+    const source = this.hass;
+    this.metadataHass = source;
+    const metadata = await loadHomeAssistantEntityMetadata(source);
+    if (this.hass !== source) return;
+    this.entityMetadata = metadata;
     this.emitContext();
   }
 
@@ -108,6 +121,7 @@ export class FrakonDashboardIntelligenceSignalBridge extends LitElement {
       device: this.device,
       tracker: this.tracker,
       now,
+      entityMetadata: this.entityMetadata,
     });
     const result = this.stabilizer.update(raw, now);
     this.scheduleEvaluation(result.nextEvaluationAt);
