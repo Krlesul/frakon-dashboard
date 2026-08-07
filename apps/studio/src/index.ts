@@ -13,6 +13,7 @@ export * from './dashboard-conflict-canvas-overlay';
 export * from './dashboard-conflict-canvas-bridge';
 export * from './dashboard-emergency-focus-overlay';
 export * from './dashboard-emergency-focus-bridge';
+export * from './dashboard-emergency-audit-panel';
 export * from './dashboard-intelligence-panel';
 export * from './dashboard-intelligence-safe-panel';
 export * from './dashboard-intelligence-signal-bridge';
