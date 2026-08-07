@@ -53,7 +53,7 @@ function scoreItem(
 ): DashboardIntelligenceScore {
   const base = scoreDashboardItemPriority(item);
   const reasons = [...base.reasons];
-  let score = base.priority;
+  let score: number = base.priority ?? 0;
 
   const interactions = Math.max(0, usage?.interactions30d ?? 0);
   const usageBoost = Math.min(20, Math.round(Math.log2(interactions + 1) * 4));
