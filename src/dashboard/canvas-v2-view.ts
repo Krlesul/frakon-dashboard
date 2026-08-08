@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
 import type { Guideline } from '../../packages/studio-engine/src/guidelines';
 import type { SelectionRect, SelectionState } from '../../packages/studio-engine/src/selection';
-import type { Point, ViewportTransform } from '../../packages/studio-engine/src/viewport';
+import type { Point, Size, ViewportTransform } from '../../packages/studio-engine/src/viewport';
 import type { SupportedLanguage } from '../i18n';
 import type { HomeAssistant } from '../home-assistant/types';
 import './card-host';
@@ -23,6 +23,8 @@ import { DashboardCanvasV2PanSession } from './dashboard-canvas-v2-pan-session';
 import { canvasV2MoveSelection, normalizeCanvasV2Selection, selectCanvasV2ByMarquee, selectCanvasV2Item } from './dashboard-canvas-v2-selection';
 import { DashboardCanvasV2Session, type DashboardCanvasV2Point } from './dashboard-canvas-v2-session';
 import { DashboardCanvasV2ViewportController } from './dashboard-canvas-v2-viewport-controller';
+import { dashboardCanvasV2ViewportShortcut } from './dashboard-canvas-v2-viewport-shortcuts';
+import { dashboardCanvasV2WheelZoom } from './dashboard-canvas-v2-wheel-zoom';
 import { keyboardNudgeDeltaV2, nudgeDashboardV2Selection } from './dashboard-keyboard-nudge-v2';
 import type { FrakonCanvasItem, FrakonDashboardDocumentV2 } from './layout-model-v2';
 
@@ -64,7 +66,7 @@ export class FrakonCanvasV2View extends LitElement {
   static styles = css`
     :host { display: block; }
     .viewport-toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
-    .canvas { position: relative; min-height: 320px; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-color) 6%); outline: none; touch-action: none; }
+    .canvas { position: relative; min-height: 120px; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-color) 6%); outline: none; touch-action: none; }
     .canvas:focus-visible { box-shadow: 0 0 0 2px var(--primary-color); }
     .canvas.panning { cursor: grabbing; }
     .canvas.space-ready { cursor: grab; }
@@ -85,13 +87,13 @@ export class FrakonCanvasV2View extends LitElement {
 
   private canvasElement(): HTMLElement | undefined { return this.renderRoot.querySelector<HTMLElement>('.canvas') ?? undefined; }
 
-  private localScreenPoint(event: PointerEvent): Point {
+  private localPoint(clientX: number, clientY: number): Point {
     const rect = this.canvasElement()?.getBoundingClientRect();
-    return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
+    return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
   }
 
   private documentPoint(event: PointerEvent): DashboardCanvasV2Point {
-    return this.viewportController.screenToDocument(this.localScreenPoint(event));
+    return this.viewportController.screenToDocument(this.localPoint(event.clientX, event.clientY));
   }
 
   private contentHeight(document: FrakonDashboardDocumentV2): number {
@@ -102,26 +104,34 @@ export class FrakonCanvasV2View extends LitElement {
     return Math.min(680, Math.max(320, this.contentHeight(document)));
   }
 
-  private syncViewport(next: ViewportTransform): void {
-    this.viewport = next;
+  private viewportSize(document: FrakonDashboardDocumentV2): Size {
+    const rect = this.canvasElement()?.getBoundingClientRect();
+    return { width: Math.max(1, rect?.width ?? this.width), height: Math.max(1, rect?.height ?? this.viewportHeight(document)) };
   }
+
+  private syncViewport(next: ViewportTransform): void { this.viewport = next; }
+
+  private fitViewport(): void {
+    if (this.document) this.syncViewport(this.viewportController.fit(this.document, this.viewportSize(this.document)));
+  }
+
+  private resetViewport(): void { this.syncViewport(this.viewportController.reset()); }
 
   private onViewportAction(event: CustomEvent<FrakonCanvasV2ViewportAction>): void {
     if (!this.document) return;
     event.stopPropagation();
-    const canvas = this.canvasElement();
-    const rect = canvas?.getBoundingClientRect();
-    const size = { width: Math.max(1, rect?.width ?? this.width), height: Math.max(1, rect?.height ?? this.viewportHeight(this.document)) };
-    if (event.detail.kind === 'fit') {
-      this.syncViewport(this.viewportController.fit(this.document, size));
-      return;
-    }
-    if (event.detail.kind === 'reset') {
-      this.syncViewport(this.viewportController.reset());
-      return;
-    }
-    const anchor = { x: size.width / 2, y: size.height / 2 };
-    this.syncViewport(this.viewportController.zoomAt(anchor, event.detail.zoom));
+    if (event.detail.kind === 'fit') return this.fitViewport();
+    if (event.detail.kind === 'reset') return this.resetViewport();
+    const size = this.viewportSize(this.document);
+    this.syncViewport(this.viewportController.zoomAt({ x: size.width / 2, y: size.height / 2 }, event.detail.zoom));
+  }
+
+  private onWheel(event: WheelEvent): void {
+    if (!this.editMode || !this.document || event.target !== event.currentTarget) return;
+    const nextZoom = dashboardCanvasV2WheelZoom({ deltaY: event.deltaY, ctrlKey: event.ctrlKey, metaKey: event.metaKey, currentZoom: this.viewport.zoom });
+    if (nextZoom === undefined) return;
+    event.preventDefault();
+    this.syncViewport(this.viewportController.zoomAt(this.localPoint(event.clientX, event.clientY), nextZoom));
   }
 
   private dispatchDraft(detail: FrakonCanvasV2DraftDetail): void {
@@ -168,9 +178,17 @@ export class FrakonCanvasV2View extends LitElement {
       return;
     }
     if (this.session || this.marqueeStart || this.panSession) return;
+
+    const viewportShortcut = dashboardCanvasV2ViewportShortcut(event);
+    if (viewportShortcut) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (viewportShortcut.kind === 'fit') this.fitViewport(); else this.resetViewport();
+      return;
+    }
+
     const selection = normalizeCanvasV2Selection(this.selection, this.document);
     if (!selection.ids.length) return;
-
     const shortcut = dashboardCanvasV2EditorShortcut(event);
     if (shortcut) {
       event.preventDefault();
@@ -199,17 +217,13 @@ export class FrakonCanvasV2View extends LitElement {
     this.dispatchDraft({ status: result.status === 'moved' ? 'committed' : result.status, document: result.document, collisionIds: result.collisionIds, constraintDiagnostics: result.constraintDiagnostics });
   }
 
-  private onKeyUp(event: KeyboardEvent): void {
-    if (event.code === 'Space') this.spacePressed = false;
-  }
+  private onKeyUp(event: KeyboardEvent): void { if (event.code === 'Space') this.spacePressed = false; }
 
   private beginPan(event: PointerEvent): void {
     if (!this.editMode || this.panSession || this.session || this.marqueeStart) return;
     const allowed = event.button === 1 || (event.button === 0 && this.spacePressed);
     if (!allowed) return;
-    event.preventDefault();
-    event.stopPropagation();
-    this.canvasElement()?.focus();
+    event.preventDefault(); event.stopPropagation(); this.canvasElement()?.focus();
     this.panSession = new DashboardCanvasV2PanSession({ point: { x: event.clientX, y: event.clientY }, viewport: this.viewport });
     this.panPointerId = event.pointerId;
     (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
@@ -224,8 +238,7 @@ export class FrakonCanvasV2View extends LitElement {
     if (!selectedIds.length) return;
     this.movingIds = [...selectedIds];
     this.session = new DashboardCanvasV2Session(this.document, { kind: 'move', selectedIds }, this.documentPoint(event));
-    this.pointerId = event.pointerId;
-    this.updatePreview(event);
+    this.pointerId = event.pointerId; this.updatePreview(event);
     (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
   }
 
@@ -266,83 +279,53 @@ export class FrakonCanvasV2View extends LitElement {
   }
 
   private onPointerMove(event: PointerEvent): void {
-    if (this.panSession && this.panPointerId === event.pointerId) {
-      event.preventDefault();
-      this.syncViewport(this.panSession.preview({ x: event.clientX, y: event.clientY }));
-      return;
-    }
+    if (this.panSession && this.panPointerId === event.pointerId) { event.preventDefault(); this.syncViewport(this.panSession.preview({ x: event.clientX, y: event.clientY })); return; }
     if (this.session && this.pointerId === event.pointerId) { event.preventDefault(); this.updatePreview(event); return; }
     if (this.marqueeStart && this.marqueePointerId === event.pointerId) { event.preventDefault(); this.updateMarquee(event); }
   }
 
   private endInteraction(event: PointerEvent): void {
     if (this.panSession && this.panPointerId === event.pointerId) {
-      event.preventDefault();
-      this.syncViewport(this.panSession.preview({ x: event.clientX, y: event.clientY }));
-      this.panSession = undefined;
-      this.panPointerId = undefined;
-      return;
+      event.preventDefault(); this.syncViewport(this.panSession.preview({ x: event.clientX, y: event.clientY })); this.panSession = undefined; this.panPointerId = undefined; return;
     }
     if (this.session && this.pointerId === event.pointerId) {
-      event.preventDefault();
-      const result = this.session.commit(this.documentPoint(event));
+      event.preventDefault(); const result = this.session.commit(this.documentPoint(event));
       this.clearPointerInteraction(); this.constraintDiagnostics = result.constraintDiagnostics; this.dispatchDraft(result); return;
     }
     if (this.marqueeStart && this.marqueePointerId === event.pointerId) { event.preventDefault(); this.updateMarquee(event); this.clearMarquee(false); }
   }
 
-  private cancelInteraction(): void {
-    this.panSession = undefined;
-    this.panPointerId = undefined;
-    this.clearPointerInteraction();
-    this.clearMarquee(true);
-  }
-
+  private cancelInteraction(): void { this.panSession = undefined; this.panPointerId = undefined; this.clearPointerInteraction(); this.clearMarquee(true); }
   private clearPointerInteraction(): void { this.session = undefined; this.pointerId = undefined; this.previewDocument = undefined; this.collisionIds = []; this.movingIds = []; this.guidelines = []; }
   private clearMarquee(restore: boolean): void { if (restore && this.marqueeBaseSelection) this.selection = this.marqueeBaseSelection; this.marqueeStart = undefined; this.marqueeBaseSelection = undefined; this.marqueePointerId = undefined; this.marqueeAdditive = false; this.marqueeRect = undefined; }
 
   private marqueeStyle(): string | undefined {
     if (!this.marqueeRect) return undefined;
-    const x2 = this.marqueeRect.x + this.marqueeRect.width;
-    const y2 = this.marqueeRect.y + this.marqueeRect.height;
+    const x2 = this.marqueeRect.x + this.marqueeRect.width; const y2 = this.marqueeRect.y + this.marqueeRect.height;
     return `left:${Math.min(this.marqueeRect.x, x2)}px;top:${Math.min(this.marqueeRect.y, y2)}px;width:${Math.abs(this.marqueeRect.width)}px;height:${Math.abs(this.marqueeRect.height)}px`;
   }
 
   private renderedGuidelines(): Guideline[] {
     const seen = new Set<string>();
-    return this.guidelines.filter((guideline) => {
-      const key = `${guideline.axis}:${Math.round(guideline.position * 10) / 10}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    return this.guidelines.filter((guideline) => { const key = `${guideline.axis}:${Math.round(guideline.position * 10) / 10}`; if (seen.has(key)) return false; seen.add(key); return true; });
   }
 
   render() {
     const source = this.previewDocument ?? this.document;
     if (!source) return nothing;
     const normalizedSelection = normalizeCanvasV2Selection(this.selection, source);
-    const sourceById = new Map(source.items.map((item) => [item.id, item]));
     const collisions = new Set(this.collisionIds);
     const selectedIds = new Set(normalizedSelection.ids);
     const guidelines = this.renderedGuidelines();
     const stageHeight = this.contentHeight(source);
-    const canvasHeight = this.viewportHeight(source);
-    const stageStyle = `width:${source.layout.width}px;height:${stageHeight}px;transform:translate(${this.viewport.x}px, ${this.viewport.y}px) scale(${this.viewport.zoom})`;
+    const readOnlyZoom = Math.max(1, this.width) / Math.max(1, source.layout.width);
+    const effectiveViewport = this.editMode ? this.viewport : { x: 0, y: 0, zoom: readOnlyZoom };
+    const canvasHeight = this.editMode ? this.viewportHeight(source) : Math.max(120, stageHeight * readOnlyZoom);
+    const stageStyle = `width:${source.layout.width}px;height:${stageHeight}px;transform:translate(${effectiveViewport.x}px, ${effectiveViewport.y}px) scale(${effectiveViewport.zoom})`;
 
     return html`
       ${this.editMode ? html`<div class="viewport-toolbar"><frakon-canvas-v2-viewport-toolbar .zoom=${this.viewport.zoom} .language=${this.language} @frakon-canvas-v2-viewport-action=${this.onViewportAction}></frakon-canvas-v2-viewport-toolbar></div>` : nothing}
-      <div
-        class="canvas ${this.panSession ? 'panning' : ''} ${this.spacePressed ? 'space-ready' : ''}"
-        tabindex=${this.editMode ? '0' : '-1'}
-        style=${`height:${canvasHeight}px`}
-        @keydown=${this.onKeyDown}
-        @keyup=${this.onKeyUp}
-        @pointerdown=${this.beginPan}
-        @pointermove=${this.onPointerMove}
-        @pointerup=${this.endInteraction}
-        @pointercancel=${this.cancelInteraction}
-      >
+      <div class="canvas ${this.panSession ? 'panning' : ''} ${this.spacePressed ? 'space-ready' : ''}" tabindex=${this.editMode ? '0' : '-1'} style=${`height:${canvasHeight}px`} @keydown=${this.onKeyDown} @keyup=${this.onKeyUp} @wheel=${this.onWheel} @pointerdown=${this.beginPan} @pointermove=${this.onPointerMove} @pointerup=${this.endInteraction} @pointercancel=${this.cancelInteraction}>
         <div class="stage" style=${stageStyle} @pointerdown=${this.beginMarquee}>
           ${source.items.map((item) => html`<article class="item ${selectedIds.has(item.id) ? 'selected' : ''} ${collisions.has(item.id) ? 'collision' : ''}" data-frakon-item-id=${item.id} style=${`left:${item.frame.x}px;top:${item.frame.y}px;width:${item.frame.width}px;height:${item.frame.height}px`} @click=${(event: MouseEvent) => this.selectItem(event, item)}>
             ${this.editMode ? html`<div class="head"><button class="move" ?disabled=${item.locked} @click=${(event: MouseEvent) => event.stopPropagation()} @pointerdown=${(event: PointerEvent) => this.beginMove(event, item)}>↕ ${item.id}</button></div>${!item.locked ? html`<button class="resize" title="Resize" @click=${(event: MouseEvent) => event.stopPropagation()} @pointerdown=${(event: PointerEvent) => this.beginResize(event, item)}></button>` : nothing}` : nothing}
