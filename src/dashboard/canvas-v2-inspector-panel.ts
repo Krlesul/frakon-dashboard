@@ -39,48 +39,12 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     @media (max-width: 600px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   `;
 
-  private t(key: Parameters<typeof canvasDashboardTranslate>[1]): string {
-    return canvasDashboardTranslate(this.language, key);
-  }
-
-  private dispatchEdit(detail: FrakonCanvasV2InspectorEditDetail): void {
-    this.dispatchEvent(new CustomEvent<FrakonCanvasV2InspectorEditDetail>('frakon-canvas-v2-inspector-edit', {
-      detail,
-      bubbles: true,
-      composed: true,
-    }));
-  }
-
-  private numberValue(event: Event): number | undefined {
-    const value = Number((event.currentTarget as HTMLInputElement).value);
-    return Number.isFinite(value) ? value : undefined;
-  }
-
-  private optionalNumberValue(event: Event): number | null | undefined {
-    const raw = (event.currentTarget as HTMLInputElement).value.trim();
-    if (!raw) return null;
-    const value = Number(raw);
-    return Number.isFinite(value) ? value : undefined;
-  }
-
-  private itemField(itemId: string, key: 'x' | 'y' | 'width' | 'height', value: number, label: string) {
-    return html`<label class="field"><span class="label">${label}</span><input type="number" .value=${String(Math.round(value))} @change=${(event: Event) => {
-      const next = this.numberValue(event);
-      if (next !== undefined) this.dispatchEdit({ kind: 'item', itemId, patch: { [key]: next } });
-    }}></label>`;
-  }
-
-  private optionalItemField(
-    itemId: string,
-    key: 'minWidth' | 'minHeight' | 'maxWidth' | 'maxHeight',
-    value: number | undefined,
-    label: string,
-  ) {
-    return html`<label class="field"><span class="label">${label}</span><input type="number" min="1" .value=${value === undefined ? '' : String(Math.round(value))} @change=${(event: Event) => {
-      const next = this.optionalNumberValue(event);
-      if (next !== undefined) this.dispatchEdit({ kind: 'item', itemId, patch: { [key]: next } });
-    }}></label>`;
-  }
+  private t(key: Parameters<typeof canvasDashboardTranslate>[1]): string { return canvasDashboardTranslate(this.language, key); }
+  private dispatchEdit(detail: FrakonCanvasV2InspectorEditDetail): void { this.dispatchEvent(new CustomEvent<FrakonCanvasV2InspectorEditDetail>('frakon-canvas-v2-inspector-edit', { detail, bubbles: true, composed: true })); }
+  private numberValue(event: Event): number | undefined { const value = Number((event.currentTarget as HTMLInputElement).value); return Number.isFinite(value) ? value : undefined; }
+  private optionalNumberValue(event: Event): number | null | undefined { const raw = (event.currentTarget as HTMLInputElement).value.trim(); if (!raw) return null; const value = Number(raw); return Number.isFinite(value) ? value : undefined; }
+  private itemField(itemId: string, key: 'x' | 'y' | 'width' | 'height', value: number, label: string) { return html`<label class="field"><span class="label">${label}</span><input type="number" .value=${String(Math.round(value))} @change=${(event: Event) => { const next = this.numberValue(event); if (next !== undefined) this.dispatchEdit({ kind: 'item', itemId, patch: { [key]: next } }); }}></label>`; }
+  private optionalItemField(itemId: string, key: 'minWidth' | 'minHeight' | 'maxWidth' | 'maxHeight', value: number | undefined, label: string) { return html`<label class="field"><span class="label">${label}</span><input type="number" min="1" .value=${value === undefined ? '' : String(Math.round(value))} @change=${(event: Event) => { const next = this.optionalNumberValue(event); if (next !== undefined) this.dispatchEdit({ kind: 'item', itemId, patch: { [key]: next } }); }}></label>`; }
 
   render() {
     if (!this.document) return nothing;
@@ -88,50 +52,19 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     const diagnostics = summarizeDashboardCanvasV2ConstraintDiagnostics(this.diagnostics);
     const single = selection.single;
     const diagnosticClass = diagnostics.severity === 'error' ? 'error' : diagnostics.severity === 'warning' ? 'warning' : '';
-
-    return html`
-      <section class="panel">
-        <div class="title"><span>${this.t('inspector')}</span><span>${selection.count} ${this.t('selected')}</span></div>
-        <div class="summary">
-          <label class="toggle"><input type="checkbox" .checked=${selection.snapEnabled} @change=${(event: Event) => this.dispatchEdit({ kind: 'snap', patch: { enabled: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('snap')}</label>
-          <label class="toggle">px <input type="number" min="1" style="width:68px" .value=${String(selection.snapSize)} @change=${(event: Event) => {
-            const size = this.numberValue(event);
-            if (size !== undefined) this.dispatchEdit({ kind: 'snap', patch: { size } });
-          }}></label>
-          <span class="chip">${this.t('locked')}: ${selection.lockedCount}</span>
-          <span class="chip">${this.t('constraints')}: ${selection.constraintCount}</span>
-          <span class="chip ${diagnosticClass}">${this.t('diagnostics')}: ${diagnostics.applied}/${diagnostics.total}</span>
-        </div>
-        ${single ? html`
-          <div class="grid">
-            ${this.itemField(single.id, 'x', single.frame.x, 'X')}
-            ${this.itemField(single.id, 'y', single.frame.y, 'Y')}
-            ${this.itemField(single.id, 'width', single.frame.width, 'W')}
-            ${this.itemField(single.id, 'height', single.frame.height, 'H')}
-            ${this.optionalItemField(single.id, 'minWidth', single.minWidth, 'min W')}
-            ${this.optionalItemField(single.id, 'minHeight', single.minHeight, 'min H')}
-            ${this.optionalItemField(single.id, 'maxWidth', single.maxWidth, 'max W')}
-            ${this.optionalItemField(single.id, 'maxHeight', single.maxHeight, 'max H')}
-          </div>
-          <label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>
-        ` : nothing}
-        <frakon-canvas-v2-selection-toolbar
-          .document=${this.document}
-          .selectedIds=${this.selectedIds}
-        ></frakon-canvas-v2-selection-toolbar>
-        <frakon-canvas-v2-constraint-editor
-          .document=${this.document}
-          .selectedIds=${this.selectedIds}
-          .language=${this.language}
-        ></frakon-canvas-v2-constraint-editor>
-        ${diagnostics.issues.length ? html`<div class="issues">${diagnostics.issues.map((issue) => html`<div class="issue">${issue.constraintId} · ${issue.status} · ${issue.message}</div>`)}</div>` : nothing}
-      </section>
-    `;
+    return html`<section class="panel">
+      <div class="title"><span>${this.t('inspector')}</span><span>${selection.count} ${this.t('selected')}</span></div>
+      <div class="summary">
+        <label class="toggle"><input type="checkbox" .checked=${selection.snapEnabled} @change=${(event: Event) => this.dispatchEdit({ kind: 'snap', patch: { enabled: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('snap')}</label>
+        <label class="toggle">px <input type="number" min="1" style="width:68px" .value=${String(selection.snapSize)} @change=${(event: Event) => { const size = this.numberValue(event); if (size !== undefined) this.dispatchEdit({ kind: 'snap', patch: { size } }); }}></label>
+        <span class="chip">${this.t('locked')}: ${selection.lockedCount}</span><span class="chip">${this.t('constraints')}: ${selection.constraintCount}</span><span class="chip ${diagnosticClass}">${this.t('diagnostics')}: ${diagnostics.applied}/${diagnostics.total}</span>
+      </div>
+      ${single ? html`<div class="grid">${this.itemField(single.id,'x',single.frame.x,'X')}${this.itemField(single.id,'y',single.frame.y,'Y')}${this.itemField(single.id,'width',single.frame.width,'W')}${this.itemField(single.id,'height',single.frame.height,'H')}${this.optionalItemField(single.id,'minWidth',single.minWidth,'min W')}${this.optionalItemField(single.id,'minHeight',single.minHeight,'min H')}${this.optionalItemField(single.id,'maxWidth',single.maxWidth,'max W')}${this.optionalItemField(single.id,'maxHeight',single.maxHeight,'max H')}</div><label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>` : nothing}
+      <frakon-canvas-v2-selection-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-selection-toolbar>
+      <frakon-canvas-v2-constraint-editor .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-constraint-editor>
+      ${diagnostics.issues.length ? html`<div class="issues">${diagnostics.issues.map((issue) => html`<div class="issue">${issue.constraintId} · ${issue.status} · ${issue.message}</div>`)}</div>` : nothing}
+    </section>`;
   }
 }
 
-declare global {
-  interface HTMLElementTagNameMap {
-    'frakon-canvas-v2-inspector-panel': FrakonCanvasV2InspectorPanel;
-  }
-}
+declare global { interface HTMLElementTagNameMap { 'frakon-canvas-v2-inspector-panel': FrakonCanvasV2InspectorPanel; } }
