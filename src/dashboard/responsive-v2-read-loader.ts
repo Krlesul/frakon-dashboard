@@ -30,7 +30,7 @@ export async function loadResponsiveCanvasV2ReadOnly(
     return { status: 'blocked', capabilities };
   }
 
-  const raw = await transport.request<unknown>(`${namespace}/load_responsive_revision`, {
+  const raw = await transport.request<unknown>(`${namespace}/load_responsive_bundle_revision`, {
     dashboard_id: dashboardId,
   });
   if (raw == null) return { status: 'absent', capabilities };
