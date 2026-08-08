@@ -3,6 +3,7 @@ import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import {
   createResponsiveCanvasV2Bundle,
   isResponsiveCanvasV2Bundle,
+  RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
   responsiveCanvasV2BundleDocument,
 } from './responsive-v2-bundle';
 
@@ -80,6 +81,16 @@ describe('responsive canvas v2 bundle', () => {
       frame: { x: 0, y: index * 2, width: 1, height: 1 },
     }));
     const bundle = createResponsiveCanvasV2Bundle({ mobile, desktop }, 'desktop');
+    expect(isResponsiveCanvasV2Bundle(bundle)).toBe(false);
+  });
+
+  it('rejects a JSON-serializable bundle larger than the storage quota', () => {
+    const desktop = doc('desktop', 1280);
+    desktop.items[0].card = {
+      type: 'custom:a',
+      payload: 'x'.repeat(RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES),
+    };
+    const bundle = createResponsiveCanvasV2Bundle({ desktop }, 'desktop');
     expect(isResponsiveCanvasV2Bundle(bundle)).toBe(false);
   });
 });
