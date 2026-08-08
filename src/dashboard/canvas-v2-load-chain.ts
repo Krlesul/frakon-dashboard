@@ -40,7 +40,7 @@ export async function loadCanvasV2HomeAssistantChain(
   if (capabilities.responsiveCanvasV2.read
     && capabilities.responsiveCanvasV2.atomicRevision
     && capabilities.revisionSync) {
-    const rawResponsive = await transport.request<unknown>(`${namespace}/load_responsive_revision`, {
+    const rawResponsive = await transport.request<unknown>(`${namespace}/load_responsive_bundle_revision`, {
       dashboard_id: dashboardId,
     });
     if (rawResponsive != null) {
