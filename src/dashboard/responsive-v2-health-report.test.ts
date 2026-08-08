@@ -89,8 +89,9 @@ describe('responsive canvas v2 health report', () => {
 
   it('builds the same blocked production snapshot from editor-owned state', () => {
     const controller = new ResponsiveV2DraftController(document());
+    const serverCapabilities = capabilities(false);
     const report = responsiveCanvasV2HealthReportFromEditorState({
-      capabilities: capabilities(false),
+      capabilities: serverCapabilities,
       revision: 'r12',
       controller,
     });
@@ -103,5 +104,18 @@ describe('responsive canvas v2 health report', () => {
       storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
       dirtyBreakpoints: [],
     });
+    expect(report.editorContext).toEqual({
+      capabilities: serverCapabilities,
+      controller,
+      baseRevision: 'r12',
+      hasUnresolvedConflict: false,
+    });
+  });
+
+  it('does not invent editor persistence context when controller or capabilities are missing', () => {
+    const controllerOnly = responsiveCanvasV2HealthReportFromEditorState({ controller: new ResponsiveV2DraftController(document()) });
+    const capabilitiesOnly = responsiveCanvasV2HealthReportFromEditorState({ capabilities: capabilities(false) });
+    expect(controllerOnly.editorContext).toBeUndefined();
+    expect(capabilitiesOnly.editorContext).toBeUndefined();
   });
 });
