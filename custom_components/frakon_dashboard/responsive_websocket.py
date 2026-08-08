@@ -22,6 +22,7 @@ from .const import (
     RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
+from .responsive_constraint_validation import validate_responsive_constraints
 from .responsive_storage import FrakonResponsiveDashboardStorage
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,11 +79,12 @@ def _validate_canvas_document(document: dict[str, Any], dashboard_id: str, break
         seen_ids.add(item_id)
         _validate_frame(item.get("frame"), item_id=item_id)
 
-    constraints = document.get("constraints", [])
-    if not isinstance(constraints, list) or len(constraints) > RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS:
-        raise vol.Invalid(
-            f"Responsive breakpoint constraints must be a list with at most {RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS} entries."
-        )
+    validate_responsive_constraints(
+        document.get("constraints", []),
+        item_ids=seen_ids,
+        breakpoint=breakpoint,
+        max_constraints=RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+    )
 
     layout = document.get("layout")
     if not isinstance(layout, dict) or layout.get("mode") != "canvas":
