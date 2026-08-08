@@ -15,6 +15,10 @@ export const RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS = 4000;
 export const RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES = 2_000_000;
 
 const BREAKPOINTS: FrakonBreakpoint[] = ['mobile', 'tablet', 'desktop', 'wide'];
+const CONSTRAINT_KINDS = new Set([
+  'align-left', 'align-center-x', 'align-right', 'align-top', 'align-center-y', 'align-bottom',
+  'below', 'right-of', 'match-width', 'match-height',
+]);
 const RESPONSIVE_BUNDLE_CARRIER = Symbol('frakon-responsive-canvas-v2-bundle');
 
 type ResponsiveBundleCarrierDocument = FrakonDashboardDocumentV2 & {
@@ -37,10 +41,50 @@ function serializedUtf8Bytes(value: unknown): number | undefined {
   }
 }
 
+function hasConstraintCycle(document: FrakonDashboardDocumentV2): boolean {
+  const graph = new Map<string, string[]>();
+  for (const constraint of document.constraints ?? []) {
+    if (constraint.enabled === false) continue;
+    const edges = graph.get(constraint.sourceId) ?? [];
+    edges.push(constraint.targetId);
+    graph.set(constraint.sourceId, edges);
+  }
+  const state = new Map<string, 0 | 1 | 2>();
+  const visit = (id: string): boolean => {
+    const current = state.get(id) ?? 0;
+    if (current === 1) return true;
+    if (current === 2) return false;
+    state.set(id, 1);
+    for (const target of graph.get(id) ?? []) {
+      if (visit(target)) return true;
+    }
+    state.set(id, 2);
+    return false;
+  };
+  return [...graph.keys()].some(visit);
+}
+
+function validConstraints(document: FrakonDashboardDocumentV2, itemIds: ReadonlySet<string>): boolean {
+  const constraints = document.constraints ?? [];
+  if (constraints.length > RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS) return false;
+  const ids = new Set<string>();
+  for (const constraint of constraints) {
+    if (!constraint || typeof constraint !== 'object') return false;
+    if (!constraint.id || ids.has(constraint.id)) return false;
+    ids.add(constraint.id);
+    if (!CONSTRAINT_KINDS.has(constraint.kind)) return false;
+    if (!itemIds.has(constraint.sourceId) || !itemIds.has(constraint.targetId)) return false;
+    if (constraint.sourceId === constraint.targetId) return false;
+    if (constraint.gap !== undefined && !Number.isFinite(constraint.gap)) return false;
+    if (constraint.priority !== undefined && !Number.isFinite(constraint.priority)) return false;
+    if (constraint.enabled !== undefined && typeof constraint.enabled !== 'boolean') return false;
+  }
+  return !hasConstraintCycle(document);
+}
+
 function validDocumentSafety(document: FrakonDashboardDocumentV2): boolean {
   if (!finitePositive(document.layout.width) || !finitePositive(document.layout.minHeight)) return false;
   if (document.items.length > RESPONSIVE_CANVAS_V2_MAX_ITEMS) return false;
-  if ((document.constraints?.length ?? 0) > RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS) return false;
   const ids = new Set<string>();
   for (const item of document.items) {
     if (!item.id || ids.has(item.id)) return false;
@@ -48,7 +92,7 @@ function validDocumentSafety(document: FrakonDashboardDocumentV2): boolean {
     if (!finiteNonNegative(item.frame.x) || !finiteNonNegative(item.frame.y)) return false;
     if (!finitePositive(item.frame.width) || !finitePositive(item.frame.height)) return false;
   }
-  return true;
+  return validConstraints(document, ids);
 }
 
 export function createResponsiveCanvasV2Bundle(
