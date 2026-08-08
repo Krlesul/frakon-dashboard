@@ -1,95 +1,33 @@
 import { resolveLanguage, type SupportedLanguage } from '../i18n';
 
 export type CanvasDashboardTranslationKey =
-  | 'experimentalCanvas'
-  | 'compatibleCommit'
-  | 'v2ReadReady'
-  | 'v2ReadBlocked'
-  | 'v2WriteReady'
-  | 'v2WriteBlocked'
-  | 'v2NativeReadOnly'
-  | 'v2DraftUnsaved'
-  | 'discardDraft'
-  | 'draftDiscarded'
-  | 'undo'
-  | 'redo'
-  | 'capabilityFailed'
-  | 'changeCommitted'
-  | 'collisionBlocked'
-  | 'migrationPreview'
-  | 'cards'
-  | 'lockedCards'
-  | 'constraints'
-  | 'writeLocked'
-  | 'inspector'
-  | 'selected'
-  | 'snap'
-  | 'off'
-  | 'locked'
-  | 'diagnostics'
-  | 'constraintEditor'
-  | 'addConstraint'
-  | 'removeConstraint'
-  | 'constraintKind'
-  | 'constraintTarget'
-  | 'constraintGap'
-  | 'constraintPriority'
-  | 'enabled';
+  | 'experimentalCanvas' | 'compatibleCommit' | 'v2ReadReady' | 'v2ReadBlocked' | 'v2WriteReady' | 'v2WriteBlocked'
+  | 'v2NativeReadOnly' | 'v2DraftUnsaved' | 'discardDraft' | 'draftDiscarded' | 'undo' | 'redo' | 'capabilityFailed'
+  | 'changeCommitted' | 'collisionBlocked' | 'migrationPreview' | 'cards' | 'lockedCards' | 'constraints' | 'writeLocked'
+  | 'inspector' | 'selected' | 'snap' | 'off' | 'locked' | 'diagnostics' | 'constraintEditor' | 'addConstraint'
+  | 'removeConstraint' | 'constraintKind' | 'constraintTarget' | 'constraintGap' | 'constraintPriority' | 'enabled'
+  | 'alignLeft' | 'alignCenterX' | 'alignRight' | 'alignTop' | 'alignCenterY' | 'alignBottom' | 'matchWidth' | 'matchHeight'
+  | 'distributeHorizontal' | 'distributeVertical' | 'equalGapHorizontal' | 'equalGapVertical' | 'selectionActionInvalid' | 'selectionCollision';
 
 type Messages = Record<CanvasDashboardTranslationKey, string>;
 
-const messages: Record<SupportedLanguage, Messages> = {
-  en: {
-    experimentalCanvas: 'Experimental canvas', compatibleCommit: 'v1 compatible commit',
-    v2ReadReady: 'v2 read ready', v2ReadBlocked: 'v2 read blocked', v2WriteReady: 'v2 write ready', v2WriteBlocked: 'v2 write blocked', v2NativeReadOnly: 'native v2 · read only',
-    v2DraftUnsaved: 'native v2 · unsaved local draft', discardDraft: 'Discard draft', draftDiscarded: 'Local v2 draft discarded; server revision restored.', undo: 'Undo', redo: 'Redo',
-    capabilityFailed: 'Capability negotiation failed', changeCommitted: 'Canvas change committed to compatible grid storage.',
-    collisionBlocked: 'Canvas change blocked by collision', migrationPreview: 'v2 migration preview', cards: 'cards', lockedCards: 'locked', constraints: 'constraints', writeLocked: 'write locked',
-    inspector: 'Inspector', selected: 'selected', snap: 'Snap', off: 'off', locked: 'Locked', diagnostics: 'Diagnostics',
-    constraintEditor: 'Constraint editor', addConstraint: 'Add constraint', removeConstraint: 'Remove', constraintKind: 'Type', constraintTarget: 'Target', constraintGap: 'Gap', constraintPriority: 'Priority', enabled: 'Enabled',
-  },
-  cs: {
-    experimentalCanvas: 'Experimentální canvas', compatibleCommit: 'kompatibilní zápis v1',
-    v2ReadReady: 'čtení v2 připraveno', v2ReadBlocked: 'čtení v2 blokováno', v2WriteReady: 'zápis v2 připraven', v2WriteBlocked: 'zápis v2 blokován', v2NativeReadOnly: 'nativní v2 · pouze čtení',
-    v2DraftUnsaved: 'nativní v2 · neuložený lokální návrh', discardDraft: 'Zahodit návrh', draftDiscarded: 'Lokální návrh v2 byl zahozen a obnovena serverová revize.', undo: 'Zpět', redo: 'Znovu',
-    capabilityFailed: 'Vyjednání schopností serveru selhalo', changeCommitted: 'Změna canvasu byla bezpečně uložena do kompatibilního gridu.',
-    collisionBlocked: 'Změna canvasu byla zablokována kvůli kolizi', migrationPreview: 'náhled migrace v2', cards: 'karet', lockedCards: 'zamčených', constraints: 'vazeb', writeLocked: 'zápis zamčen',
-    inspector: 'Inspektor', selected: 'vybráno', snap: 'Přichytávání', off: 'vypnuto', locked: 'Zamčeno', diagnostics: 'Diagnostika',
-    constraintEditor: 'Editor vazeb', addConstraint: 'Přidat vazbu', removeConstraint: 'Odebrat', constraintKind: 'Typ', constraintTarget: 'Cíl', constraintGap: 'Odstup', constraintPriority: 'Priorita', enabled: 'Aktivní',
-  },
-  de: {
-    experimentalCanvas: 'Experimentelle Canvas-Fläche', compatibleCommit: 'v1-kompatibles Speichern',
-    v2ReadReady: 'v2 Lesen bereit', v2ReadBlocked: 'v2 Lesen blockiert', v2WriteReady: 'v2 Schreiben bereit', v2WriteBlocked: 'v2 Schreiben blockiert', v2NativeReadOnly: 'natives v2 · nur Lesen',
-    v2DraftUnsaved: 'natives v2 · ungespeicherter lokaler Entwurf', discardDraft: 'Entwurf verwerfen', draftDiscarded: 'Lokaler v2-Entwurf verworfen; Serverrevision wiederhergestellt.', undo: 'Rückgängig', redo: 'Wiederholen',
-    capabilityFailed: 'Aushandlung der Serverfähigkeiten fehlgeschlagen', changeCommitted: 'Canvas-Änderung wurde kompatibel im Grid gespeichert.',
-    collisionBlocked: 'Canvas-Änderung wegen Kollision blockiert', migrationPreview: 'v2-Migrationsvorschau', cards: 'Karten', lockedCards: 'gesperrt', constraints: 'Constraints', writeLocked: 'Schreiben gesperrt',
-    inspector: 'Inspektor', selected: 'ausgewählt', snap: 'Raster', off: 'aus', locked: 'Gesperrt', diagnostics: 'Diagnose',
-    constraintEditor: 'Constraint-Editor', addConstraint: 'Constraint hinzufügen', removeConstraint: 'Entfernen', constraintKind: 'Typ', constraintTarget: 'Ziel', constraintGap: 'Abstand', constraintPriority: 'Priorität', enabled: 'Aktiv',
-  },
-  sk: {
-    experimentalCanvas: 'Experimentálny canvas', compatibleCommit: 'kompatibilný zápis v1',
-    v2ReadReady: 'čítanie v2 pripravené', v2ReadBlocked: 'čítanie v2 blokované', v2WriteReady: 'zápis v2 pripravený', v2WriteBlocked: 'zápis v2 blokovaný', v2NativeReadOnly: 'natívne v2 · iba čítanie',
-    v2DraftUnsaved: 'natívne v2 · neuložený lokálny návrh', discardDraft: 'Zahodiť návrh', draftDiscarded: 'Lokálny návrh v2 bol zahodený a obnovená serverová revízia.', undo: 'Späť', redo: 'Znova',
-    capabilityFailed: 'Vyjednanie schopností servera zlyhalo', changeCommitted: 'Zmena canvasu bola bezpečne uložená do kompatibilného gridu.',
-    collisionBlocked: 'Zmena canvasu bola zablokovaná pre kolíziu', migrationPreview: 'náhled migrácie v2', cards: 'kariet', lockedCards: 'zamknutých', constraints: 'väzieb', writeLocked: 'zápis zamknutý',
-    inspector: 'Inšpektor', selected: 'vybrané', snap: 'Prichytávanie', off: 'vypnuté', locked: 'Zamknuté', diagnostics: 'Diagnostika',
-    constraintEditor: 'Editor väzieb', addConstraint: 'Pridať väzbu', removeConstraint: 'Odobrať', constraintKind: 'Typ', constraintTarget: 'Cieľ', constraintGap: 'Odstup', constraintPriority: 'Priorita', enabled: 'Aktívna',
-  },
-  pl: {
-    experimentalCanvas: 'Eksperymentalny canvas', compatibleCommit: 'zapis zgodny z v1',
-    v2ReadReady: 'odczyt v2 gotowy', v2ReadBlocked: 'odczyt v2 zablokowany', v2WriteReady: 'zapis v2 gotowy', v2WriteBlocked: 'zapis v2 zablokowany', v2NativeReadOnly: 'natywny v2 · tylko odczyt',
-    v2DraftUnsaved: 'natywny v2 · niezapisany lokalny szkic', discardDraft: 'Odrzuć szkic', draftDiscarded: 'Lokalny szkic v2 odrzucony; przywrócono rewizję serwera.', undo: 'Cofnij', redo: 'Ponów',
-    capabilityFailed: 'Negocjacja możliwości serwera nie powiodła się', changeCommitted: 'Zmiana canvasu została bezpiecznie zapisana w zgodnej siatce.',
-    collisionBlocked: 'Zmiana canvasu zablokowana z powodu kolizji', migrationPreview: 'podgląd migracji v2', cards: 'kart', lockedCards: 'zablokowanych', constraints: 'powiązań', writeLocked: 'zapis zablokowany',
-    inspector: 'Inspektor', selected: 'wybrano', snap: 'Przyciąganie', off: 'wyłączone', locked: 'Zablokowane', diagnostics: 'Diagnostyka',
-    constraintEditor: 'Edytor powiązań', addConstraint: 'Dodaj powiązanie', removeConstraint: 'Usuń', constraintKind: 'Typ', constraintTarget: 'Cel', constraintGap: 'Odstęp', constraintPriority: 'Priorytet', enabled: 'Aktywne',
-  },
+const common = {
+  en: { alignLeft:'Align left',alignCenterX:'Align horizontal center',alignRight:'Align right',alignTop:'Align top',alignCenterY:'Align vertical center',alignBottom:'Align bottom',matchWidth:'Match width',matchHeight:'Match height',distributeHorizontal:'Distribute horizontal centers',distributeVertical:'Distribute vertical centers',equalGapHorizontal:'Equal horizontal gaps',equalGapVertical:'Equal vertical gaps',selectionActionInvalid:'Invalid selection action.',selectionCollision:'Selection action blocked by collision' },
+  cs: { alignLeft:'Zarovnat vlevo',alignCenterX:'Zarovnat vodorovně na střed',alignRight:'Zarovnat vpravo',alignTop:'Zarovnat nahoru',alignCenterY:'Zarovnat svisle na střed',alignBottom:'Zarovnat dolů',matchWidth:'Sjednotit šířku',matchHeight:'Sjednotit výšku',distributeHorizontal:'Rozmístit vodorovně',distributeVertical:'Rozmístit svisle',equalGapHorizontal:'Stejné vodorovné mezery',equalGapVertical:'Stejné svislé mezery',selectionActionInvalid:'Neplatná operace výběru.',selectionCollision:'Operace výběru zablokována kolizí' },
+  de: { alignLeft:'Links ausrichten',alignCenterX:'Horizontal zentrieren',alignRight:'Rechts ausrichten',alignTop:'Oben ausrichten',alignCenterY:'Vertikal zentrieren',alignBottom:'Unten ausrichten',matchWidth:'Breite angleichen',matchHeight:'Höhe angleichen',distributeHorizontal:'Horizontal verteilen',distributeVertical:'Vertikal verteilen',equalGapHorizontal:'Gleiche horizontale Abstände',equalGapVertical:'Gleiche vertikale Abstände',selectionActionInvalid:'Ungültige Auswahlaktion.',selectionCollision:'Auswahlaktion wegen Kollision blockiert' },
+  sk: { alignLeft:'Zarovnať vľavo',alignCenterX:'Zarovnať vodorovne na stred',alignRight:'Zarovnať vpravo',alignTop:'Zarovnať hore',alignCenterY:'Zarovnať zvisle na stred',alignBottom:'Zarovnať dole',matchWidth:'Zjednotiť šírku',matchHeight:'Zjednotiť výšku',distributeHorizontal:'Rozmiestniť vodorovne',distributeVertical:'Rozmiestniť zvisle',equalGapHorizontal:'Rovnaké vodorovné medzery',equalGapVertical:'Rovnaké zvislé medzery',selectionActionInvalid:'Neplatná operácia výberu.',selectionCollision:'Operácia výberu zablokovaná kolíziou' },
+  pl: { alignLeft:'Wyrównaj do lewej',alignCenterX:'Wyśrodkuj poziomo',alignRight:'Wyrównaj do prawej',alignTop:'Wyrównaj do góry',alignCenterY:'Wyśrodkuj pionowo',alignBottom:'Wyrównaj do dołu',matchWidth:'Ujednolić szerokość',matchHeight:'Ujednolić wysokość',distributeHorizontal:'Rozmieść poziomo',distributeVertical:'Rozmieść pionowo',equalGapHorizontal:'Równe odstępy poziome',equalGapVertical:'Równe odstępy pionowe',selectionActionInvalid:'Nieprawidłowa operacja zaznaczenia.',selectionCollision:'Operacja zaznaczenia zablokowana przez kolizję' },
+} satisfies Record<SupportedLanguage, Partial<Messages>>;
+
+const base: Record<SupportedLanguage, Omit<Messages, keyof typeof common.en>> = {
+  en: { experimentalCanvas:'Experimental canvas',compatibleCommit:'v1 compatible commit',v2ReadReady:'v2 read ready',v2ReadBlocked:'v2 read blocked',v2WriteReady:'v2 write ready',v2WriteBlocked:'v2 write blocked',v2NativeReadOnly:'native v2 · read only',v2DraftUnsaved:'native v2 · unsaved local draft',discardDraft:'Discard draft',draftDiscarded:'Local v2 draft discarded; server revision restored.',undo:'Undo',redo:'Redo',capabilityFailed:'Capability negotiation failed',changeCommitted:'Canvas change committed to compatible grid storage.',collisionBlocked:'Canvas change blocked by collision',migrationPreview:'v2 migration preview',cards:'cards',lockedCards:'locked',constraints:'constraints',writeLocked:'write locked',inspector:'Inspector',selected:'selected',snap:'Snap',off:'off',locked:'Locked',diagnostics:'Diagnostics',constraintEditor:'Constraint editor',addConstraint:'Add constraint',removeConstraint:'Remove',constraintKind:'Type',constraintTarget:'Target',constraintGap:'Gap',constraintPriority:'Priority',enabled:'Enabled' },
+  cs: { experimentalCanvas:'Experimentální canvas',compatibleCommit:'kompatibilní zápis v1',v2ReadReady:'čtení v2 připraveno',v2ReadBlocked:'čtení v2 blokováno',v2WriteReady:'zápis v2 připraven',v2WriteBlocked:'zápis v2 blokován',v2NativeReadOnly:'nativní v2 · pouze čtení',v2DraftUnsaved:'nativní v2 · neuložený lokální návrh',discardDraft:'Zahodit návrh',draftDiscarded:'Lokální návrh v2 byl zahozen a obnovena serverová revize.',undo:'Zpět',redo:'Znovu',capabilityFailed:'Vyjednání schopností serveru selhalo',changeCommitted:'Změna canvasu byla bezpečně uložena do kompatibilního gridu.',collisionBlocked:'Změna canvasu byla zablokována kvůli kolizi',migrationPreview:'náhled migrace v2',cards:'karet',lockedCards:'zamčených',constraints:'vazeb',writeLocked:'zápis zamčen',inspector:'Inspektor',selected:'vybráno',snap:'Přichytávání',off:'vypnuto',locked:'Zamčeno',diagnostics:'Diagnostika',constraintEditor:'Editor vazeb',addConstraint:'Přidat vazbu',removeConstraint:'Odebrat',constraintKind:'Typ',constraintTarget:'Cíl',constraintGap:'Odstup',constraintPriority:'Priorita',enabled:'Aktivní' },
+  de: { experimentalCanvas:'Experimentelle Canvas-Fläche',compatibleCommit:'v1-kompatibles Speichern',v2ReadReady:'v2 Lesen bereit',v2ReadBlocked:'v2 Lesen blockiert',v2WriteReady:'v2 Schreiben bereit',v2WriteBlocked:'v2 Schreiben blockiert',v2NativeReadOnly:'natives v2 · nur Lesen',v2DraftUnsaved:'natives v2 · ungespeicherter lokaler Entwurf',discardDraft:'Entwurf verwerfen',draftDiscarded:'Lokaler v2-Entwurf verworfen; Serverrevision wiederhergestellt.',undo:'Rückgängig',redo:'Wiederholen',capabilityFailed:'Aushandlung der Serverfähigkeiten fehlgeschlagen',changeCommitted:'Canvas-Änderung wurde kompatibel im Grid gespeichert.',collisionBlocked:'Canvas-Änderung wegen Kollision blockiert',migrationPreview:'v2-Migrationsvorschau',cards:'Karten',lockedCards:'gesperrt',constraints:'Constraints',writeLocked:'Schreiben gesperrt',inspector:'Inspektor',selected:'ausgewählt',snap:'Raster',off:'aus',locked:'Gesperrt',diagnostics:'Diagnose',constraintEditor:'Constraint-Editor',addConstraint:'Constraint hinzufügen',removeConstraint:'Entfernen',constraintKind:'Typ',constraintTarget:'Ziel',constraintGap:'Abstand',constraintPriority:'Priorität',enabled:'Aktiv' },
+  sk: { experimentalCanvas:'Experimentálny canvas',compatibleCommit:'kompatibilný zápis v1',v2ReadReady:'čítanie v2 pripravené',v2ReadBlocked:'čítanie v2 blokované',v2WriteReady:'zápis v2 pripravený',v2WriteBlocked:'zápis v2 blokovaný',v2NativeReadOnly:'natívne v2 · iba čítanie',v2DraftUnsaved:'natívne v2 · neuložený lokálny návrh',discardDraft:'Zahodiť návrh',draftDiscarded:'Lokálny návrh v2 bol zahodený a obnovená serverová revízia.',undo:'Späť',redo:'Znova',capabilityFailed:'Vyjednanie schopností servera zlyhalo',changeCommitted:'Zmena canvasu bola bezpečne uložená do kompatibilného gridu.',collisionBlocked:'Zmena canvasu bola zablokovaná pre kolíziu',migrationPreview:'náhled migrácie v2',cards:'kariet',lockedCards:'zamknutých',constraints:'väzieb',writeLocked:'zápis zamknutý',inspector:'Inšpektor',selected:'vybrané',snap:'Prichytávanie',off:'vypnuté',locked:'Zamknuté',diagnostics:'Diagnostika',constraintEditor:'Editor väzieb',addConstraint:'Pridať väzbu',removeConstraint:'Odobrať',constraintKind:'Typ',constraintTarget:'Cieľ',constraintGap:'Odstup',constraintPriority:'Priorita',enabled:'Aktívna' },
+  pl: { experimentalCanvas:'Eksperymentalny canvas',compatibleCommit:'zapis zgodny z v1',v2ReadReady:'odczyt v2 gotowy',v2ReadBlocked:'odczyt v2 zablokowany',v2WriteReady:'zapis v2 gotowy',v2WriteBlocked:'zapis v2 zablokowany',v2NativeReadOnly:'natywny v2 · tylko odczyt',v2DraftUnsaved:'natywny v2 · niezapisany lokalny szkic',discardDraft:'Odrzuć szkic',draftDiscarded:'Lokalny szkic v2 odrzucony; przywrócono rewizję serwera.',undo:'Cofnij',redo:'Ponów',capabilityFailed:'Negocjacja możliwości serwera nie powiodła się',changeCommitted:'Zmiana canvasu została bezpiecznie zapisana w zgodnej siatce.',collisionBlocked:'Zmiana canvasu zablokowana z powodu kolizji',migrationPreview:'podgląd migracji v2',cards:'kart',lockedCards:'zablokowanych',constraints:'powiązań',writeLocked:'zapis zablokowany',inspector:'Inspektor',selected:'wybrano',snap:'Przyciąganie',off:'wyłączone',locked:'Zablokowane',diagnostics:'Diagnostyka',constraintEditor:'Edytor powiązań',addConstraint:'Dodaj powiązanie',removeConstraint:'Usuń',constraintKind:'Typ',constraintTarget:'Cel',constraintGap:'Odstęp',constraintPriority:'Priorytet',enabled:'Aktywne' },
 };
 
-export function resolveCanvasDashboardLanguage(...candidates: Array<string | undefined>): SupportedLanguage {
-  return resolveLanguage(...candidates);
-}
+const messages = Object.fromEntries(Object.entries(base).map(([language, values]) => [language, { ...values, ...common[language as SupportedLanguage] }])) as Record<SupportedLanguage, Messages>;
 
-export function canvasDashboardTranslate(language: SupportedLanguage, key: CanvasDashboardTranslationKey): string {
-  return messages[language][key] ?? messages.en[key] ?? key;
-}
+export function resolveCanvasDashboardLanguage(...candidates: Array<string | undefined>): SupportedLanguage { return resolveLanguage(...candidates); }
+export function canvasDashboardTranslate(language: SupportedLanguage, key: CanvasDashboardTranslationKey): string { return messages[language][key] ?? messages.en[key] ?? key; }
