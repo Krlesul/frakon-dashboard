@@ -16,7 +16,7 @@ The expected file name is exactly:
 frakon-dashboard.js
 ```
 
-## 2. Copy the bundle into Home Assistant
+## 2. Copy the frontend and backend into Home Assistant
 
 Create this directory if it does not exist:
 
@@ -28,6 +28,24 @@ Copy the downloaded bundle to:
 
 ```text
 /config/www/frakon-dashboard/frakon-dashboard.js
+```
+
+For server-side persistence also copy:
+
+```text
+custom_components/frakon_dashboard
+```
+
+to:
+
+```text
+/config/custom_components/frakon_dashboard
+```
+
+Restart Home Assistant and add **FRAKON Dashboard** from:
+
+```text
+Settings → Devices & services → Add integration
 ```
 
 ## 3. Register the Lovelace resource
@@ -52,7 +70,7 @@ JavaScript module
 
 If the resource already exists, change the query suffix after every copied build, for example from `alpha-1` to `alpha-2`. This avoids browser and service-worker cache confusion during development.
 
-## 4. Create the first test card
+## 4. Test the stable grid dashboard first
 
 Add a Manual card with:
 
@@ -66,7 +84,7 @@ columns: 12
 row_height: 48
 gap: 12
 edit_mode: true
-storage: local
+storage: home-assistant
 responsive_columns:
   mobile: 4
   tablet: 8
@@ -77,36 +95,98 @@ items: []
 
 The `entity` field is currently required by the Home Assistant card contract but is not used as the dashboard's only data source.
 
-## 5. Functional smoke test
+## 5. Stable editor smoke test
 
 Confirm the following in this order:
 
 - FRAKON Dashboard renders without a red custom-element error.
 - The editor language follows `language: cs`.
-- `Přidat FRAKON kartu` opens the card palette.
-- A Light or Sensor card can be added and assigned to a real entity.
-- The card can be resized, moved, locked and removed.
+- A FRAKON card can be added and assigned to a real Home Assistant entity.
+- The card can be moved and resized with pointer handles.
+- Multi-selection and marquee selection work.
+- Locked cards remain immovable.
+- Collision feedback prevents invalid commits.
 - Undo and Redo restore layout changes.
-- Export downloads a dashboard JSON file.
-- Import restores the exported file.
-- Reloading the browser restores the local layout.
-- `Automaticky uspořádat` opens preview mode.
-- `Další návrh` produces a different deterministic layout.
-- `Použít návrh` saves the proposal and adds it to Undo history.
-- `Vrátit původní` exits preview without changing the stored dashboard.
+- Reloading another browser or device restores the server-side layout.
+- Export and Import preserve the dashboard.
+- Automatic layout preview can be generated, applied and restored.
 
-## 6. Responsive test
+## 6. Experimental native canvas v2
 
-Test the same dashboard at these approximate viewport widths:
+Add a second Manual card using the same backend but a separate dashboard ID:
+
+```yaml
+type: custom:frakon-canvas-dashboard-card
+entity: sensor.placeholder
+dashboard_id: frakon-canvas-alpha-test
+title: FRAKON Canvas Alpha Test
+language: cs
+edit_mode: true
+storage: home-assistant
+items: []
+```
+
+The native v2 editor currently supports local-draft editing with:
+
+- free pixel move and resize,
+- multi-select and marquee,
+- constraints and live constraint diagnostics,
+- alignment guidelines,
+- align/distribute/equal-gap actions,
+- layers / z-order,
+- duplicate and delete,
+- Undo / Redo,
+- zoom, pan, wheel zoom and pinch-to-zoom,
+- per-device viewport memory,
+- Mobile / Tablet / Desktop / Wide breakpoint drafts.
+
+Responsive v2 server **reads** are enabled. Responsive v2 server **writes remain intentionally locked** during this alpha stage. The save-readiness model must therefore report `write-disabled` and no responsive save request should mutate Home Assistant storage.
+
+## 7. Responsive breakpoint test
+
+Use these breakpoint boundaries:
 
 - mobile: below 600 px
 - tablet: 600–1023 px
-- desktop: 1024–1439 px
-- wide: 1440 px and above
+- desktop: 1024–1599 px
+- wide: 1600 px and above
 
-Check that cards stay within the configured column count and no card overlaps another card.
+For native v2, verify:
 
-## 7. Browser console check
+- each breakpoint can keep different frame geometry,
+- switching breakpoints preserves each local Undo/Redo timeline,
+- shared card configuration remains synchronized,
+- zoom/pan memory is independent per breakpoint and device,
+- Auto mode follows viewport width,
+- Manual mode keeps the explicitly selected breakpoint after resize.
+
+## 8. Responsive storage isolation test
+
+Responsive bundles use a dedicated Home Assistant Store namespace and must not overwrite legacy/single-document dashboard data.
+
+Use the same `dashboard_id` for a legacy/single-v2 test document and a responsive bundle test. Verify that:
+
+1. `frakon/dashboard/load_revision` still returns the legacy/single-document revision.
+2. `frakon/dashboard/load_responsive_bundle_revision` independently returns the responsive bundle revision or `null`.
+3. Loading the experimental canvas prefers the responsive bundle when present.
+4. If the responsive bundle is absent, the client falls back to single-v2 and then v1.
+5. A malformed responsive bundle is reported as invalid and is not silently hidden behind fallback data.
+
+## 9. Responsive write-safety test
+
+Before responsive writes are intentionally enabled, verify all of the following:
+
+- server capabilities report `responsiveCanvasV2.read = true`,
+- server capabilities report `responsiveCanvasV2.write = false`,
+- `atomicRevision = true`,
+- the Save Readiness model lists `write-disabled`,
+- the Save control remains disabled,
+- a direct `save_responsive_revision` attempt is rejected with `unsupported_responsive_write`,
+- the responsive Home Assistant Store remains unchanged after the rejected request.
+
+Do not enable the responsive write allowlist until real-device round-trip, restart recovery and multi-device conflict tests pass.
+
+## 10. Browser console check
 
 Open the browser developer console and record:
 
@@ -114,7 +194,8 @@ Open the browser developer console and record:
 - failed requests for `frakon-dashboard.js`,
 - custom element registration errors,
 - Home Assistant card creation errors,
-- storage errors.
+- WebSocket capability/load errors,
+- storage or revision errors.
 
 When reporting a problem, include:
 
@@ -126,10 +207,10 @@ When reporting a problem, include:
 - screenshot or screen recording,
 - exported FRAKON dashboard JSON when the issue concerns layout.
 
-## 8. Current expected limitations
+## 11. Current expected limitations
 
-- `storage: local` is specific to the current browser profile.
-- `storage: home-assistant` requires FRAKON WebSocket backend handlers that are not yet shipped by this frontend repository.
-- The current grid editor is not yet the final free-canvas Dashboard Studio.
-- Automatic importance scoring is currently based on card type and optional manual `priority` metadata; live contextual AI scoring will be added later.
-- Public HACS release installation is not ready yet; this test uses the verified CI artifact.
+- Public HACS release installation is not ready yet; this test still uses the verified CI artifact and manual backend copy.
+- Responsive v2 writes are deliberately disabled even though the validated transport and conflict-resolution layers are already implemented.
+- The experimental canvas is not yet the recommended sole production editor.
+- Automatic importance scoring is currently based on card type and optional manual `priority` metadata; full live contextual AI scoring will be added later.
+- Real-device testing across multiple Home Assistant installations is still required before the responsive write gate is opened.
