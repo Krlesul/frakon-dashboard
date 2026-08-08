@@ -1,5 +1,8 @@
 import type { DashboardStorageTransport } from './dashboard-storage';
-import type { DashboardServerCapabilities } from './dashboard-server-capabilities';
+import {
+  RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+  type DashboardServerCapabilities,
+} from './dashboard-server-capabilities';
 import type { ResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
 import type { ResponsiveCanvasV2RevisionEnvelope } from './responsive-v2-revision';
 import {
@@ -49,6 +52,7 @@ export async function persistResponsiveCanvasV2Revision(
     | { status: 'saved'; envelope: ServerResponsiveRevisionEnvelope }
     | { status: 'conflict'; remote: ServerResponsiveRevisionEnvelope }
   >(`${namespace}/save_responsive_revision`, {
+    contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
     envelope: {
       document: structuredClone(envelope.bundle),
       revision: envelope.revision,
