@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DashboardStorageTransport } from './dashboard-storage';
+import { RESPONSIVE_CANVAS_V2_CONTRACT_VERSION } from './dashboard-server-capabilities';
 import { loadResponsiveCanvasV2ReadOnly } from './responsive-v2-read-loader';
 
 class Transport implements DashboardStorageTransport {
@@ -15,6 +16,7 @@ class Transport implements DashboardStorageTransport {
         revisionSync: true,
         maxItems: 2000,
         responsiveCanvasV2: {
+          contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
           read: this.responsiveRead,
           write: false,
           atomicRevision: true,
@@ -24,24 +26,16 @@ class Transport implements DashboardStorageTransport {
     }
     return {
       document: {
-        kind: 'responsive-canvas-v2',
-        id: 'home',
-        title: 'Home',
-        defaultBreakpoint: 'desktop',
+        kind: 'responsive-canvas-v2', id: 'home', title: 'Home', defaultBreakpoint: 'desktop',
         documents: {
           desktop: {
-            version: 2,
-            id: 'home',
-            title: 'Home',
-            breakpoint: 'desktop',
+            version: 2, id: 'home', title: 'Home', breakpoint: 'desktop',
             layout: { mode: 'canvas', width: 1440, minHeight: 700, snap: { enabled: true, size: 8 } },
             items: [],
           },
         },
       },
-      revision: 'r1',
-      updatedAt: 10,
-      clientId: 'ha',
+      revision: 'r1', updatedAt: 10, clientId: 'ha',
     } as T;
   }
 }
