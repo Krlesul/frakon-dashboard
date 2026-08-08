@@ -20,6 +20,8 @@ import { loadDashboardV2ReadOnly } from './dashboard-v2-read-loader';
 import { normalizeDashboard, type FrakonBreakpoint, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { ResponsiveV2DraftController, type ResponsiveV2DraftSnapshot } from './responsive-v2-draft-controller';
+import './responsive-v2-health-panel';
+import { responsiveCanvasV2HealthReportFromEditorState } from './responsive-v2-health-report';
 
 export interface FrakonCanvasDashboardCardConfig extends LovelaceCardConfig {
   type: 'custom:frakon-canvas-dashboard-card';
@@ -69,6 +71,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
     h2 { margin: 0; font-size: 21px; }
     .badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .responsive-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .health { margin-bottom: 10px; }
     .dirty-list { font-size: 11px; opacity: .72; }
     .badge { padding: 6px 10px; border-radius: 999px; font-size: 12px; background: color-mix(in srgb, var(--primary-color) 15%, transparent); }
     .experimental { background: color-mix(in srgb, #f0a85a 22%, transparent); }
@@ -372,6 +375,15 @@ export class FrakonCanvasDashboardCard extends LitElement {
 
   private renderNativeV2() {
     if (!this.nativeV2Document) return nothing;
+    const showHealth = this.config?.edit_mode === true && this.config?.storage === 'home-assistant';
+    const healthReport = showHealth
+      ? responsiveCanvasV2HealthReportFromEditorState({
+          capabilities: this.serverCapabilities,
+          revision: this.nativeV2Revision,
+          controller: this.nativeV2DraftController,
+          error: this.capabilitiesError,
+        })
+      : undefined;
     return html`
       <section class="shell" tabindex="0" @keydown=${this.onNativeV2HistoryKeyDown}>
         <header>
@@ -401,6 +413,14 @@ export class FrakonCanvasDashboardCard extends LitElement {
             ${this.nativeV2DirtyBreakpoints.length
               ? html`<span class="dirty-list">unsaved: ${this.nativeV2DirtyBreakpoints.join(' · ')}</span>`
               : nothing}
+          </div>
+        ` : nothing}
+        ${healthReport ? html`
+          <div class="health">
+            <frakon-responsive-v2-health-panel
+              .report=${healthReport}
+              .language=${this.language()}
+            ></frakon-responsive-v2-health-panel>
           </div>
         ` : nothing}
         ${this.capabilitiesError ? html`<div class="message error">${this.t('capabilityFailed')}: ${this.capabilitiesError}</div>` : nothing}
