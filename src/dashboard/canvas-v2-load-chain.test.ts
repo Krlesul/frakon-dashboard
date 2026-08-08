@@ -17,6 +17,7 @@ class Transport implements DashboardStorageTransport {
         revisionSync: true,
         maxItems: 2000,
         responsiveCanvasV2: {
+          contractVersion: 1,
           read: true,
           write: false,
           atomicRevision: true,
@@ -24,7 +25,7 @@ class Transport implements DashboardStorageTransport {
         },
       } as T;
     }
-    if (command.endsWith('/load_responsive_revision')) {
+    if (command.endsWith('/load_responsive_bundle_revision')) {
       if (this.mode === 'responsive') {
         return {
           document: {
@@ -104,7 +105,7 @@ describe('canvas v2 Home Assistant load chain', () => {
     expect(result.status).toBe('responsive');
     expect(transport.requests).toEqual([
       'frakon/dashboard/capabilities',
-      'frakon/dashboard/load_responsive_revision',
+      'frakon/dashboard/load_responsive_bundle_revision',
     ]);
   });
 
@@ -114,7 +115,7 @@ describe('canvas v2 Home Assistant load chain', () => {
     expect(result.status).toBe('single-v2');
     expect(transport.requests).toEqual([
       'frakon/dashboard/capabilities',
-      'frakon/dashboard/load_responsive_revision',
+      'frakon/dashboard/load_responsive_bundle_revision',
       'frakon/dashboard/load_revision',
     ]);
   });
@@ -132,7 +133,7 @@ describe('canvas v2 Home Assistant load chain', () => {
     if (result.status === 'invalid') expect(result.reason).toBe('invalid-responsive-bundle');
     expect(transport.requests).toEqual([
       'frakon/dashboard/capabilities',
-      'frakon/dashboard/load_responsive_revision',
+      'frakon/dashboard/load_responsive_bundle_revision',
     ]);
   });
 });
