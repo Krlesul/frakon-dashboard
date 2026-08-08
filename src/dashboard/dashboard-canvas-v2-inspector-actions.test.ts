@@ -43,7 +43,9 @@ describe('v2 inspector actions', () => {
   });
 
   it('normalizes impossible min/max limits and canvas bounds', () => {
-    const result = patchDashboardCanvasV2Item(document(), 'a', { x: -100, width: 900, minWidth: 700, maxWidth: 20 });
+    const source = document();
+    source.items = [source.items[0]];
+    const result = patchDashboardCanvasV2Item(source, 'a', { x: -100, width: 900, minWidth: 700, maxWidth: 20 });
     expect(result.status).toBe('committed');
     const item = result.document.items.find((candidate) => candidate.id === 'a');
     expect(item?.frame.x).toBe(0);
