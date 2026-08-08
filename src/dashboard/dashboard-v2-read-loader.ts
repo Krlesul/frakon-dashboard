@@ -10,6 +10,11 @@ import {
   normalizeDashboardV2,
   type FrakonDashboardDocumentV2,
 } from './layout-model-v2';
+import {
+  attachResponsiveCanvasV2Bundle,
+  isResponsiveCanvasV2Bundle,
+  responsiveCanvasV2BundleDocument,
+} from './responsive-v2-bundle';
 
 export type DashboardV2ReadResult =
   | {
@@ -36,6 +41,31 @@ export async function loadDashboardV2ReadOnly(
   const layoutCapabilities = dashboardLayoutCapabilitiesFromServer(capabilities);
   if (!layoutCapabilities.readV2 || !capabilities.revisionSync) {
     return { status: 'blocked', capabilities };
+  }
+
+  if (capabilities.responsiveCanvasV2.read && capabilities.responsiveCanvasV2.atomicRevision) {
+    const responsiveRaw = await transport.request<unknown>(`${namespace}/load_responsive_revision`, {
+      dashboard_id: dashboardId,
+    });
+    if (responsiveRaw != null) {
+      if (!isRevisionEnvelopeLike(responsiveRaw) || !isResponsiveCanvasV2Bundle(responsiveRaw.document)) {
+        return { status: 'invalid', capabilities, reason: 'invalid-envelope' };
+      }
+      const bundle = responsiveRaw.document;
+      const active = responsiveCanvasV2BundleDocument(bundle, bundle.defaultBreakpoint);
+      if (!active) return { status: 'invalid', capabilities, reason: 'invalid-envelope' };
+      return {
+        status: 'loaded',
+        capabilities,
+        envelope: {
+          document: attachResponsiveCanvasV2Bundle(normalizeDashboardV2(active), bundle),
+          revision: responsiveRaw.revision,
+          parentRevision: responsiveRaw.parentRevision,
+          updatedAt: responsiveRaw.updatedAt,
+          clientId: responsiveRaw.clientId,
+        },
+      };
+    }
   }
 
   const raw = await transport.request<unknown>(`${namespace}/load_revision`, {
