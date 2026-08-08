@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DashboardStorageTransport } from './dashboard-storage';
-import type { DashboardServerCapabilities } from './dashboard-server-capabilities';
+import { RESPONSIVE_CANVAS_V2_CONTRACT_VERSION, type DashboardServerCapabilities } from './dashboard-server-capabilities';
 import { createResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
 import { persistResponsiveCanvasV2Revision, responsiveCanvasV2PersistenceDecision } from './responsive-v2-persistence';
 import { createResponsiveCanvasV2Revision } from './responsive-v2-revision';
@@ -24,6 +24,8 @@ function capabilities(write: boolean): DashboardServerCapabilities {
     revisionSync: true,
     maxItems: 2000,
     responsiveCanvasV2: {
+      contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+      contractCompatible: true,
       read: true,
       write,
       atomicRevision: true,
