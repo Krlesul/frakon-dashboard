@@ -10,8 +10,13 @@ export interface ResponsiveCanvasV2HealthReport {
   writeEnabled: boolean;
   atomicRevision: boolean;
   revisionSync: boolean;
-  loadEndpoint: 'frakon/dashboard/load_responsive_bundle_revision';
-  saveEndpoint: 'frakon/dashboard/save_responsive_revision';
+  maxItems?: number;
+  maxConstraints?: number;
+  maxSerializedBytes?: number;
+  storageNamespace?: string;
+  loadEndpoint?: string;
+  saveEndpoint?: string;
+  removeEndpoint?: string;
   baseRevision?: string;
   dirtyBreakpoints: string[];
   conflictBreakpoints: string[];
@@ -52,8 +57,13 @@ function fromInputs(inputs: HealthInputs): ResponsiveCanvasV2HealthReport {
     writeEnabled,
     atomicRevision,
     revisionSync,
-    loadEndpoint: 'frakon/dashboard/load_responsive_bundle_revision',
-    saveEndpoint: 'frakon/dashboard/save_responsive_revision',
+    maxItems: responsive?.maxItems,
+    maxConstraints: responsive?.maxConstraints,
+    maxSerializedBytes: responsive?.maxSerializedBytes,
+    storageNamespace: responsive?.storageNamespace,
+    loadEndpoint: responsive?.loadEndpoint,
+    saveEndpoint: responsive?.saveEndpoint,
+    removeEndpoint: responsive?.removeEndpoint,
     baseRevision: inputs.baseRevision,
     dirtyBreakpoints: [...dirtyBreakpoints],
     conflictBreakpoints: [...conflictBreakpoints],
