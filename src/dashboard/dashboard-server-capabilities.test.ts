@@ -16,6 +16,12 @@ class Transport implements DashboardStorageTransport {
       writableDocumentVersions: [1],
       revisionSync: true,
       maxItems: 2000,
+      responsiveCanvasV2: {
+        read: true,
+        write: false,
+        atomicRevision: true,
+        breakpoints: ['mobile', 'tablet', 'desktop', 'wide'],
+      },
     } as T;
   }
 }
@@ -28,6 +34,10 @@ describe('dashboard server capabilities', () => {
     expect([...capabilities.readableDocumentVersions]).toEqual([1, 2]);
     expect([...capabilities.writableDocumentVersions]).toEqual([1]);
     expect(capabilities.revisionSync).toBe(true);
+    expect(capabilities.responsiveCanvasV2.read).toBe(true);
+    expect(capabilities.responsiveCanvasV2.write).toBe(false);
+    expect(capabilities.responsiveCanvasV2.atomicRevision).toBe(true);
+    expect([...capabilities.responsiveCanvasV2.breakpoints]).toEqual(['mobile', 'tablet', 'desktop', 'wide']);
   });
 
   it('never treats a writable version as supported when the server cannot read it', () => {
@@ -38,6 +48,28 @@ describe('dashboard server capabilities', () => {
       maxItems: 2000,
     });
     expect([...capabilities.writableDocumentVersions]).toEqual([1]);
+    expect(capabilities.responsiveCanvasV2).toEqual({
+      read: false,
+      write: false,
+      atomicRevision: false,
+      breakpoints: new Set(),
+    });
+  });
+
+  it('never enables responsive write when responsive read is disabled', () => {
+    const capabilities = normalizeDashboardServerCapabilities({
+      readableDocumentVersions: [1, 2],
+      writableDocumentVersions: [1],
+      revisionSync: true,
+      maxItems: 2000,
+      responsiveCanvasV2: {
+        read: false,
+        write: true,
+        atomicRevision: true,
+        breakpoints: ['desktop'],
+      },
+    });
+    expect(capabilities.responsiveCanvasV2.write).toBe(false);
   });
 
   it('derives conservative v2 layout gates from server capabilities', () => {
