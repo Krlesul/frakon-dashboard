@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import voluptuous as vol
@@ -11,6 +12,8 @@ from .const import (
     READABLE_RESPONSIVE_BUNDLE_KINDS,
     RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
     RESPONSIVE_CANVAS_V2_KIND,
+    RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+    RESPONSIVE_CANVAS_V2_MAX_ITEMS,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
 from .responsive_storage import FrakonResponsiveDashboardStorage
@@ -22,23 +25,64 @@ BREAKPOINTS = ("mobile", "tablet", "desktop", "wide")
 EXPECTED_REVISION = vol.Any(None, REVISION_ID)
 
 
-def _validate_canvas_document(document: dict[str, Any], dashboard_id: str, breakpoint: str) -> None:
+def _finite_number(value: Any, *, name: str, positive: bool = False, non_negative: bool = False) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+        raise vol.Invalid(f"{name} must be a finite number.")
+    number = float(value)
+    if positive and number <= 0:
+        raise vol.Invalid(f"{name} must be positive.")
+    if non_negative and number < 0:
+        raise vol.Invalid(f"{name} must be non-negative.")
+    return number
+
+
+def _validate_frame(frame: Any, *, item_id: str) -> None:
+    if not isinstance(frame, dict):
+        raise vol.Invalid(f"Responsive item {item_id} requires a frame object.")
+    _finite_number(frame.get("x"), name=f"Responsive item {item_id} frame.x", non_negative=True)
+    _finite_number(frame.get("y"), name=f"Responsive item {item_id} frame.y", non_negative=True)
+    _finite_number(frame.get("width"), name=f"Responsive item {item_id} frame.width", positive=True)
+    _finite_number(frame.get("height"), name=f"Responsive item {item_id} frame.height", positive=True)
+
+
+def _validate_canvas_document(document: dict[str, Any], dashboard_id: str, breakpoint: str) -> int:
     if document.get("version") != 2:
         raise vol.Invalid("Responsive canvas bundles only accept dashboard document version 2.")
     if document.get("id") != dashboard_id:
         raise vol.Invalid("Responsive breakpoint dashboard id must match the bundle id.")
     if document.get("breakpoint") != breakpoint:
         raise vol.Invalid("Responsive breakpoint document.breakpoint must match its bundle key.")
+
     items = document.get("items")
-    if not isinstance(items, list) or len(items) > 2000:
-        raise vol.Invalid("Responsive breakpoint items must be a list with at most 2000 entries.")
+    if not isinstance(items, list) or len(items) > RESPONSIVE_CANVAS_V2_MAX_ITEMS:
+        raise vol.Invalid(
+            f"Responsive breakpoint items must be a list with at most {RESPONSIVE_CANVAS_V2_MAX_ITEMS} entries."
+        )
+    seen_ids: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise vol.Invalid(f"Responsive breakpoint {breakpoint} items must be objects.")
+        item_id = item.get("id")
+        if not isinstance(item_id, str) or not item_id:
+            raise vol.Invalid(f"Responsive breakpoint {breakpoint} item requires a non-empty id.")
+        if item_id in seen_ids:
+            raise vol.Invalid(f"Responsive breakpoint {breakpoint} contains duplicate item id {item_id}.")
+        seen_ids.add(item_id)
+        _validate_frame(item.get("frame"), item_id=item_id)
+
+    constraints = document.get("constraints", [])
+    if not isinstance(constraints, list) or len(constraints) > RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS:
+        raise vol.Invalid(
+            f"Responsive breakpoint constraints must be a list with at most {RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS} entries."
+        )
+
     layout = document.get("layout")
     if not isinstance(layout, dict) or layout.get("mode") != "canvas":
         raise vol.Invalid("Responsive breakpoint requires layout.mode=canvas.")
-    if not isinstance(layout.get("width"), (int, float)) or layout["width"] <= 0:
-        raise vol.Invalid("Responsive breakpoint requires a positive layout.width.")
-    if not isinstance(layout.get("minHeight"), (int, float)) or layout["minHeight"] <= 0:
-        raise vol.Invalid("Responsive breakpoint requires a positive layout.minHeight.")
+    _finite_number(layout.get("width"), name="Responsive breakpoint layout.width", positive=True)
+    _finite_number(layout.get("minHeight"), name="Responsive breakpoint layout.minHeight", positive=True)
+
+    return len(items)
 
 
 def _validate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
@@ -52,14 +96,22 @@ def _validate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
         raise vol.Invalid("Responsive bundle requires an id.")
     if not isinstance(documents, dict) or not documents:
         raise vol.Invalid("Responsive canvas bundle requires at least one breakpoint document.")
+    if len(documents) > len(BREAKPOINTS):
+        raise vol.Invalid("Responsive canvas bundle contains too many breakpoint documents.")
     if default_breakpoint not in BREAKPOINTS or default_breakpoint not in documents:
         raise vol.Invalid("Responsive bundle defaultBreakpoint must reference a present document.")
+
+    total_items = 0
     for breakpoint, document in documents.items():
         if breakpoint not in BREAKPOINTS:
             raise vol.Invalid(f"Unsupported responsive canvas breakpoint: {breakpoint}.")
         if not isinstance(document, dict):
             raise vol.Invalid(f"Responsive breakpoint {breakpoint} must contain a dashboard document.")
-        _validate_canvas_document(document, dashboard_id, breakpoint)
+        total_items += _validate_canvas_document(document, dashboard_id, breakpoint)
+        if total_items > RESPONSIVE_CANVAS_V2_MAX_ITEMS:
+            raise vol.Invalid(
+                f"Responsive canvas bundle may contain at most {RESPONSIVE_CANVAS_V2_MAX_ITEMS} items across all breakpoints."
+            )
     return bundle
 
 
