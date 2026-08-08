@@ -2,6 +2,10 @@ import type { FrakonBreakpoint } from './layout-model';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { DashboardV2DraftController } from './dashboard-v2-draft-controller';
 import {
+  createResponsiveCanvasV2Bundle,
+  type ResponsiveCanvasV2Bundle,
+} from './responsive-v2-bundle';
+import {
   deriveDashboardCanvasV2Breakpoint,
   synchronizeResponsiveCanvasV2SharedState,
   type ResponsiveCanvasV2Documents,
@@ -30,6 +34,28 @@ export class ResponsiveV2DraftController {
     this.ensure(activeBreakpoint);
   }
 
+  static fromBundle(
+    bundle: ResponsiveCanvasV2Bundle,
+    activeBreakpoint: FrakonBreakpoint = bundle.defaultBreakpoint,
+  ): ResponsiveV2DraftController {
+    const first = bundle.documents[activeBreakpoint]
+      ?? BREAKPOINTS.map((breakpoint) => bundle.documents[breakpoint]).find(Boolean);
+    if (!first) throw new Error('Responsive v2 bundle has no breakpoint document.');
+    const controller = new ResponsiveV2DraftController(first, activeBreakpoint);
+    controller.controllers.clear();
+    controller.baseDocuments.clear();
+    for (const breakpoint of BREAKPOINTS) {
+      const document = bundle.documents[breakpoint];
+      if (!document) continue;
+      const base = structuredClone(document);
+      controller.baseDocuments.set(breakpoint, base);
+      controller.controllers.set(breakpoint, new DashboardV2DraftController(base));
+    }
+    controller.activeBreakpoint = activeBreakpoint;
+    controller.ensure(activeBreakpoint);
+    return controller;
+  }
+
   get snapshot(): ResponsiveV2DraftSnapshot {
     const active = this.ensure(this.activeBreakpoint);
     return {
@@ -38,6 +64,10 @@ export class ResponsiveV2DraftController {
       documents: this.documents(),
       dirtyBreakpoints: BREAKPOINTS.filter((breakpoint) => this.controllers.get(breakpoint)?.snapshot.dirty === true),
     };
+  }
+
+  toBundle(defaultBreakpoint: FrakonBreakpoint = this.activeBreakpoint): ResponsiveCanvasV2Bundle {
+    return createResponsiveCanvasV2Bundle(this.documents(), defaultBreakpoint);
   }
 
   switchTo(breakpoint: FrakonBreakpoint): ResponsiveV2DraftSnapshot {
