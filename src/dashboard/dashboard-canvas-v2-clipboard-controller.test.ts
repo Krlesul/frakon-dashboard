@@ -30,6 +30,25 @@ describe('DashboardCanvasV2ClipboardController', () => {
     expect(result.selectedIds).toEqual(['a-copy']);
   });
 
+  it('cuts unlocked selection atomically and keeps it available for paste', () => {
+    const controller = new DashboardCanvasV2ClipboardController();
+    const cut = controller.cut(doc(), ['a']);
+    expect(cut.status).toBe('committed');
+    expect(cut.document.items.some((item) => item.id === 'a')).toBe(false);
+    expect(controller.canPaste).toBe(true);
+    const pasted = controller.paste(cut.document, { x: 40, y: 180 });
+    expect(pasted.status).toBe('committed');
+    expect(pasted.selectedIds).toEqual(['a-copy']);
+  });
+
+  it('does not mutate document or clipboard when cut selection is locked only', () => {
+    const controller = new DashboardCanvasV2ClipboardController();
+    const cut = controller.cut(doc(), ['locked']);
+    expect(cut.status).toBe('invalid');
+    expect(cut.document.items.map((item) => item.id)).toEqual(['a', 'locked']);
+    expect(controller.canPaste).toBe(false);
+  });
+
   it('does not replace an existing clipboard when copy selection is unusable', () => {
     const controller = new DashboardCanvasV2ClipboardController();
     expect(controller.copy(doc(), ['a'])).toBe(true);
