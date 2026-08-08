@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 from typing import Any
 
@@ -14,6 +15,7 @@ from .const import (
     RESPONSIVE_CANVAS_V2_KIND,
     RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
     RESPONSIVE_CANVAS_V2_MAX_ITEMS,
+    RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
 from .responsive_storage import FrakonResponsiveDashboardStorage
@@ -112,6 +114,15 @@ def _validate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
             raise vol.Invalid(
                 f"Responsive canvas bundle may contain at most {RESPONSIVE_CANVAS_V2_MAX_ITEMS} items across all breakpoints."
             )
+
+    try:
+        serialized_bytes = len(json.dumps(bundle, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    except (TypeError, ValueError) as err:
+        raise vol.Invalid("Responsive canvas bundle must be JSON serializable.") from err
+    if serialized_bytes > RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES:
+        raise vol.Invalid(
+            f"Responsive canvas bundle exceeds the {RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES} byte storage limit."
+        )
     return bundle
 
 
