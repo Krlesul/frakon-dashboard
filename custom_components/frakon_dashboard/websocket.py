@@ -7,12 +7,19 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
-from .const import READABLE_DOCUMENT_VERSIONS, WRITABLE_DOCUMENT_VERSIONS
+from .const import (
+    READABLE_DOCUMENT_VERSIONS,
+    READABLE_RESPONSIVE_BUNDLE_KINDS,
+    RESPONSIVE_CANVAS_V2_KIND,
+    WRITABLE_DOCUMENT_VERSIONS,
+    WRITABLE_RESPONSIVE_BUNDLE_KINDS,
+)
 from .storage import FrakonDashboardStorage
 
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
 REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
 CLIENT_ID = vol.All(str, vol.Length(min=1, max=128))
+BREAKPOINTS = ("mobile", "tablet", "desktop", "wide")
 
 
 def _validate_document_shape(document: dict[str, Any]) -> dict[str, Any]:
@@ -56,6 +63,60 @@ REVISION_ENVELOPE = vol.Schema(
 EXPECTED_REVISION = vol.Any(None, REVISION_ID)
 
 
+def _validate_responsive_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
+    kind = bundle.get("kind")
+    if kind not in READABLE_RESPONSIVE_BUNDLE_KINDS:
+        raise vol.Invalid(f"Unsupported responsive dashboard bundle kind: {kind}.")
+
+    dashboard_id = bundle.get("id")
+    documents = bundle.get("documents")
+    default_breakpoint = bundle.get("defaultBreakpoint")
+    if not isinstance(documents, dict) or not documents:
+        raise vol.Invalid("Responsive canvas bundle requires at least one breakpoint document.")
+    if default_breakpoint not in BREAKPOINTS or default_breakpoint not in documents:
+        raise vol.Invalid("Responsive canvas bundle defaultBreakpoint must reference a present document.")
+
+    for breakpoint, document in documents.items():
+        if breakpoint not in BREAKPOINTS:
+            raise vol.Invalid(f"Unsupported responsive canvas breakpoint: {breakpoint}.")
+        if not isinstance(document, dict):
+            raise vol.Invalid(f"Responsive breakpoint {breakpoint} must contain a dashboard document.")
+        validated = DASHBOARD_DOCUMENT(document)
+        if validated.get("version") != 2:
+            raise vol.Invalid("Responsive canvas bundles only accept dashboard document version 2.")
+        if validated.get("id") != dashboard_id:
+            raise vol.Invalid("Responsive breakpoint dashboard id must match the bundle id.")
+        if validated.get("breakpoint") != breakpoint:
+            raise vol.Invalid("Responsive breakpoint document.breakpoint must match its bundle key.")
+
+    return bundle
+
+
+RESPONSIVE_BUNDLE = vol.All(
+    vol.Schema(
+        {
+            vol.Required("kind"): vol.In(READABLE_RESPONSIVE_BUNDLE_KINDS),
+            vol.Required("id"): DASHBOARD_ID,
+            vol.Required("title"): vol.All(str, vol.Length(max=256)),
+            vol.Required("defaultBreakpoint"): vol.In(BREAKPOINTS),
+            vol.Required("documents"): dict,
+        },
+        extra=vol.ALLOW_EXTRA,
+    ),
+    _validate_responsive_bundle,
+)
+RESPONSIVE_REVISION_ENVELOPE = vol.Schema(
+    {
+        vol.Required("document"): RESPONSIVE_BUNDLE,
+        vol.Required("revision"): REVISION_ID,
+        vol.Optional("parentRevision"): vol.Any(None, REVISION_ID),
+        vol.Required("updatedAt"): vol.Coerce(int),
+        vol.Required("clientId"): CLIENT_ID,
+    },
+    extra=vol.ALLOW_EXTRA,
+)
+
+
 def _document_write_enabled(document: dict[str, Any]) -> bool:
     return document.get("version") in WRITABLE_DOCUMENT_VERSIONS
 
@@ -92,6 +153,12 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
                 "writableDocumentVersions": sorted(WRITABLE_DOCUMENT_VERSIONS),
                 "revisionSync": True,
                 "maxItems": 2000,
+                "responsiveCanvasV2": {
+                    "read": RESPONSIVE_CANVAS_V2_KIND in READABLE_RESPONSIVE_BUNDLE_KINDS,
+                    "write": RESPONSIVE_CANVAS_V2_KIND in WRITABLE_RESPONSIVE_BUNDLE_KINDS,
+                    "atomicRevision": True,
+                    "breakpoints": list(BREAKPOINTS),
+                },
             },
         )
 
@@ -158,6 +225,33 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         msg: dict[str, Any],
     ) -> None:
         connection.send_result(msg["id"], await storage.load_revision(msg["dashboard_id"]))
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): "frakon/dashboard/load_responsive_revision",
+            vol.Required("dashboard_id"): DASHBOARD_ID,
+        }
+    )
+    @websocket_api.async_response
+    async def handle_load_responsive_revision(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        envelope = await storage.load_revision(msg["dashboard_id"])
+        if envelope is None:
+            connection.send_result(msg["id"], None)
+            return
+        document = envelope.get("document")
+        if not isinstance(document, dict) or document.get("kind") != RESPONSIVE_CANVAS_V2_KIND:
+            connection.send_result(msg["id"], None)
+            return
+        try:
+            validated = RESPONSIVE_REVISION_ENVELOPE(envelope)
+        except vol.Invalid as err:
+            connection.send_error(msg["id"], "invalid_responsive_bundle", str(err))
+            return
+        connection.send_result(msg["id"], validated)
 
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -236,5 +330,6 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
     websocket_api.async_register_command(hass, handle_save)
     websocket_api.async_register_command(hass, handle_remove)
     websocket_api.async_register_command(hass, handle_load_revision)
+    websocket_api.async_register_command(hass, handle_load_responsive_revision)
     websocket_api.async_register_command(hass, handle_save_revision)
     websocket_api.async_register_command(hass, handle_remove_revision)
