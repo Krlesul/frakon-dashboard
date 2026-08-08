@@ -4,15 +4,19 @@ import type { DashboardCanvasV2SelectionAction } from './dashboard-canvas-v2-sel
 import { applyDashboardCanvasV2SelectionAction } from './dashboard-canvas-v2-selection-actions';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 
-const ACTIONS: Array<{ action: DashboardCanvasV2SelectionAction; label: string; title: string }> = [
-  { action: 'align-left', label: '⇤', title: 'Align left' },
-  { action: 'align-center-x', label: '↔', title: 'Align horizontal center' },
-  { action: 'align-right', label: '⇥', title: 'Align right' },
-  { action: 'align-top', label: '⇧', title: 'Align top' },
-  { action: 'align-center-y', label: '↕', title: 'Align vertical center' },
-  { action: 'align-bottom', label: '⇩', title: 'Align bottom' },
-  { action: 'match-width', label: 'W=', title: 'Match width' },
-  { action: 'match-height', label: 'H=', title: 'Match height' },
+const ACTIONS: Array<{ action: DashboardCanvasV2SelectionAction; label: string; title: string; minimum: number }> = [
+  { action: 'align-left', label: '⇤', title: 'Align left', minimum: 2 },
+  { action: 'align-center-x', label: '↔', title: 'Align horizontal center', minimum: 2 },
+  { action: 'align-right', label: '⇥', title: 'Align right', minimum: 2 },
+  { action: 'align-top', label: '⇧', title: 'Align top', minimum: 2 },
+  { action: 'align-center-y', label: '↕', title: 'Align vertical center', minimum: 2 },
+  { action: 'align-bottom', label: '⇩', title: 'Align bottom', minimum: 2 },
+  { action: 'match-width', label: 'W=', title: 'Match width', minimum: 2 },
+  { action: 'match-height', label: 'H=', title: 'Match height', minimum: 2 },
+  { action: 'distribute-horizontal', label: 'H↔', title: 'Distribute horizontal centers', minimum: 3 },
+  { action: 'distribute-vertical', label: 'V↕', title: 'Distribute vertical centers', minimum: 3 },
+  { action: 'equal-gap-horizontal', label: 'H=', title: 'Equal horizontal gaps', minimum: 3 },
+  { action: 'equal-gap-vertical', label: 'V=', title: 'Equal vertical gaps', minimum: 3 },
 ];
 
 @customElement('frakon-canvas-v2-selection-toolbar')
@@ -25,6 +29,7 @@ export class FrakonCanvasV2SelectionToolbar extends LitElement {
     :host { display: block; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 4px; border-top: 1px solid color-mix(in srgb, var(--primary-text-color) 9%, transparent); }
     button { min-width: 34px; border: 0; border-radius: 8px; padding: 6px 8px; color: inherit; background: color-mix(in srgb, var(--primary-color) 14%, transparent); cursor: pointer; font: inherit; font-size: 11px; }
+    button:disabled { opacity: .35; cursor: not-allowed; }
     .error { flex-basis: 100%; padding: 6px 8px; border-radius: 8px; font-size: 11px; background: color-mix(in srgb, #ff4d67 16%, transparent); }
   `;
 
@@ -52,9 +57,17 @@ export class FrakonCanvasV2SelectionToolbar extends LitElement {
 
   render() {
     if (!this.document || this.selectedIds.length < 2) return nothing;
+    const unlockedCount = this.document.items.filter((item) => this.selectedIds.includes(item.id) && !item.locked).length;
     return html`
       <div class="toolbar">
-        ${ACTIONS.map(({ action, label, title }) => html`<button title=${title} aria-label=${title} @click=${() => this.apply(action)}>${label}</button>`)}
+        ${ACTIONS.map(({ action, label, title, minimum }) => html`
+          <button
+            title=${title}
+            aria-label=${title}
+            ?disabled=${unlockedCount < minimum}
+            @click=${() => this.apply(action)}
+          >${label}</button>
+        `)}
         ${this.localError ? html`<div class="error">${this.localError}</div>` : nothing}
       </div>
     `;
