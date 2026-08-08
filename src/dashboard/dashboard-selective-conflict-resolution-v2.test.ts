@@ -15,13 +15,23 @@ const v1: FrakonDashboardDocument = {
   items: [{ id: 'a', x: 0, y: 0, w: 1, h: 1, card: { type: 'custom:a' } }],
 };
 
+function threeItemV1(): FrakonDashboardDocument {
+  return {
+    ...v1,
+    items: [
+      { id: 'a', x: 0, y: 0, w: 1, h: 1, card: { type: 'custom:a' } },
+      { id: 'b', x: 1, y: 0, w: 1, h: 1, card: { type: 'custom:b' } },
+      { id: 'c', x: 2, y: 0, w: 1, h: 1, card: { type: 'custom:c' } },
+    ],
+  };
+}
+
 describe('resolveDashboardV2Conflicts', () => {
   it('resolves a selected canvas layout conflict', () => {
     const base = migrateDashboardV1ToV2(v1, 430);
     const local = { ...structuredClone(base), layout: { ...base.layout, minHeight: 700 } };
     const remote = { ...structuredClone(base), layout: { ...base.layout, minHeight: 900 } };
     const merge = mergeDashboardDocuments(base, local, remote);
-
     const resolved = resolveDashboardV2Conflicts(merge, { layout: 'remote' });
     expect(resolved.complete).toBe(true);
     expect(resolved.document.layout.minHeight).toBe(900);
@@ -34,13 +44,37 @@ describe('resolveDashboardV2Conflicts', () => {
     local.items[0].frame.x = 20;
     remote.items[0].frame.x = 40;
     const merge = mergeDashboardDocuments(base, local, remote);
-
     const unresolved = resolveDashboardV2Conflicts(merge, {});
     expect(unresolved.complete).toBe(false);
     expect(unresolved.unresolved.map((entry) => entry.path)).toEqual(['items.a']);
-
     const resolved = resolveDashboardV2Conflicts(merge, { 'items.a': 'remote' });
     expect(resolved.complete).toBe(true);
     expect(resolved.document.items[0].frame.x).toBe(40);
+  });
+
+  it('resolves a concurrent layer-order conflict to the chosen side', () => {
+    const base = migrateDashboardV1ToV2(threeItemV1(), 430);
+    const local = structuredClone(base);
+    const remote = structuredClone(base);
+    local.items = [local.items[1], local.items[2], local.items[0]];
+    remote.items = [remote.items[2], remote.items[0], remote.items[1]];
+    const merge = mergeDashboardDocuments(base, local, remote);
+    expect(merge.conflicts.some((entry) => entry.path === 'itemOrder')).toBe(true);
+
+    const remoteResolved = resolveDashboardV2Conflicts(merge, { itemOrder: 'remote' });
+    expect(remoteResolved.complete).toBe(true);
+    expect(remoteResolved.document.items.map((item) => item.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('does not reorder all canvas items by geometry when resolving a single item conflict', () => {
+    const base = migrateDashboardV1ToV2(threeItemV1(), 430);
+    base.items = [base.items[2], base.items[0], base.items[1]];
+    const local = structuredClone(base);
+    const remote = structuredClone(base);
+    local.items[1].frame.x += 10;
+    remote.items[1].frame.x += 20;
+    const merge = mergeDashboardDocuments(base, local, remote);
+    const resolved = resolveDashboardV2Conflicts(merge, { 'items.a': 'remote' });
+    expect(resolved.document.items.map((item) => item.id)).toEqual(['c', 'a', 'b']);
   });
 });
