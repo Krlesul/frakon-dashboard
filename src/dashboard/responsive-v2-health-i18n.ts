@@ -1,0 +1,21 @@
+import type { SupportedLanguage } from '../i18n';
+
+export type ResponsiveV2HealthTranslationKey =
+  | 'title' | 'status' | 'healthy' | 'blocked' | 'conflict' | 'error' | 'unloaded'
+  | 'contract' | 'compatible' | 'read' | 'write' | 'atomicRevision' | 'revisionSync'
+  | 'baseRevision' | 'dirtyBreakpoints' | 'conflictBreakpoints' | 'loadEndpoint' | 'saveEndpoint'
+  | 'yes' | 'no' | 'none';
+
+type Messages = Record<ResponsiveV2HealthTranslationKey, string>;
+
+const messages: Record<SupportedLanguage, Messages> = {
+  en: { title:'Responsive persistence diagnostics',status:'Status',healthy:'Healthy',blocked:'Blocked',conflict:'Conflict',error:'Error',unloaded:'Not loaded',contract:'Contract',compatible:'Compatible',read:'Read',write:'Write',atomicRevision:'Atomic revision',revisionSync:'Revision sync',baseRevision:'Base revision',dirtyBreakpoints:'Dirty breakpoints',conflictBreakpoints:'Conflict breakpoints',loadEndpoint:'Load endpoint',saveEndpoint:'Save endpoint',yes:'yes',no:'no',none:'none' },
+  cs: { title:'Diagnostika responsive persistence',status:'Stav',healthy:'V pořádku',blocked:'Zablokováno',conflict:'Konflikt',error:'Chyba',unloaded:'Nenačteno',contract:'Kontrakt',compatible:'Kompatibilní',read:'Čtení',write:'Zápis',atomicRevision:'Atomická revize',revisionSync:'Synchronizace revizí',baseRevision:'Výchozí revize',dirtyBreakpoints:'Změněné breakpointy',conflictBreakpoints:'Konfliktní breakpointy',loadEndpoint:'Endpoint čtení',saveEndpoint:'Endpoint zápisu',yes:'ano',no:'ne',none:'žádné' },
+  de: { title:'Responsive-Persistenzdiagnose',status:'Status',healthy:'In Ordnung',blocked:'Blockiert',conflict:'Konflikt',error:'Fehler',unloaded:'Nicht geladen',contract:'Vertrag',compatible:'Kompatibel',read:'Lesen',write:'Schreiben',atomicRevision:'Atomare Revision',revisionSync:'Revisionsabgleich',baseRevision:'Basisrevision',dirtyBreakpoints:'Geänderte Breakpoints',conflictBreakpoints:'Konflikt-Breakpoints',loadEndpoint:'Lese-Endpunkt',saveEndpoint:'Schreib-Endpunkt',yes:'ja',no:'nein',none:'keine' },
+  sk: { title:'Diagnostika responsive persistence',status:'Stav',healthy:'V poriadku',blocked:'Zablokované',conflict:'Konflikt',error:'Chyba',unloaded:'Nenačítané',contract:'Kontrakt',compatible:'Kompatibilný',read:'Čítanie',write:'Zápis',atomicRevision:'Atomická revízia',revisionSync:'Synchronizácia revízií',baseRevision:'Východisková revízia',dirtyBreakpoints:'Zmenené breakpointy',conflictBreakpoints:'Konfliktné breakpointy',loadEndpoint:'Endpoint čítania',saveEndpoint:'Endpoint zápisu',yes:'áno',no:'nie',none:'žiadne' },
+  pl: { title:'Diagnostyka responsywnej trwałości',status:'Stan',healthy:'W porządku',blocked:'Zablokowane',conflict:'Konflikt',error:'Błąd',unloaded:'Niezaładowane',contract:'Kontrakt',compatible:'Zgodny',read:'Odczyt',write:'Zapis',atomicRevision:'Rewizja atomowa',revisionSync:'Synchronizacja rewizji',baseRevision:'Rewizja bazowa',dirtyBreakpoints:'Zmienione breakpointy',conflictBreakpoints:'Konfliktowe breakpointy',loadEndpoint:'Endpoint odczytu',saveEndpoint:'Endpoint zapisu',yes:'tak',no:'nie',none:'brak' },
+};
+
+export function responsiveV2HealthTranslate(language: SupportedLanguage, key: ResponsiveV2HealthTranslationKey): string {
+  return messages[language]?.[key] ?? messages.en[key] ?? key;
+}
