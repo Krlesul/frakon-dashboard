@@ -23,6 +23,16 @@ describe('responsive canvas v2 revisions', () => {
     expect(a.revision).not.toBe(b.revision);
   });
 
+  it('uses a deterministic dual-fingerprint revision id and separates clients in the same millisecond', () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: doc('desktop', 1280) }, 'desktop');
+    const a1 = createResponsiveCanvasV2Revision(bundle, 'client-a', undefined, 1000);
+    const a2 = createResponsiveCanvasV2Revision(bundle, 'client-a', undefined, 1000);
+    const b = createResponsiveCanvasV2Revision(bundle, 'client-b', undefined, 1000);
+    expect(a1.revision).toBe(a2.revision);
+    expect(a1.revision.split('-')).toHaveLength(3);
+    expect(a1.revision).not.toBe(b.revision);
+  });
+
   it('tracks parent lineage across atomic bundle saves', () => {
     const bundle = createResponsiveCanvasV2Bundle({ desktop: doc('desktop', 1280) }, 'desktop');
     const first = createResponsiveCanvasV2Revision(bundle, 'client-a', undefined, 1000);
