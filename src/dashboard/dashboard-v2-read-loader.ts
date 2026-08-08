@@ -44,7 +44,7 @@ export async function loadDashboardV2ReadOnly(
   }
 
   if (capabilities.responsiveCanvasV2.read && capabilities.responsiveCanvasV2.atomicRevision) {
-    const responsiveRaw = await transport.request<unknown>(`${namespace}/load_responsive_revision`, {
+    const responsiveRaw = await transport.request<unknown>(`${namespace}/load_responsive_bundle_revision`, {
       dashboard_id: dashboardId,
     });
     if (responsiveRaw != null) {
