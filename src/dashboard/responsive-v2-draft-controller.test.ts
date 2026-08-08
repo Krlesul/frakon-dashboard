@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
-import { createResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
+import { attachResponsiveCanvasV2Bundle, createResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
 import { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
 
 function base(): FrakonDashboardDocumentV2 {
@@ -87,6 +87,24 @@ describe('ResponsiveV2DraftController', () => {
     expect(controller.snapshot.documents.desktop?.items[0].frame.x).toBe(120);
     expect(controller.snapshot.dirtyBreakpoints).toEqual([]);
     expect(controller.snapshot.active.canUndo).toBe(false);
+  });
+
+  it('restores a transiently carried responsive bundle through the normal constructor used by the card', () => {
+    const desktop = base();
+    const mobile: FrakonDashboardDocumentV2 = {
+      ...structuredClone(desktop),
+      breakpoint: 'mobile',
+      layout: { ...desktop.layout, width: 390 },
+      items: desktop.items.map((item) => ({ ...item, frame: { x: 18, y: 18, width: 350, height: 150 } })),
+    };
+    const bundle = createResponsiveCanvasV2Bundle({ desktop, mobile }, 'mobile');
+    const carried = attachResponsiveCanvasV2Bundle(mobile, bundle);
+    const controller = new ResponsiveV2DraftController(carried, carried.breakpoint);
+
+    expect(controller.snapshot.activeBreakpoint).toBe('mobile');
+    expect(controller.snapshot.active.document.items[0].frame.x).toBe(18);
+    expect(controller.snapshot.documents.desktop?.items[0].frame.x).toBe(120);
+    expect(controller.snapshot.dirtyBreakpoints).toEqual([]);
   });
 
   it('exports current breakpoint drafts back into one responsive bundle', () => {
