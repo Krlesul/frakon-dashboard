@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DashboardStorageTransport } from './dashboard-storage';
+import { RESPONSIVE_CANVAS_V2_CONTRACT_VERSION } from './dashboard-server-capabilities';
 import { ResponsiveCanvasV2SyncController } from './responsive-v2-sync-controller';
 
 class Transport implements DashboardStorageTransport {
@@ -15,6 +16,7 @@ class Transport implements DashboardStorageTransport {
         revisionSync: true,
         maxItems: 2000,
         responsiveCanvasV2: {
+          contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
           read: true,
           write: this.write,
           atomicRevision: true,
