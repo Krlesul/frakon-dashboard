@@ -126,6 +126,14 @@ def _validate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     return bundle
 
 
+def _send_write_disabled(connection: websocket_api.ActiveConnection, msg_id: int) -> None:
+    connection.send_error(
+        msg_id,
+        "unsupported_responsive_write",
+        f"Responsive dashboard bundle kind {RESPONSIVE_CANVAS_V2_KIND} is readable but not enabled for server-side writes.",
+    )
+
+
 RESPONSIVE_BUNDLE = vol.All(
     vol.Schema(
         {
@@ -206,11 +214,7 @@ def register_responsive_commands(
         bundle = envelope["document"]
         kind = bundle.get("kind")
         if kind not in WRITABLE_RESPONSIVE_BUNDLE_KINDS:
-            connection.send_error(
-                msg["id"],
-                "unsupported_responsive_write",
-                f"Responsive dashboard bundle kind {kind} is readable but not enabled for server-side writes.",
-            )
+            _send_write_disabled(connection, msg["id"])
             return
 
         expected_revision = msg.get("expectedRevision")
@@ -242,5 +246,38 @@ def register_responsive_commands(
             return
         connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
 
+    @websocket_api.require_admin
+    @websocket_api.async_response
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): "frakon/dashboard/remove_responsive_revision",
+            vol.Required("contractVersion"): vol.Coerce(int),
+            vol.Required("dashboard_id"): DASHBOARD_ID,
+            vol.Optional("expectedRevision", default=None): EXPECTED_REVISION,
+        }
+    )
+    async def handle_remove_responsive_revision(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        if msg["contractVersion"] != RESPONSIVE_CANVAS_V2_CONTRACT_VERSION:
+            connection.send_error(
+                msg["id"],
+                "responsive_contract_incompatible",
+                f"Responsive contract version {msg['contractVersion']} is not supported; expected {RESPONSIVE_CANVAS_V2_CONTRACT_VERSION}.",
+            )
+            return
+        if RESPONSIVE_CANVAS_V2_KIND not in WRITABLE_RESPONSIVE_BUNDLE_KINDS:
+            _send_write_disabled(connection, msg["id"])
+            return
+
+        removed, remote = await storage.remove_revision(msg["dashboard_id"], msg.get("expectedRevision"))
+        if removed:
+            connection.send_result(msg["id"], {"status": "removed"})
+            return
+        connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
+
     websocket_api.async_register_command(hass, handle_load_responsive_revision)
     websocket_api.async_register_command(hass, handle_save_responsive_revision)
+    websocket_api.async_register_command(hass, handle_remove_responsive_revision)
