@@ -92,4 +92,14 @@ describe('dashboard canvas v2 selection actions', () => {
     const result = applyDashboardCanvasV2SelectionAction(doc(), ['a', 'b'], 'distribute-horizontal');
     expect(result.status).toBe('invalid');
   });
+
+  it('rejects equal gaps when selected widths cannot fit between fixed endpoints', () => {
+    const source = distributionDoc();
+    source.items[0].frame = { x: 20, y: 20, width: 220, height: 60 };
+    source.items[1].frame = { x: 180, y: 110, width: 220, height: 80 };
+    source.items[2].frame = { x: 440, y: 220, width: 120, height: 40 };
+    const result = applyDashboardCanvasV2SelectionAction(source, ['a', 'b', 'c'], 'equal-gap-horizontal');
+    expect(result.status).toBe('invalid');
+    expect(result.reason).toContain('horizontal space');
+  });
 });
