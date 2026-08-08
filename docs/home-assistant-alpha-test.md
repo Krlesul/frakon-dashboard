@@ -142,6 +142,8 @@ The native v2 editor currently supports local-draft editing with:
 
 Responsive v2 server **reads** are enabled. Responsive v2 server **writes remain intentionally locked** during this alpha stage. The save-readiness model must therefore report `write-disabled` and no responsive save request should mutate Home Assistant storage.
 
+In edit mode with `storage: home-assistant`, confirm that the **Responsive persistence diagnostics** panel is visible below the breakpoint toolbar.
+
 ## 7. Responsive breakpoint test
 
 Use these breakpoint boundaries:
@@ -160,9 +162,22 @@ For native v2, verify:
 - Auto mode follows viewport width,
 - Manual mode keeps the explicitly selected breakpoint after resize.
 
-## 8. Responsive storage isolation test
+## 8. Responsive storage isolation and transport metadata test
 
 Responsive bundles use a dedicated Home Assistant Store namespace and must not overwrite legacy/single-document dashboard data.
+
+The diagnostics panel should report these current alpha values:
+
+```text
+contractVersion: 1
+storageNamespace: frakon_dashboard.responsive_dashboards
+maxItems: 2000
+maxConstraints: 4000
+maxSerializedBytes: 2000000
+loadEndpoint: frakon/dashboard/load_responsive_bundle_revision
+saveEndpoint: frakon/dashboard/save_responsive_revision
+removeEndpoint: frakon/dashboard/remove_responsive_revision
+```
 
 Use the same `dashboard_id` for a legacy/single-v2 test document and a responsive bundle test. Verify that:
 
@@ -171,8 +186,26 @@ Use the same `dashboard_id` for a legacy/single-v2 test document and a responsiv
 3. Loading the experimental canvas prefers the responsive bundle when present.
 4. If the responsive bundle is absent, the client falls back to single-v2 and then v1.
 5. A malformed responsive bundle is reported as invalid and is not silently hidden behind fallback data.
+6. The responsive storage namespace shown by diagnostics is not the legacy dashboard Store key.
 
-## 9. Responsive write-safety test
+## 9. Responsive validation and quota test
+
+Before any write unlock, verify locally or with guarded test payloads that responsive validation rejects:
+
+- more than 2000 items across all breakpoint documents,
+- more than 4000 constraints in one breakpoint,
+- duplicate item IDs,
+- negative or non-finite frame coordinates,
+- zero/non-finite frame dimensions,
+- invalid or missing constraint references,
+- self-referential constraints,
+- duplicate constraint IDs,
+- enabled constraint dependency cycles,
+- a serialized responsive bundle larger than 2,000,000 bytes.
+
+A disabled constraint may temporarily close an otherwise cyclic dependency graph; enabling it must be rejected until the cycle is removed.
+
+## 10. Responsive write-safety and audit test
 
 Before responsive writes are intentionally enabled, verify all of the following:
 
@@ -182,11 +215,14 @@ Before responsive writes are intentionally enabled, verify all of the following:
 - the Save Readiness model lists `write-disabled`,
 - the Save control remains disabled,
 - a direct `save_responsive_revision` attempt is rejected with `unsupported_responsive_write`,
-- the responsive Home Assistant Store remains unchanged after the rejected request.
+- a direct `remove_responsive_revision` attempt is rejected with `unsupported_responsive_write`,
+- the responsive Home Assistant Store remains unchanged after either rejected request,
+- Home Assistant logs contain a sanitized blocked-persistence audit line with operation, dashboard ID, contract version and reason,
+- the audit log does **not** contain the responsive bundle/card payload.
 
 Do not enable the responsive write allowlist until real-device round-trip, restart recovery and multi-device conflict tests pass.
 
-## 10. Browser console check
+## 11. Browser console check
 
 Open the browser developer console and record:
 
@@ -207,7 +243,7 @@ When reporting a problem, include:
 - screenshot or screen recording,
 - exported FRAKON dashboard JSON when the issue concerns layout.
 
-## 11. Current expected limitations
+## 12. Current expected limitations
 
 - Public HACS release installation is not ready yet; this test still uses the verified CI artifact and manual backend copy.
 - Responsive v2 writes are deliberately disabled even though the validated transport and conflict-resolution layers are already implemented.
