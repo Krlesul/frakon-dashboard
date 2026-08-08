@@ -10,12 +10,37 @@ export interface ResponsiveCanvasV2Bundle {
   documents: ResponsiveCanvasV2Documents;
 }
 
+export const RESPONSIVE_CANVAS_V2_MAX_ITEMS = 2000;
+export const RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS = 4000;
+
 const BREAKPOINTS: FrakonBreakpoint[] = ['mobile', 'tablet', 'desktop', 'wide'];
 const RESPONSIVE_BUNDLE_CARRIER = Symbol('frakon-responsive-canvas-v2-bundle');
 
 type ResponsiveBundleCarrierDocument = FrakonDashboardDocumentV2 & {
   [RESPONSIVE_BUNDLE_CARRIER]?: ResponsiveCanvasV2Bundle;
 };
+
+function finiteNonNegative(value: number): boolean {
+  return Number.isFinite(value) && value >= 0;
+}
+
+function finitePositive(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+function validDocumentSafety(document: FrakonDashboardDocumentV2): boolean {
+  if (!finitePositive(document.layout.width) || !finitePositive(document.layout.minHeight)) return false;
+  if (document.items.length > RESPONSIVE_CANVAS_V2_MAX_ITEMS) return false;
+  if ((document.constraints?.length ?? 0) > RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS) return false;
+  const ids = new Set<string>();
+  for (const item of document.items) {
+    if (!item.id || ids.has(item.id)) return false;
+    ids.add(item.id);
+    if (!finiteNonNegative(item.frame.x) || !finiteNonNegative(item.frame.y)) return false;
+    if (!finitePositive(item.frame.width) || !finitePositive(item.frame.height)) return false;
+  }
+  return true;
+}
 
 export function createResponsiveCanvasV2Bundle(
   documents: ResponsiveCanvasV2Documents,
@@ -46,15 +71,21 @@ export function createResponsiveCanvasV2Bundle(
 export function isResponsiveCanvasV2Bundle(value: unknown): value is ResponsiveCanvasV2Bundle {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<ResponsiveCanvasV2Bundle>;
-  if (candidate.kind !== 'responsive-canvas-v2' || typeof candidate.id !== 'string' || typeof candidate.title !== 'string') return false;
+  if (candidate.kind !== 'responsive-canvas-v2' || typeof candidate.id !== 'string' || !candidate.id || typeof candidate.title !== 'string') return false;
   if (!candidate.documents || typeof candidate.documents !== 'object') return false;
   const documents = candidate.documents as ResponsiveCanvasV2Documents;
   const present = BREAKPOINTS.filter((bp) => documents[bp] !== undefined);
-  if (!present.length) return false;
-  return present.every((bp) => {
-    const document = documents[bp];
-    return isDashboardDocumentV2(document) && document.id === candidate.id && document.breakpoint === bp;
-  });
+  if (!present.length || present.length > BREAKPOINTS.length) return false;
+  if (!candidate.defaultBreakpoint || !present.includes(candidate.defaultBreakpoint)) return false;
+  let totalItems = 0;
+  for (const breakpoint of present) {
+    const document = documents[breakpoint];
+    if (!isDashboardDocumentV2(document) || document.id !== candidate.id || document.breakpoint !== breakpoint) return false;
+    if (!validDocumentSafety(document)) return false;
+    totalItems += document.items.length;
+    if (totalItems > RESPONSIVE_CANVAS_V2_MAX_ITEMS) return false;
+  }
+  return true;
 }
 
 export function responsiveCanvasV2BundleDocument(
