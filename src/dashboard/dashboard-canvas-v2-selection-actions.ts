@@ -64,6 +64,7 @@ function distributedFrames(
   const end = axis === 'x' ? last.frame.x + last.frame.width : last.frame.y + last.frame.height;
   const totalSize = items.reduce((sum, item) => sum + (axis === 'x' ? item.frame.width : item.frame.height), 0);
   const gap = (end - start - totalSize) / (items.length - 1);
+  if (gap < 0) return undefined;
   let cursor = start + (axis === 'x' ? first.frame.width : first.frame.height) + gap;
   items.slice(1, -1).forEach((item) => {
     result.set(item.id, cursor);
@@ -98,6 +99,12 @@ export function applyDashboardCanvasV2SelectionAction(
 
   if ((action.startsWith('distribute-') || action.startsWith('equal-gap-')) && movableSelected(document, selected).length < 3) {
     return { status: 'invalid', document: structuredClone(document), collisionIds: [], constraintDiagnostics: [], reason: 'At least three unlocked selected items are required for distribution.' };
+  }
+  if (action === 'equal-gap-horizontal' && !horizontalDistribution) {
+    return { status: 'invalid', document: structuredClone(document), collisionIds: [], constraintDiagnostics: [], reason: 'Selected items do not have enough horizontal space for non-overlapping equal gaps.' };
+  }
+  if (action === 'equal-gap-vertical' && !verticalDistribution) {
+    return { status: 'invalid', document: structuredClone(document), collisionIds: [], constraintDiagnostics: [], reason: 'Selected items do not have enough vertical space for non-overlapping equal gaps.' };
   }
 
   const candidate = normalizeDashboardV2({
