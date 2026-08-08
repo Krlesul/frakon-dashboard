@@ -14,13 +14,17 @@ describe('canvas dashboard i18n', () => {
     expect(canvasDashboardTranslate('en', 'v2WriteBlocked')).toBe('v2 write blocked');
   });
 
-  it('contains localized capability, migration, history and constraint labels', () => {
+  it('contains localized capability, migration, history, constraint and selection labels', () => {
     expect(canvasDashboardTranslate('cs', 'migrationPreview')).toBe('náhled migrace v2');
     expect(canvasDashboardTranslate('cs', 'undo')).toBe('Zpět');
     expect(canvasDashboardTranslate('cs', 'constraintEditor')).toBe('Editor vazeb');
+    expect(canvasDashboardTranslate('cs', 'equalGapHorizontal')).toContain('mezery');
     expect(canvasDashboardTranslate('de', 'redo')).toBe('Wiederholen');
     expect(canvasDashboardTranslate('de', 'addConstraint')).toContain('Constraint');
+    expect(canvasDashboardTranslate('de', 'distributeVertical')).toContain('Vertikal');
     expect(canvasDashboardTranslate('pl', 'writeLocked')).toContain('zapis');
+    expect(canvasDashboardTranslate('pl', 'matchWidth')).toContain('szeroko');
     expect(canvasDashboardTranslate('sk', 'removeConstraint')).toBe('Odobrať');
+    expect(canvasDashboardTranslate('sk', 'alignLeft')).toContain('vľavo');
   });
 });
