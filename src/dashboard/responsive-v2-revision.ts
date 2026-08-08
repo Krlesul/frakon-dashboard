@@ -35,12 +35,18 @@ export function compareResponsiveCanvasV2Revisions(
   return 'conflict';
 }
 
-function responsiveRevisionId(clientId: string, updatedAt: number, bundle: ResponsiveCanvasV2Bundle): string {
-  const source = JSON.stringify({ clientId, updatedAt, bundle });
-  let hash = 2166136261;
+function hash32(source: string, seed: number): number {
+  let hash = seed >>> 0;
   for (let index = 0; index < source.length; index += 1) {
     hash ^= source.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-  return `${updatedAt.toString(36)}-${(hash >>> 0).toString(36)}`;
+  return hash >>> 0;
+}
+
+function responsiveRevisionId(clientId: string, updatedAt: number, bundle: ResponsiveCanvasV2Bundle): string {
+  const source = JSON.stringify({ clientId, updatedAt, bundle });
+  const primary = hash32(source, 2166136261);
+  const secondary = hash32(source, 3335557771);
+  return `${updatedAt.toString(36)}-${primary.toString(36)}-${secondary.toString(36)}`;
 }
