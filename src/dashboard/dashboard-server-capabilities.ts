@@ -2,6 +2,10 @@ import type { DashboardStorageTransport } from './dashboard-storage';
 import type { DashboardLayoutCapabilities } from './dashboard-layout-version-policy';
 
 export const RESPONSIVE_CANVAS_V2_CONTRACT_VERSION = 1;
+export const RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE = 'frakon_dashboard.responsive_dashboards';
+export const RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT = 'frakon/dashboard/load_responsive_bundle_revision';
+export const RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT = 'frakon/dashboard/save_responsive_revision';
+export const RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT = 'frakon/dashboard/remove_responsive_revision';
 
 export interface DashboardResponsiveCanvasV2CapabilityResponse {
   contractVersion?: number;
@@ -9,6 +13,13 @@ export interface DashboardResponsiveCanvasV2CapabilityResponse {
   write: boolean;
   atomicRevision: boolean;
   breakpoints: string[];
+  maxItems?: number;
+  maxConstraints?: number;
+  maxSerializedBytes?: number;
+  storageNamespace?: string;
+  loadEndpoint?: string;
+  saveEndpoint?: string;
+  removeEndpoint?: string;
 }
 
 export interface DashboardServerCapabilitiesResponse {
@@ -26,6 +37,13 @@ export interface DashboardResponsiveCanvasV2Capabilities {
   write: boolean;
   atomicRevision: boolean;
   breakpoints: ReadonlySet<string>;
+  maxItems?: number;
+  maxConstraints?: number;
+  maxSerializedBytes?: number;
+  storageNamespace?: string;
+  loadEndpoint?: string;
+  saveEndpoint?: string;
+  removeEndpoint?: string;
 }
 
 export interface DashboardServerCapabilities {
@@ -45,6 +63,12 @@ export async function loadDashboardServerCapabilities(
     {},
   );
   return normalizeDashboardServerCapabilities(response);
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : undefined;
 }
 
 export function normalizeDashboardServerCapabilities(
@@ -72,6 +96,13 @@ export function normalizeDashboardServerCapabilities(
       write: contractCompatible && responsive?.write === true && responsive?.read === true,
       atomicRevision: contractCompatible && responsive?.atomicRevision === true,
       breakpoints: new Set(contractCompatible ? (responsive?.breakpoints ?? []).filter((value) => typeof value === 'string') : []),
+      maxItems: contractCompatible ? positiveInteger(responsive?.maxItems) : undefined,
+      maxConstraints: contractCompatible ? positiveInteger(responsive?.maxConstraints) : undefined,
+      maxSerializedBytes: contractCompatible ? positiveInteger(responsive?.maxSerializedBytes) : undefined,
+      storageNamespace: contractCompatible && typeof responsive?.storageNamespace === 'string' ? responsive.storageNamespace : undefined,
+      loadEndpoint: contractCompatible && typeof responsive?.loadEndpoint === 'string' ? responsive.loadEndpoint : undefined,
+      saveEndpoint: contractCompatible && typeof responsive?.saveEndpoint === 'string' ? responsive.saveEndpoint : undefined,
+      removeEndpoint: contractCompatible && typeof responsive?.removeEndpoint === 'string' ? responsive.removeEndpoint : undefined,
     },
   };
 }
