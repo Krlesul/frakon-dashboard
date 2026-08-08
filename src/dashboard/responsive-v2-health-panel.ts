@@ -28,6 +28,7 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
   private t(key: ResponsiveV2HealthTranslationKey): string { return responsiveV2HealthTranslate(this.language, key); }
   private yn(value: boolean): string { return this.t(value ? 'yes' : 'no'); }
   private list(values: string[]): string { return values.length ? values.join(', ') : this.t('none'); }
+  private optional(value: string | number | undefined): string { return value === undefined ? '—' : String(value); }
 
   render() {
     const report = this.report;
@@ -41,11 +42,16 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
         <div class="row"><span class="key">${this.t('write')}</span><span class="value">${this.yn(report.writeEnabled)}</span></div>
         <div class="row"><span class="key">${this.t('atomicRevision')}</span><span class="value">${this.yn(report.atomicRevision)}</span></div>
         <div class="row"><span class="key">${this.t('revisionSync')}</span><span class="value">${this.yn(report.revisionSync)}</span></div>
+        <div class="row"><span class="key">${this.t('maxItems')}</span><span class="value">${this.optional(report.maxItems)}</span></div>
+        <div class="row"><span class="key">${this.t('maxConstraints')}</span><span class="value">${this.optional(report.maxConstraints)}</span></div>
+        <div class="row wide"><span class="key">${this.t('maxSerializedBytes')}</span><span class="value">${this.optional(report.maxSerializedBytes)}</span></div>
+        <div class="row wide"><span class="key">${this.t('storageNamespace')}</span><span class="value">${this.optional(report.storageNamespace)}</span></div>
         <div class="row wide"><span class="key">${this.t('baseRevision')}</span><span class="value">${report.baseRevision ?? '—'}</span></div>
         <div class="row wide"><span class="key">${this.t('dirtyBreakpoints')}</span><span class="value">${this.list(report.dirtyBreakpoints)}</span></div>
         <div class="row wide"><span class="key">${this.t('conflictBreakpoints')}</span><span class="value">${this.list(report.conflictBreakpoints)}</span></div>
-        <div class="row wide"><span class="key">${this.t('loadEndpoint')}</span><span class="value">${report.loadEndpoint}</span></div>
-        <div class="row wide"><span class="key">${this.t('saveEndpoint')}</span><span class="value">${report.saveEndpoint}</span></div>
+        <div class="row wide"><span class="key">${this.t('loadEndpoint')}</span><span class="value">${this.optional(report.loadEndpoint)}</span></div>
+        <div class="row wide"><span class="key">${this.t('saveEndpoint')}</span><span class="value">${this.optional(report.saveEndpoint)}</span></div>
+        <div class="row wide"><span class="key">${this.t('removeEndpoint')}</span><span class="value">${this.optional(report.removeEndpoint)}</span></div>
       </div>
       ${report.error ? html`<div class="error">${report.error}</div>` : nothing}
     </section>`;
