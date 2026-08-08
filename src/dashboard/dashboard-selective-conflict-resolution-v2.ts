@@ -27,6 +27,18 @@ export function resolveDashboardV2Conflicts(
   return { document, unresolved, complete: unresolved.length === 0 };
 }
 
+function reorderItems(document: FrakonDashboardDocumentV2, order: string[]): void {
+  const rank = new Map(order.map((id, index) => [id, index]));
+  document.items = [...document.items].sort((left, right) => {
+    const leftRank = rank.get(left.id);
+    const rightRank = rank.get(right.id);
+    if (leftRank !== undefined && rightRank !== undefined) return leftRank - rightRank;
+    if (leftRank !== undefined) return -1;
+    if (rightRank !== undefined) return 1;
+    return 0;
+  });
+}
+
 function applyV2ConflictValue(
   document: FrakonDashboardDocumentV2,
   path: string,
@@ -42,11 +54,6 @@ function applyV2ConflictValue(
     const item = value as FrakonCanvasItem;
     if (index >= 0) document.items[index] = item;
     else document.items.push(item);
-    document.items.sort((left, right) => (
-      left.frame.y - right.frame.y
-      || left.frame.x - right.frame.x
-      || left.id.localeCompare(right.id)
-    ));
     return;
   }
 
@@ -57,6 +64,7 @@ function applyV2ConflictValue(
     case 'surface': document.surface = value as FrakonDashboardDocumentV2['surface']; break;
     case 'cardSurface': document.cardSurface = value as FrakonDashboardDocumentV2['cardSurface']; break;
     case 'constraints': document.constraints = value as FrakonDashboardDocumentV2['constraints']; break;
+    case 'itemOrder': reorderItems(document, value as string[]); break;
     default: throw new Error(`Unsupported version 2 dashboard conflict path: ${path}`);
   }
 }
