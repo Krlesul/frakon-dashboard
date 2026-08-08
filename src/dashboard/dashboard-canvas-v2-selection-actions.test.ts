@@ -17,6 +17,16 @@ function doc(): FrakonDashboardDocumentV2 {
   };
 }
 
+function distributionDoc(): FrakonDashboardDocumentV2 {
+  const source = doc();
+  source.items = [
+    { id: 'a', card: { type: 'custom:a' }, frame: { x: 20, y: 20, width: 80, height: 60 } },
+    { id: 'b', card: { type: 'custom:b' }, frame: { x: 180, y: 110, width: 100, height: 80 } },
+    { id: 'c', card: { type: 'custom:c' }, frame: { x: 440, y: 220, width: 120, height: 40 } },
+  ];
+  return source;
+}
+
 describe('dashboard canvas v2 selection actions', () => {
   it('aligns selected unlocked items to the shared top edge', () => {
     const result = applyDashboardCanvasV2SelectionAction(doc(), ['a', 'b'], 'align-top');
@@ -45,6 +55,41 @@ describe('dashboard canvas v2 selection actions', () => {
 
   it('requires at least two selected items', () => {
     const result = applyDashboardCanvasV2SelectionAction(doc(), ['a'], 'align-left');
+    expect(result.status).toBe('invalid');
+  });
+
+  it('distributes three unlocked items by horizontal centers while keeping endpoints fixed', () => {
+    const source = distributionDoc();
+    const result = applyDashboardCanvasV2SelectionAction(source, ['a', 'b', 'c'], 'distribute-horizontal');
+    expect(result.status).toBe('committed');
+    expect(result.document.items.find((item) => item.id === 'a')?.frame.x).toBe(20);
+    expect(result.document.items.find((item) => item.id === 'c')?.frame.x).toBe(440);
+    expect(result.document.items.find((item) => item.id === 'b')?.frame.x).toBe(220);
+  });
+
+  it('creates equal horizontal gaps between differently sized items', () => {
+    const source = distributionDoc();
+    const result = applyDashboardCanvasV2SelectionAction(source, ['a', 'b', 'c'], 'equal-gap-horizontal');
+    expect(result.status).toBe('committed');
+    const [a, b, c] = ['a', 'b', 'c'].map((id) => result.document.items.find((item) => item.id === id)!);
+    const gap1 = b.frame.x - (a.frame.x + a.frame.width);
+    const gap2 = c.frame.x - (b.frame.x + b.frame.width);
+    expect(gap1).toBeCloseTo(gap2, 6);
+  });
+
+  it('creates equal vertical gaps between differently sized items', () => {
+    const source = distributionDoc();
+    const result = applyDashboardCanvasV2SelectionAction(source, ['a', 'b', 'c'], 'equal-gap-vertical');
+    expect(result.status).toBe('committed');
+    const [a, b, c] = ['a', 'b', 'c'].map((id) => result.document.items.find((item) => item.id === id)!);
+    const sorted = [a, b, c].sort((left, right) => left.frame.y - right.frame.y);
+    const gap1 = sorted[1].frame.y - (sorted[0].frame.y + sorted[0].frame.height);
+    const gap2 = sorted[2].frame.y - (sorted[1].frame.y + sorted[1].frame.height);
+    expect(gap1).toBeCloseTo(gap2, 6);
+  });
+
+  it('requires at least three unlocked items for distribution', () => {
+    const result = applyDashboardCanvasV2SelectionAction(doc(), ['a', 'b'], 'distribute-horizontal');
     expect(result.status).toBe('invalid');
   });
 });
