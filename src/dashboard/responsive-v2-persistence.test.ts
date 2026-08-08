@@ -1,0 +1,73 @@
+import { describe, expect, it } from 'vitest';
+import type { DashboardStorageTransport } from './dashboard-storage';
+import type { DashboardServerCapabilities } from './dashboard-server-capabilities';
+import { createResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
+import { persistResponsiveCanvasV2Revision, responsiveCanvasV2PersistenceDecision } from './responsive-v2-persistence';
+import { createResponsiveCanvasV2Revision } from './responsive-v2-revision';
+import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
+
+function document(): FrakonDashboardDocumentV2 {
+  return {
+    version: 2,
+    id: 'home',
+    title: 'Home',
+    breakpoint: 'desktop',
+    layout: { mode: 'canvas', width: 1440, minHeight: 700, snap: { enabled: true, size: 8 } },
+    items: [],
+  };
+}
+
+function capabilities(write: boolean): DashboardServerCapabilities {
+  return {
+    readableDocumentVersions: new Set([1, 2]),
+    writableDocumentVersions: new Set([1]),
+    revisionSync: true,
+    maxItems: 2000,
+    responsiveCanvasV2: {
+      read: true,
+      write,
+      atomicRevision: true,
+      breakpoints: new Set(['mobile', 'tablet', 'desktop', 'wide']),
+    },
+  };
+}
+
+class Transport implements DashboardStorageTransport {
+  requests: Array<{ command: string; payload: Record<string, unknown> }> = [];
+  async request<T>(command: string, payload: Record<string, unknown>): Promise<T> {
+    this.requests.push({ command, payload });
+    const envelope = payload.envelope as Record<string, unknown>;
+    return { status: 'saved', envelope } as T;
+  }
+}
+
+describe('responsive canvas v2 persistence gate', () => {
+  it('blocks before transport when server write capability is disabled', async () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: document() }, 'desktop');
+    const envelope = createResponsiveCanvasV2Revision(bundle, 'client', undefined, 100);
+    const transport = new Transport();
+    const result = await persistResponsiveCanvasV2Revision(transport, capabilities(false), envelope, undefined);
+    expect(result).toEqual({ status: 'blocked', reason: 'write-disabled' });
+    expect(transport.requests).toEqual([]);
+  });
+
+  it('blocks a bundle containing a breakpoint not advertised by the server', () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: document() }, 'desktop');
+    const caps = capabilities(true);
+    caps.responsiveCanvasV2.breakpoints = new Set(['mobile', 'tablet']);
+    expect(responsiveCanvasV2PersistenceDecision(caps, bundle)).toEqual({
+      allowed: false,
+      reason: 'unsupported-breakpoint',
+    });
+  });
+
+  it('maps a hypothetical enabled save to the dedicated responsive endpoint', async () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: document() }, 'desktop');
+    const envelope = createResponsiveCanvasV2Revision(bundle, 'client', undefined, 100);
+    const transport = new Transport();
+    const result = await persistResponsiveCanvasV2Revision(transport, capabilities(true), envelope, undefined);
+    expect(result.status).toBe('saved');
+    expect(transport.requests).toHaveLength(1);
+    expect(transport.requests[0].command).toBe('frakon/dashboard/save_responsive_revision');
+  });
+});
