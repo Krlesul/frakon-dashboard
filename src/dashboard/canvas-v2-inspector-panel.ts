@@ -65,6 +65,26 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     this.clipboardMessage = this.tc(copied ? 'copied' : 'copyUnavailable');
   }
 
+  private cutSelection(): void {
+    if (!this.document) return;
+    const result = this.clipboard.cut(this.document, this.selectedIds);
+    if (result.status !== 'committed') {
+      this.clipboardMessage = this.tc('copyUnavailable');
+      return;
+    }
+    this.clipboardMessage = this.tc('cutDone');
+    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', {
+      detail: { status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] },
+      bubbles: true,
+      composed: true,
+    }));
+    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-selection-set', {
+      detail: { selectedIds: [] },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
   private pasteSelection(): void {
     if (!this.document) return;
     const result = this.clipboard.paste(this.document);
@@ -101,6 +121,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
       </div>
       <div class="clipboard">
         <button ?disabled=${!canCopy} @click=${this.copySelection}>${this.tc('copy')}</button>
+        <button ?disabled=${!canCopy} @click=${this.cutSelection}>${this.tc('cut')}</button>
         <button ?disabled=${!this.clipboard.canPaste} @click=${this.pasteSelection}>${this.tc('paste')}</button>
         ${this.clipboardMessage ? html`<span class="clipboard-message">${this.clipboardMessage}</span>` : nothing}
       </div>
