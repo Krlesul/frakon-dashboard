@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 from typing import Any
 
@@ -19,6 +20,8 @@ from .const import (
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
 from .responsive_storage import FrakonResponsiveDashboardStorage
+
+_LOGGER = logging.getLogger(__name__)
 
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
 REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
@@ -126,7 +129,36 @@ def _validate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     return bundle
 
 
-def _send_write_disabled(connection: websocket_api.ActiveConnection, msg_id: int) -> None:
+def _audit_blocked_persistence(
+    *,
+    operation: str,
+    dashboard_id: str,
+    contract_version: int,
+    reason: str,
+) -> None:
+    _LOGGER.warning(
+        "Blocked FRAKON responsive dashboard persistence operation=%s dashboard_id=%s contract_version=%s reason=%s",
+        operation,
+        dashboard_id,
+        contract_version,
+        reason,
+    )
+
+
+def _send_write_disabled(
+    connection: websocket_api.ActiveConnection,
+    msg_id: int,
+    *,
+    operation: str,
+    dashboard_id: str,
+    contract_version: int,
+) -> None:
+    _audit_blocked_persistence(
+        operation=operation,
+        dashboard_id=dashboard_id,
+        contract_version=contract_version,
+        reason="write-disabled",
+    )
     connection.send_error(
         msg_id,
         "unsupported_responsive_write",
@@ -202,19 +234,34 @@ def register_responsive_commands(
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        if msg["contractVersion"] != RESPONSIVE_CANVAS_V2_CONTRACT_VERSION:
+        envelope = dict(msg["envelope"])
+        bundle = envelope["document"]
+        dashboard_id = bundle["id"]
+        contract_version = msg["contractVersion"]
+
+        if contract_version != RESPONSIVE_CANVAS_V2_CONTRACT_VERSION:
+            _audit_blocked_persistence(
+                operation="save",
+                dashboard_id=dashboard_id,
+                contract_version=contract_version,
+                reason="contract-incompatible",
+            )
             connection.send_error(
                 msg["id"],
                 "responsive_contract_incompatible",
-                f"Responsive contract version {msg['contractVersion']} is not supported; expected {RESPONSIVE_CANVAS_V2_CONTRACT_VERSION}.",
+                f"Responsive contract version {contract_version} is not supported; expected {RESPONSIVE_CANVAS_V2_CONTRACT_VERSION}.",
             )
             return
 
-        envelope = dict(msg["envelope"])
-        bundle = envelope["document"]
         kind = bundle.get("kind")
         if kind not in WRITABLE_RESPONSIVE_BUNDLE_KINDS:
-            _send_write_disabled(connection, msg["id"])
+            _send_write_disabled(
+                connection,
+                msg["id"],
+                operation="save",
+                dashboard_id=dashboard_id,
+                contract_version=contract_version,
+            )
             return
 
         expected_revision = msg.get("expectedRevision")
@@ -261,18 +308,32 @@ def register_responsive_commands(
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        if msg["contractVersion"] != RESPONSIVE_CANVAS_V2_CONTRACT_VERSION:
+        dashboard_id = msg["dashboard_id"]
+        contract_version = msg["contractVersion"]
+        if contract_version != RESPONSIVE_CANVAS_V2_CONTRACT_VERSION:
+            _audit_blocked_persistence(
+                operation="remove",
+                dashboard_id=dashboard_id,
+                contract_version=contract_version,
+                reason="contract-incompatible",
+            )
             connection.send_error(
                 msg["id"],
                 "responsive_contract_incompatible",
-                f"Responsive contract version {msg['contractVersion']} is not supported; expected {RESPONSIVE_CANVAS_V2_CONTRACT_VERSION}.",
+                f"Responsive contract version {contract_version} is not supported; expected {RESPONSIVE_CANVAS_V2_CONTRACT_VERSION}.",
             )
             return
         if RESPONSIVE_CANVAS_V2_KIND not in WRITABLE_RESPONSIVE_BUNDLE_KINDS:
-            _send_write_disabled(connection, msg["id"])
+            _send_write_disabled(
+                connection,
+                msg["id"],
+                operation="remove",
+                dashboard_id=dashboard_id,
+                contract_version=contract_version,
+            )
             return
 
-        removed, remote = await storage.remove_revision(msg["dashboard_id"], msg.get("expectedRevision"))
+        removed, remote = await storage.remove_revision(dashboard_id, msg.get("expectedRevision"))
         if removed:
             connection.send_result(msg["id"], {"status": "removed"})
             return
