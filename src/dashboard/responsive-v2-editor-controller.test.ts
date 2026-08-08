@@ -21,6 +21,8 @@ describe('ResponsiveV2EditorController', () => {
     controller.resize(900);
     expect(controller.snapshot.draft.activeBreakpoint).toBe('tablet');
     controller.resize(1500);
+    expect(controller.snapshot.draft.activeBreakpoint).toBe('desktop');
+    controller.resize(1600);
     expect(controller.snapshot.draft.activeBreakpoint).toBe('wide');
   });
 
