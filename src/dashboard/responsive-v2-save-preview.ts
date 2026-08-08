@@ -2,7 +2,7 @@ import type { FrakonBreakpoint } from './layout-model';
 import type { DashboardServerCapabilities } from './dashboard-server-capabilities';
 import type { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
 import {
-  createResponsiveCanvasV2Revision,
+  createResponsiveCanvasV2RevisionFromParent,
   type ResponsiveCanvasV2RevisionEnvelope,
 } from './responsive-v2-revision';
 import {
@@ -34,7 +34,7 @@ export function createResponsiveCanvasV2SavePreview(
   controller: ResponsiveV2DraftController,
   capabilities: DashboardServerCapabilities,
   clientId: string,
-  base?: ResponsiveCanvasV2RevisionEnvelope,
+  base?: ResponsiveCanvasV2RevisionEnvelope | string,
   options: { now?: number; hasUnresolvedConflict?: boolean } = {},
 ): ResponsiveCanvasV2SavePreview {
   const snapshot = controller.snapshot;
@@ -43,7 +43,8 @@ export function createResponsiveCanvasV2SavePreview(
   const readiness = responsiveCanvasV2WriteReadiness(capabilities, bundle, {
     hasUnresolvedConflict: options.hasUnresolvedConflict,
   });
-  const candidate = createResponsiveCanvasV2Revision(bundle, clientId, base, options.now ?? Date.now());
+  const baseRevision = typeof base === 'string' ? base : base?.revision;
+  const candidate = createResponsiveCanvasV2RevisionFromParent(bundle, clientId, baseRevision, options.now ?? Date.now());
   const breakpoints = BREAKPOINTS.flatMap((breakpoint) => {
     const document = bundle.documents[breakpoint];
     if (!document) return [];
@@ -62,7 +63,7 @@ export function createResponsiveCanvasV2SavePreview(
     dirtyBreakpoints: [...snapshot.dirtyBreakpoints],
     breakpoints,
     readiness,
-    baseRevision: base?.revision,
+    baseRevision,
     candidate,
   };
 }
