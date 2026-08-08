@@ -13,6 +13,7 @@ class Transport implements DashboardStorageTransport {
         revisionSync: true,
         maxItems: 2000,
         responsiveCanvasV2: {
+          contractVersion: 1,
           read: true,
           write: false,
           atomicRevision: true,
