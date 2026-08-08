@@ -12,6 +12,7 @@ export interface ResponsiveCanvasV2Bundle {
 
 export const RESPONSIVE_CANVAS_V2_MAX_ITEMS = 2000;
 export const RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS = 4000;
+export const RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES = 2_000_000;
 
 const BREAKPOINTS: FrakonBreakpoint[] = ['mobile', 'tablet', 'desktop', 'wide'];
 const RESPONSIVE_BUNDLE_CARRIER = Symbol('frakon-responsive-canvas-v2-bundle');
@@ -26,6 +27,14 @@ function finiteNonNegative(value: number): boolean {
 
 function finitePositive(value: number): boolean {
   return Number.isFinite(value) && value > 0;
+}
+
+function serializedUtf8Bytes(value: unknown): number | undefined {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  } catch {
+    return undefined;
+  }
 }
 
 function validDocumentSafety(document: FrakonDashboardDocumentV2): boolean {
@@ -85,6 +94,8 @@ export function isResponsiveCanvasV2Bundle(value: unknown): value is ResponsiveC
     totalItems += document.items.length;
     if (totalItems > RESPONSIVE_CANVAS_V2_MAX_ITEMS) return false;
   }
+  const bytes = serializedUtf8Bytes(value);
+  if (bytes === undefined || bytes > RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES) return false;
   return true;
 }
 
