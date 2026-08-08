@@ -11,8 +11,11 @@ import type { FrakonCanvasV2ConstraintSelectDetail } from './canvas-v2-constrain
 import './canvas-v2-inspector-panel';
 import type { FrakonCanvasV2InspectorEditDetail } from './canvas-v2-inspector-panel';
 import { selectDashboardCanvasV2Constraint } from './dashboard-canvas-v2-constraint-selection';
+import { dashboardCanvasV2EditorShortcut } from './dashboard-canvas-v2-editor-shortcuts';
 import { dashboardCanvasV2Guidelines } from './dashboard-canvas-v2-guidelines';
 import { patchDashboardCanvasV2Item, patchDashboardCanvasV2Snap } from './dashboard-canvas-v2-inspector-actions';
+import { applyDashboardCanvasV2ItemAction } from './dashboard-canvas-v2-item-actions';
+import { applyDashboardCanvasV2LayerAction } from './dashboard-canvas-v2-layer-actions';
 import { canvasV2MoveSelection, normalizeCanvasV2Selection, selectCanvasV2ByMarquee, selectCanvasV2Item } from './dashboard-canvas-v2-selection';
 import { DashboardCanvasV2Session, type DashboardCanvasV2Point } from './dashboard-canvas-v2-session';
 import { dashboardCanvasRenderModel } from './dashboard-canvas-render-model';
@@ -115,11 +118,30 @@ export class FrakonCanvasV2View extends LitElement {
   }
 
   private onKeyDown(event: KeyboardEvent): void {
-    if (!this.editMode || !this.document || this.session || this.marqueeStart) return;
-    const delta = keyboardNudgeDeltaV2(event.key, this.document.layout.snap.size, event.shiftKey);
-    if (!delta) return;
+    if (!this.editMode || !this.document || this.session || this.marqueeStart || event.target !== event.currentTarget) return;
     const selection = normalizeCanvasV2Selection(this.selection, this.document);
     if (!selection.ids.length) return;
+
+    const shortcut = dashboardCanvasV2EditorShortcut(event);
+    if (shortcut) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (shortcut.kind === 'item') {
+        const result = applyDashboardCanvasV2ItemAction(this.document, selection.ids, shortcut.action);
+        if (result.status === 'committed') {
+          this.selection = { ids: result.selectedIds, anchorId: result.selectedIds[0] };
+          this.selectedConstraintId = undefined;
+          this.dispatchDraft({ status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] });
+        }
+        return;
+      }
+      const result = applyDashboardCanvasV2LayerAction(this.document, selection.ids, shortcut.action);
+      if (result.status === 'committed') this.dispatchDraft({ status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] });
+      return;
+    }
+
+    const delta = keyboardNudgeDeltaV2(event.key, this.document.layout.snap.size, event.shiftKey);
+    if (!delta) return;
     event.preventDefault();
     event.stopPropagation();
     const result = nudgeDashboardV2Selection(this.document, selection.ids, delta);
