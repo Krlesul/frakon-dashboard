@@ -100,6 +100,7 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
                 "revisionSync": True,
                 "maxItems": 2000,
                 "responsiveCanvasV2": {
+                    "contractVersion": 1,
                     "read": RESPONSIVE_CANVAS_V2_KIND in READABLE_RESPONSIVE_BUNDLE_KINDS,
                     "write": RESPONSIVE_CANVAS_V2_KIND in WRITABLE_RESPONSIVE_BUNDLE_KINDS,
                     "atomicRevision": True,
