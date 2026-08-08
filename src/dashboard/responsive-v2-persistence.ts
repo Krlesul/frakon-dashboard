@@ -1,6 +1,8 @@
 import type { DashboardStorageTransport } from './dashboard-storage';
 import {
   RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+  RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
+  RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
   type DashboardServerCapabilities,
 } from './dashboard-server-capabilities';
 import type { ResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
@@ -52,11 +54,12 @@ export async function persistResponsiveCanvasV2Revision(
 ): Promise<ResponsiveCanvasV2PersistResult> {
   const decision = responsiveCanvasV2PersistenceDecision(capabilities, envelope.bundle);
   if (!decision.allowed) return { status: 'blocked', reason: decision.reason! };
+  const saveEndpoint = capabilities.responsiveCanvasV2.saveEndpoint ?? `${namespace}/save_responsive_revision` ?? RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT;
 
   const response = await transport.request<
     | { status: 'saved'; envelope: ServerResponsiveRevisionEnvelope }
     | { status: 'conflict'; remote: ServerResponsiveRevisionEnvelope }
-  >(`${namespace}/save_responsive_revision`, {
+  >(saveEndpoint, {
     contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
     envelope: {
       document: structuredClone(envelope.bundle),
@@ -81,11 +84,12 @@ export async function removeResponsiveCanvasV2Revision(
 ): Promise<ResponsiveCanvasV2RemoveResult> {
   const decision = responsiveCanvasV2PersistenceDecision(capabilities, bundle);
   if (!decision.allowed) return { status: 'blocked', reason: decision.reason! };
+  const removeEndpoint = capabilities.responsiveCanvasV2.removeEndpoint ?? `${namespace}/remove_responsive_revision` ?? RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT;
 
   const response = await transport.request<
     | { status: 'removed' }
     | { status: 'conflict'; remote?: ServerResponsiveRevisionEnvelope }
-  >(`${namespace}/remove_responsive_revision`, {
+  >(removeEndpoint, {
     contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
     dashboard_id: bundle.id,
     expectedRevision: expectedRevision ?? null,
