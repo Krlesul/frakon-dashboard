@@ -54,6 +54,10 @@ export async function loadResponsiveCanvasV2ReadOnly(
   };
 }
 
+function validRevisionId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 256;
+}
+
 function isRevisionEnvelopeLike(value: unknown): value is {
   document: ResponsiveCanvasV2Bundle;
   revision: string;
@@ -63,12 +67,10 @@ function isRevisionEnvelopeLike(value: unknown): value is {
 } {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
-  return typeof candidate.revision === 'string'
-    && candidate.revision.length > 0
-    && (candidate.parentRevision === undefined || typeof candidate.parentRevision === 'string')
-    && typeof candidate.updatedAt === 'number'
-    && Number.isFinite(candidate.updatedAt)
-    && typeof candidate.clientId === 'string'
-    && candidate.clientId.length > 0
-    && 'document' in candidate;
+  if (!validRevisionId(candidate.revision)) return false;
+  if (candidate.parentRevision !== undefined && !validRevisionId(candidate.parentRevision)) return false;
+  if (candidate.parentRevision === candidate.revision) return false;
+  if (typeof candidate.updatedAt !== 'number' || !Number.isFinite(candidate.updatedAt) || candidate.updatedAt < 0) return false;
+  if (typeof candidate.clientId !== 'string' || candidate.clientId.length === 0 || candidate.clientId.length > 128) return false;
+  return 'document' in candidate;
 }
