@@ -7,6 +7,7 @@ import {
   type ResponsiveCanvasV2Documents,
   defaultResponsiveCanvasV2Widths,
 } from './responsive-layout-v2';
+import { copyResponsiveCanvasV2Layout } from './responsive-layout-v2-actions';
 
 export interface ResponsiveV2DraftSnapshot {
   activeBreakpoint: FrakonBreakpoint;
@@ -42,6 +43,17 @@ export class ResponsiveV2DraftController {
   switchTo(breakpoint: FrakonBreakpoint): ResponsiveV2DraftSnapshot {
     this.ensure(breakpoint);
     this.activeBreakpoint = breakpoint;
+    return this.snapshot;
+  }
+
+  copyLayoutFrom(source: FrakonBreakpoint, target: FrakonBreakpoint = this.activeBreakpoint): ResponsiveV2DraftSnapshot {
+    const result = copyResponsiveCanvasV2Layout(this.documents(), source, target);
+    if (result.status !== 'committed') return this.snapshot;
+    const next = result.documents[target];
+    if (!next) return this.snapshot;
+    const controller = this.ensure(target);
+    controller.apply({ status: 'committed', document: next, collisionIds: [] });
+    if (target === this.activeBreakpoint) this.activeBreakpoint = target;
     return this.snapshot;
   }
 
