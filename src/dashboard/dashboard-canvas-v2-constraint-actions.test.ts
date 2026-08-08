@@ -12,11 +12,11 @@ function doc(): FrakonDashboardDocumentV2 {
     id: 'canvas',
     title: 'Canvas',
     breakpoint: 'desktop',
-    layout: { mode: 'canvas', width: 500, minHeight: 300, snap: { enabled: true, size: 10 } },
+    layout: { mode: 'canvas', width: 500, minHeight: 360, snap: { enabled: true, size: 10 } },
     items: [
       { id: 'a', card: { type: 'custom:a' }, frame: { x: 20, y: 20, width: 100, height: 80 } },
       { id: 'b', card: { type: 'custom:b' }, frame: { x: 220, y: 20, width: 100, height: 80 } },
-      { id: 'c', card: { type: 'custom:c' }, frame: { x: 220, y: 160, width: 100, height: 80 } },
+      { id: 'c', card: { type: 'custom:c' }, frame: { x: 220, y: 240, width: 100, height: 80 } },
     ],
   };
 }
