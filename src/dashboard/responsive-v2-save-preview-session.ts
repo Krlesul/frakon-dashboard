@@ -1,6 +1,5 @@
 import type { DashboardServerCapabilities } from './dashboard-server-capabilities';
 import type { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
-import type { ResponsiveCanvasV2RevisionEnvelope } from './responsive-v2-revision';
 import { createResponsiveCanvasV2SavePreview, type ResponsiveCanvasV2SavePreview } from './responsive-v2-save-preview';
 
 export interface ResponsiveCanvasV2SavePreviewSessionInput {
@@ -8,19 +7,6 @@ export interface ResponsiveCanvasV2SavePreviewSessionInput {
   capabilities: DashboardServerCapabilities;
   baseRevision?: string;
   hasUnresolvedConflict?: boolean;
-}
-
-function syntheticBase(
-  controller: ResponsiveV2DraftController,
-  revision: string | undefined,
-): ResponsiveCanvasV2RevisionEnvelope | undefined {
-  if (!revision) return undefined;
-  return {
-    bundle: controller.toBundle(),
-    revision,
-    updatedAt: 0,
-    clientId: 'server',
-  };
 }
 
 function fingerprint(input: ResponsiveCanvasV2SavePreviewSessionInput): string {
@@ -59,7 +45,7 @@ export class ResponsiveCanvasV2SavePreviewSession {
       input.controller,
       input.capabilities,
       this.clientId,
-      syntheticBase(input.controller, input.baseRevision),
+      input.baseRevision,
       {
         now: this.now(),
         hasUnresolvedConflict: input.hasUnresolvedConflict,
