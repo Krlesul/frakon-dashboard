@@ -18,6 +18,7 @@ export type FrakonCanvasV2InspectorEditDetail =
 export class FrakonCanvasV2InspectorPanel extends LitElement {
   @property({ attribute: false }) document?: FrakonDashboardDocumentV2;
   @property({ attribute: false }) selectedIds: string[] = [];
+  @property({ attribute: false }) selectedConstraintId?: string;
   @property({ attribute: false }) diagnostics: ConstraintDiagnostic[] = [];
   @property({ attribute: false }) language: SupportedLanguage = 'en';
 
@@ -61,7 +62,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
       </div>
       ${single ? html`<div class="grid">${this.itemField(single.id,'x',single.frame.x,'X')}${this.itemField(single.id,'y',single.frame.y,'Y')}${this.itemField(single.id,'width',single.frame.width,'W')}${this.itemField(single.id,'height',single.frame.height,'H')}${this.optionalItemField(single.id,'minWidth',single.minWidth,'min W')}${this.optionalItemField(single.id,'minHeight',single.minHeight,'min H')}${this.optionalItemField(single.id,'maxWidth',single.maxWidth,'max W')}${this.optionalItemField(single.id,'maxHeight',single.maxHeight,'max H')}</div><label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>` : nothing}
       <frakon-canvas-v2-selection-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-selection-toolbar>
-      <frakon-canvas-v2-constraint-editor .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-constraint-editor>
+      <frakon-canvas-v2-constraint-editor .document=${this.document} .selectedIds=${this.selectedIds} .selectedConstraintId=${this.selectedConstraintId} .language=${this.language}></frakon-canvas-v2-constraint-editor>
       ${diagnostics.issues.length ? html`<div class="issues">${diagnostics.issues.map((issue) => html`<div class="issue">${issue.constraintId} · ${issue.status} · ${issue.message}</div>`)}</div>` : nothing}
     </section>`;
   }
