@@ -24,6 +24,13 @@ export interface ResponsiveCanvasV2SyncState {
   error?: Error;
 }
 
+function sameBundle(
+  left: ResponsiveCanvasV2RevisionEnvelope['bundle'],
+  right: ResponsiveCanvasV2RevisionEnvelope['bundle'],
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export class ResponsiveCanvasV2SyncController {
   private state: ResponsiveCanvasV2SyncState = { loading: false, saving: false };
   private baseEnvelope?: ResponsiveCanvasV2RevisionEnvelope;
@@ -69,15 +76,38 @@ export class ResponsiveCanvasV2SyncController {
 
   async save(): Promise<ResponsiveCanvasV2RevisionEnvelope | undefined> {
     const controller = this.state.controller;
+    if (!controller) return undefined;
+    if (controller.snapshot.dirtyBreakpoints.length === 0) {
+      this.patch({ error: undefined, conflict: undefined });
+      return this.state.envelope;
+    }
+    const local = createResponsiveCanvasV2Revision(controller.toBundle(), this.clientId, this.state.envelope, this.now());
+    return this.saveCandidate(local);
+  }
+
+  async saveCandidate(candidate: ResponsiveCanvasV2RevisionEnvelope): Promise<ResponsiveCanvasV2RevisionEnvelope | undefined> {
+    const controller = this.state.controller;
     const capabilities = this.state.capabilities;
     if (!controller || !capabilities) return undefined;
-    const local = createResponsiveCanvasV2Revision(controller.toBundle(), this.clientId, this.state.envelope, this.now());
+    if (controller.snapshot.dirtyBreakpoints.length === 0) {
+      this.patch({ error: undefined, conflict: undefined });
+      return this.state.envelope;
+    }
+    if (!sameBundle(candidate.bundle, controller.toBundle())) {
+      this.patch({ error: new Error('Responsive save candidate is stale because the local draft changed.'), conflict: undefined });
+      return undefined;
+    }
+    if (candidate.parentRevision !== this.state.envelope?.revision) {
+      this.patch({ error: new Error('Responsive save candidate is stale because the base revision changed.'), conflict: undefined });
+      return undefined;
+    }
+
     this.patch({ saving: true, error: undefined });
     try {
       const result = await persistResponsiveCanvasV2Revision(
         this.transport,
         capabilities,
-        local,
+        candidate,
         this.state.envelope?.revision,
         this.namespace,
       );
@@ -94,9 +124,9 @@ export class ResponsiveCanvasV2SyncController {
       this.patch({
         conflict: {
           base,
-          local,
+          local: candidate,
           remote: result.remote,
-          merge: mergeResponsiveCanvasV2Bundles(base.bundle, local.bundle, result.remote.bundle),
+          merge: mergeResponsiveCanvasV2Bundles(base.bundle, candidate.bundle, result.remote.bundle),
         },
       });
       return undefined;
