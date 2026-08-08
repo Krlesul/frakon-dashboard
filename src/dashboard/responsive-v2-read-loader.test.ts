@@ -79,4 +79,27 @@ describe('responsive canvas v2 read loader', () => {
     expect(result.status).toBe('invalid');
     if (result.status === 'invalid') expect(result.reason).toBe('invalid-bundle');
   });
+
+  it('rejects self-parented, negative-time and oversized identity envelopes', async () => {
+    for (const patch of [
+      { parentRevision: 'r1' },
+      { updatedAt: -1 },
+      { revision: 'r'.repeat(257) },
+      { clientId: 'c'.repeat(129) },
+    ]) {
+      const transport = new Transport();
+      const original = transport.request.bind(transport);
+      transport.request = async <T>(command: string, payload: Record<string, unknown>): Promise<T> => {
+        if (command.endsWith('/load_responsive_bundle_revision')) {
+          transport.requests.push({ command, payload });
+          const base = await original<T>(command, payload) as Record<string, unknown>;
+          return { ...base, ...patch } as T;
+        }
+        return original(command, payload);
+      };
+      const result = await loadResponsiveCanvasV2ReadOnly(transport, 'home');
+      expect(result.status).toBe('invalid');
+      if (result.status === 'invalid') expect(result.reason).toBe('invalid-envelope');
+    }
+  });
 });
