@@ -57,4 +57,17 @@ describe('ResponsiveV2DraftController', () => {
     expect(controller.snapshot.dirtyBreakpoints).toContain('mobile');
     expect(controller.snapshot.dirtyBreakpoints).not.toContain('desktop');
   });
+
+  it('copies another breakpoint layout into the active history as one undoable step', () => {
+    const controller = new ResponsiveV2DraftController(base());
+    controller.switchTo('mobile');
+    const before = controller.snapshot.active.document.items[0].frame.x;
+    controller.applyActive({ status: 'committed', document: { ...controller.snapshot.active.document, items: controller.snapshot.active.document.items.map((item) => ({ ...item, frame: { ...item.frame, x: item.frame.x + 30 } })) }, collisionIds: [] }, false);
+    expect(controller.snapshot.active.document.items[0].frame.x).not.toBe(before);
+    controller.copyLayoutFrom('desktop', 'mobile');
+    const copied = controller.snapshot.active.document.items[0].frame.x;
+    expect(copied).toBeCloseTo(32.5);
+    controller.undo();
+    expect(controller.snapshot.active.document.items[0].frame.x).not.toBe(copied);
+  });
 });
