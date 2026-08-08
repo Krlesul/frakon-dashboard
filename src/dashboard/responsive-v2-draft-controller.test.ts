@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
+import { createResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
 import { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
 
 function base(): FrakonDashboardDocumentV2 {
@@ -69,5 +70,33 @@ describe('ResponsiveV2DraftController', () => {
     expect(copied).toBeCloseTo(32.5);
     controller.undo();
     expect(controller.snapshot.active.document.items[0].frame.x).not.toBe(copied);
+  });
+
+  it('restores all persisted breakpoint documents as clean independent bases', () => {
+    const desktop = base();
+    const mobile: FrakonDashboardDocumentV2 = {
+      ...structuredClone(desktop),
+      breakpoint: 'mobile',
+      layout: { ...desktop.layout, width: 390 },
+      items: desktop.items.map((item) => ({ ...item, frame: { x: 20, y: 16, width: 350, height: 160 } })),
+    };
+    const bundle = createResponsiveCanvasV2Bundle({ desktop, mobile }, 'mobile');
+    const controller = ResponsiveV2DraftController.fromBundle(bundle);
+    expect(controller.snapshot.activeBreakpoint).toBe('mobile');
+    expect(controller.snapshot.active.document.items[0].frame.x).toBe(20);
+    expect(controller.snapshot.documents.desktop?.items[0].frame.x).toBe(120);
+    expect(controller.snapshot.dirtyBreakpoints).toEqual([]);
+    expect(controller.snapshot.active.canUndo).toBe(false);
+  });
+
+  it('exports current breakpoint drafts back into one responsive bundle', () => {
+    const controller = new ResponsiveV2DraftController(base());
+    controller.switchTo('mobile');
+    const mobile = controller.snapshot.active.document;
+    controller.applyActive({ status: 'committed', document: { ...mobile, items: mobile.items.map((item) => ({ ...item, frame: { ...item.frame, y: item.frame.y + 24 } })) }, collisionIds: [] }, false);
+    const bundle = controller.toBundle('desktop');
+    expect(bundle.defaultBreakpoint).toBe('desktop');
+    expect(bundle.documents.desktop?.breakpoint).toBe('desktop');
+    expect(bundle.documents.mobile?.items[0].frame.y).toBe(mobile.items[0].frame.y + 24);
   });
 });
