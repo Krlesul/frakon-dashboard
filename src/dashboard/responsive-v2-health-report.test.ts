@@ -1,4 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import {
+  RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+  RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
+  RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
+  RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
+} from './dashboard-server-capabilities';
 import { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
 import { responsiveCanvasV2HealthReport, responsiveCanvasV2HealthReportFromEditorState } from './responsive-v2-health-report';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
@@ -28,6 +34,13 @@ function capabilities(write = false) {
       write,
       atomicRevision: true,
       breakpoints: new Set(['mobile', 'tablet', 'desktop', 'wide']),
+      maxItems: 2000,
+      maxConstraints: 4000,
+      maxSerializedBytes: 2_000_000,
+      storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
+      loadEndpoint: RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+      saveEndpoint: RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
+      removeEndpoint: RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
     },
   };
 }
@@ -58,8 +71,13 @@ describe('responsive canvas v2 health report', () => {
       writeEnabled: false,
       atomicRevision: true,
       revisionSync: true,
-      loadEndpoint: 'frakon/dashboard/load_responsive_bundle_revision',
-      saveEndpoint: 'frakon/dashboard/save_responsive_revision',
+      maxItems: 2000,
+      maxConstraints: 4000,
+      maxSerializedBytes: 2_000_000,
+      storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
+      loadEndpoint: RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+      saveEndpoint: RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
+      removeEndpoint: RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
     });
   });
 
@@ -82,6 +100,7 @@ describe('responsive canvas v2 health report', () => {
       contractCompatible: true,
       readEnabled: true,
       writeEnabled: false,
+      storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
       dirtyBreakpoints: [],
     });
   });
