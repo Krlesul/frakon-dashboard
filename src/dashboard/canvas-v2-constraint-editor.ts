@@ -51,7 +51,7 @@ export class FrakonCanvasV2ConstraintEditor extends LitElement {
 
   private add(sourceId: string, targetId: string): void { if (this.document) this.applyResult(addDashboardCanvasV2Constraint(this.document, { kind: 'below', sourceId, targetId, gap: 12, enabled: true })); }
   private patch(constraintId: string, patch: Parameters<typeof patchDashboardCanvasV2Constraint>[2]): void { if (this.document) this.applyResult(patchDashboardCanvasV2Constraint(this.document, constraintId, patch)); }
-  private remove(constraintId: string): void { if (this.document) this.applyResult(removeDashboardCanvasV2Constraint(this.document, constraintId)); }
+  private removeConstraint(constraintId: string): void { if (this.document) this.applyResult(removeDashboardCanvasV2Constraint(this.document, constraintId)); }
   private relatedConstraints(sourceId: string) { return (this.document?.constraints ?? []).filter((constraint) => constraint.sourceId === sourceId); }
 
   render() {
@@ -70,7 +70,7 @@ export class FrakonCanvasV2ConstraintEditor extends LitElement {
         <input title=${this.t('constraintGap')} type="number" .value=${constraint.gap === undefined ? '' : String(constraint.gap)} @change=${(event: Event) => { const raw = (event.currentTarget as HTMLInputElement).value.trim(); this.patch(constraint.id, { gap: raw ? Number(raw) : null }); }}>
         <input title=${this.t('constraintPriority')} type="number" .value=${constraint.priority === undefined ? '' : String(constraint.priority)} @change=${(event: Event) => { const raw = (event.currentTarget as HTMLInputElement).value.trim(); this.patch(constraint.id, { priority: raw ? Number(raw) : null }); }}>
         <label class="enabled"><input type="checkbox" .checked=${constraint.enabled !== false} @change=${(event: Event) => this.patch(constraint.id, { enabled: (event.currentTarget as HTMLInputElement).checked })}>${this.t('enabled')}</label>
-        <button class="danger" @click=${() => this.remove(constraint.id)}>${this.t('removeConstraint')}</button>
+        <button class="danger" @click=${() => this.removeConstraint(constraint.id)}>${this.t('removeConstraint')}</button>
       </div>`)}
       ${defaultTarget ? html`<button @click=${() => this.add(sourceId, defaultTarget)}>+ ${this.t('addConstraint')}</button>` : nothing}
       ${this.localError ? html`<div class="error">${this.localError}</div>` : nothing}
