@@ -63,7 +63,7 @@ describe('responsive canvas v2 persistence gate', () => {
     });
   });
 
-  it('maps a hypothetical enabled save to the dedicated responsive endpoint', async () => {
+  it('maps a hypothetical enabled save to the dedicated responsive endpoint with contract version', async () => {
     const bundle = createResponsiveCanvasV2Bundle({ desktop: document() }, 'desktop');
     const envelope = createResponsiveCanvasV2Revision(bundle, 'client', undefined, 100);
     const transport = new Transport();
@@ -71,5 +71,6 @@ describe('responsive canvas v2 persistence gate', () => {
     expect(result.status).toBe('saved');
     expect(transport.requests).toHaveLength(1);
     expect(transport.requests[0].command).toBe('frakon/dashboard/save_responsive_revision');
+    expect(transport.requests[0].payload.contractVersion).toBe(RESPONSIVE_CANVAS_V2_CONTRACT_VERSION);
   });
 });
