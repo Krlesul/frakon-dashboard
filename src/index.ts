@@ -14,6 +14,7 @@ import './dashboard/canvas-dashboard-card';
 import './dashboard/responsive-v2-save-panel';
 import './dashboard/responsive-v2-conflict-panel';
 import './dashboard/responsive-v2-health-panel';
+import './dashboard/responsive-v2-persistence-panel';
 
 interface CustomCardRegistration {
   type: string;
