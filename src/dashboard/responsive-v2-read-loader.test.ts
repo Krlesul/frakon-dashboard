@@ -57,7 +57,7 @@ describe('responsive canvas v2 read loader', () => {
     }
     expect(transport.requests).toEqual([
       { command: 'frakon/dashboard/capabilities', payload: {} },
-      { command: 'frakon/dashboard/load_responsive_revision', payload: { dashboard_id: 'home' } },
+      { command: 'frakon/dashboard/load_responsive_bundle_revision', payload: { dashboard_id: 'home' } },
     ]);
   });
 
@@ -72,7 +72,7 @@ describe('responsive canvas v2 read loader', () => {
     const transport = new Transport();
     const original = transport.request.bind(transport);
     transport.request = async <T>(command: string, payload: Record<string, unknown>): Promise<T> => {
-      if (command.endsWith('/load_responsive_revision')) {
+      if (command.endsWith('/load_responsive_bundle_revision')) {
         transport.requests.push({ command, payload });
         return {
           document: { kind: 'responsive-canvas-v2', id: 'home', title: 'Home', defaultBreakpoint: 'desktop', documents: {} },
