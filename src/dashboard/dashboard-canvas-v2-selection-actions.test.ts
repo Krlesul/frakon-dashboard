@@ -21,7 +21,7 @@ function distributionDoc(): FrakonDashboardDocumentV2 {
   const source = doc();
   source.items = [
     { id: 'a', card: { type: 'custom:a' }, frame: { x: 20, y: 20, width: 80, height: 60 } },
-    { id: 'b', card: { type: 'custom:b' }, frame: { x: 180, y: 110, width: 100, height: 80 } },
+    { id: 'b', card: { type: 'custom:b' }, frame: { x: 180, y: 120, width: 100, height: 80 } },
     { id: 'c', card: { type: 'custom:c' }, frame: { x: 440, y: 220, width: 120, height: 40 } },
   ];
   return source;
@@ -64,7 +64,7 @@ describe('dashboard canvas v2 selection actions', () => {
     expect(result.status).toBe('committed');
     expect(result.document.items.find((item) => item.id === 'a')?.frame.x).toBe(20);
     expect(result.document.items.find((item) => item.id === 'c')?.frame.x).toBe(440);
-    expect(result.document.items.find((item) => item.id === 'b')?.frame.x).toBe(220);
+    expect(result.document.items.find((item) => item.id === 'b')?.frame.x).toBe(230);
   });
 
   it('creates equal horizontal gaps between differently sized items', () => {
