@@ -2,28 +2,28 @@ import type { DashboardStorageTransport } from './dashboard-storage';
 import type { DashboardServerCapabilities } from './dashboard-server-capabilities';
 import type { ResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
 import type { ResponsiveCanvasV2RevisionEnvelope } from './responsive-v2-revision';
+import {
+  responsiveCanvasV2WriteReadiness,
+  type ResponsiveCanvasV2WriteBlocker,
+} from './responsive-v2-write-readiness';
 
 export interface ResponsiveCanvasV2PersistenceDecision {
   allowed: boolean;
-  reason?: 'read-disabled' | 'write-disabled' | 'atomic-revision-disabled' | 'revision-sync-disabled' | 'unsupported-breakpoint';
+  reason?: ResponsiveCanvasV2WriteBlocker;
 }
 
 export function responsiveCanvasV2PersistenceDecision(
   capabilities: DashboardServerCapabilities,
   bundle: ResponsiveCanvasV2Bundle,
 ): ResponsiveCanvasV2PersistenceDecision {
-  const responsive = capabilities.responsiveCanvasV2;
-  if (!responsive.read) return { allowed: false, reason: 'read-disabled' };
-  if (!responsive.write) return { allowed: false, reason: 'write-disabled' };
-  if (!responsive.atomicRevision) return { allowed: false, reason: 'atomic-revision-disabled' };
-  if (!capabilities.revisionSync) return { allowed: false, reason: 'revision-sync-disabled' };
-  const unsupported = Object.keys(bundle.documents).find((breakpoint) => !responsive.breakpoints.has(breakpoint));
-  if (unsupported) return { allowed: false, reason: 'unsupported-breakpoint' };
-  return { allowed: true };
+  const readiness = responsiveCanvasV2WriteReadiness(capabilities, bundle);
+  return readiness.allowed
+    ? { allowed: true }
+    : { allowed: false, reason: readiness.blockers[0] };
 }
 
 export type ResponsiveCanvasV2PersistResult =
-  | { status: 'blocked'; reason: NonNullable<ResponsiveCanvasV2PersistenceDecision['reason']> }
+  | { status: 'blocked'; reason: ResponsiveCanvasV2WriteBlocker }
   | { status: 'saved'; envelope: ResponsiveCanvasV2RevisionEnvelope }
   | { status: 'conflict'; remote: ResponsiveCanvasV2RevisionEnvelope };
 
