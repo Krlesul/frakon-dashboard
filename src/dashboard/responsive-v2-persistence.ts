@@ -45,6 +45,18 @@ interface ServerResponsiveRevisionEnvelope {
   clientId: string;
 }
 
+function defaultSaveEndpoint(namespace: string): string {
+  return namespace === 'frakon/dashboard'
+    ? RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT
+    : `${namespace}/save_responsive_revision`;
+}
+
+function defaultRemoveEndpoint(namespace: string): string {
+  return namespace === 'frakon/dashboard'
+    ? RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT
+    : `${namespace}/remove_responsive_revision`;
+}
+
 export async function persistResponsiveCanvasV2Revision(
   transport: DashboardStorageTransport,
   capabilities: DashboardServerCapabilities,
@@ -54,7 +66,7 @@ export async function persistResponsiveCanvasV2Revision(
 ): Promise<ResponsiveCanvasV2PersistResult> {
   const decision = responsiveCanvasV2PersistenceDecision(capabilities, envelope.bundle);
   if (!decision.allowed) return { status: 'blocked', reason: decision.reason! };
-  const saveEndpoint = capabilities.responsiveCanvasV2.saveEndpoint ?? `${namespace}/save_responsive_revision` ?? RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT;
+  const saveEndpoint = capabilities.responsiveCanvasV2.saveEndpoint ?? defaultSaveEndpoint(namespace);
 
   const response = await transport.request<
     | { status: 'saved'; envelope: ServerResponsiveRevisionEnvelope }
@@ -84,7 +96,7 @@ export async function removeResponsiveCanvasV2Revision(
 ): Promise<ResponsiveCanvasV2RemoveResult> {
   const decision = responsiveCanvasV2PersistenceDecision(capabilities, bundle);
   if (!decision.allowed) return { status: 'blocked', reason: decision.reason! };
-  const removeEndpoint = capabilities.responsiveCanvasV2.removeEndpoint ?? `${namespace}/remove_responsive_revision` ?? RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT;
+  const removeEndpoint = capabilities.responsiveCanvasV2.removeEndpoint ?? defaultRemoveEndpoint(namespace);
 
   const response = await transport.request<
     | { status: 'removed' }
