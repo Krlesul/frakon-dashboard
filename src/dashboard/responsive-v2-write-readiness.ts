@@ -3,6 +3,7 @@ import { isResponsiveCanvasV2Bundle, type ResponsiveCanvasV2Bundle } from './res
 
 export type ResponsiveCanvasV2WriteBlocker =
   | 'invalid-bundle'
+  | 'contract-incompatible'
   | 'read-disabled'
   | 'write-disabled'
   | 'atomic-revision-disabled'
@@ -28,6 +29,7 @@ export function responsiveCanvasV2WriteReadiness(
   const responsive = capabilities.responsiveCanvasV2;
 
   if (!isResponsiveCanvasV2Bundle(bundle)) blockers.push('invalid-bundle');
+  if (!responsive.contractCompatible) blockers.push('contract-incompatible');
   if (!responsive.read) blockers.push('read-disabled');
   if (!responsive.write) blockers.push('write-disabled');
   if (!responsive.atomicRevision) blockers.push('atomic-revision-disabled');
