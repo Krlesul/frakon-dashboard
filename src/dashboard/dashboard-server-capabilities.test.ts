@@ -4,6 +4,7 @@ import {
   dashboardLayoutCapabilitiesFromServer,
   loadDashboardServerCapabilities,
   normalizeDashboardServerCapabilities,
+  RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
 } from './dashboard-server-capabilities';
 
 class Transport implements DashboardStorageTransport {
@@ -17,6 +18,7 @@ class Transport implements DashboardStorageTransport {
       revisionSync: true,
       maxItems: 2000,
       responsiveCanvasV2: {
+        contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
         read: true,
         write: false,
         atomicRevision: true,
@@ -34,6 +36,8 @@ describe('dashboard server capabilities', () => {
     expect([...capabilities.readableDocumentVersions]).toEqual([1, 2]);
     expect([...capabilities.writableDocumentVersions]).toEqual([1]);
     expect(capabilities.revisionSync).toBe(true);
+    expect(capabilities.responsiveCanvasV2.contractVersion).toBe(RESPONSIVE_CANVAS_V2_CONTRACT_VERSION);
+    expect(capabilities.responsiveCanvasV2.contractCompatible).toBe(true);
     expect(capabilities.responsiveCanvasV2.read).toBe(true);
     expect(capabilities.responsiveCanvasV2.write).toBe(false);
     expect(capabilities.responsiveCanvasV2.atomicRevision).toBe(true);
@@ -49,6 +53,8 @@ describe('dashboard server capabilities', () => {
     });
     expect([...capabilities.writableDocumentVersions]).toEqual([1]);
     expect(capabilities.responsiveCanvasV2).toEqual({
+      contractVersion: undefined,
+      contractCompatible: false,
       read: false,
       write: false,
       atomicRevision: false,
@@ -63,6 +69,7 @@ describe('dashboard server capabilities', () => {
       revisionSync: true,
       maxItems: 2000,
       responsiveCanvasV2: {
+        contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
         read: false,
         write: true,
         atomicRevision: true,
@@ -70,6 +77,29 @@ describe('dashboard server capabilities', () => {
       },
     });
     expect(capabilities.responsiveCanvasV2.write).toBe(false);
+  });
+
+  it('fails closed when the responsive contract version is absent or incompatible', () => {
+    for (const contractVersion of [undefined, RESPONSIVE_CANVAS_V2_CONTRACT_VERSION + 1]) {
+      const capabilities = normalizeDashboardServerCapabilities({
+        readableDocumentVersions: [1, 2],
+        writableDocumentVersions: [1],
+        revisionSync: true,
+        maxItems: 2000,
+        responsiveCanvasV2: {
+          contractVersion,
+          read: true,
+          write: true,
+          atomicRevision: true,
+          breakpoints: ['desktop'],
+        },
+      });
+      expect(capabilities.responsiveCanvasV2.contractCompatible).toBe(false);
+      expect(capabilities.responsiveCanvasV2.read).toBe(false);
+      expect(capabilities.responsiveCanvasV2.write).toBe(false);
+      expect(capabilities.responsiveCanvasV2.atomicRevision).toBe(false);
+      expect([...capabilities.responsiveCanvasV2.breakpoints]).toEqual([]);
+    }
   });
 
   it('derives conservative v2 layout gates from server capabilities', () => {
