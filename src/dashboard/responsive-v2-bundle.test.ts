@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
-import { createResponsiveCanvasV2Bundle, isResponsiveCanvasV2Bundle, responsiveCanvasV2BundleDocument } from './responsive-v2-bundle';
+import {
+  createResponsiveCanvasV2Bundle,
+  isResponsiveCanvasV2Bundle,
+  responsiveCanvasV2BundleDocument,
+} from './responsive-v2-bundle';
 
 function doc(breakpoint: FrakonDashboardDocumentV2['breakpoint'], width: number): FrakonDashboardDocumentV2 {
   return {
@@ -42,5 +46,40 @@ describe('responsive canvas v2 bundle', () => {
 
   it('requires at least one responsive document', () => {
     expect(() => createResponsiveCanvasV2Bundle({}, 'desktop')).toThrow(/at least one document/i);
+  });
+
+  it('rejects a missing default breakpoint document', () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: doc('desktop', 1280) }, 'desktop');
+    const invalid = structuredClone(bundle);
+    invalid.defaultBreakpoint = 'mobile';
+    expect(isResponsiveCanvasV2Bundle(invalid)).toBe(false);
+  });
+
+  it('rejects duplicate item ids and invalid frame numbers', () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: doc('desktop', 1280) }, 'desktop');
+    const duplicate = structuredClone(bundle);
+    duplicate.documents.desktop!.items.push(structuredClone(duplicate.documents.desktop!.items[0]));
+    expect(isResponsiveCanvasV2Bundle(duplicate)).toBe(false);
+
+    const invalidFrame = structuredClone(bundle);
+    invalidFrame.documents.desktop!.items[0].frame.x = -1;
+    expect(isResponsiveCanvasV2Bundle(invalidFrame)).toBe(false);
+  });
+
+  it('rejects more than 2000 items across all breakpoint documents', () => {
+    const mobile = doc('mobile', 390);
+    const desktop = doc('desktop', 1280);
+    mobile.items = Array.from({ length: 1001 }, (_, index) => ({
+      id: `m-${index}`,
+      card: { type: 'custom:a' },
+      frame: { x: 0, y: index * 2, width: 1, height: 1 },
+    }));
+    desktop.items = Array.from({ length: 1000 }, (_, index) => ({
+      id: `d-${index}`,
+      card: { type: 'custom:a' },
+      frame: { x: 0, y: index * 2, width: 1, height: 1 },
+    }));
+    const bundle = createResponsiveCanvasV2Bundle({ mobile, desktop }, 'desktop');
+    expect(isResponsiveCanvasV2Bundle(bundle)).toBe(false);
   });
 });
