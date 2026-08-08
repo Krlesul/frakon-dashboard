@@ -3,8 +3,7 @@ import type { DashboardCanvasV2LayerAction } from './dashboard-canvas-v2-layer-a
 
 export type DashboardCanvasV2EditorShortcut =
   | { kind: 'item'; action: DashboardCanvasV2ItemAction }
-  | { kind: 'layer'; action: DashboardCanvasV2LayerAction }
-  | { kind: 'clipboard'; action: 'copy' | 'paste' };
+  | { kind: 'layer'; action: DashboardCanvasV2LayerAction };
 
 export interface DashboardCanvasV2ShortcutInput {
   key: string;
@@ -18,8 +17,6 @@ export function dashboardCanvasV2EditorShortcut(input: DashboardCanvasV2Shortcut
   const key = input.key.toLowerCase();
   if (!mod && (key === 'delete' || key === 'backspace')) return { kind: 'item', action: 'delete' };
   if (mod && key === 'd') return { kind: 'item', action: 'duplicate' };
-  if (mod && key === 'c') return { kind: 'clipboard', action: 'copy' };
-  if (mod && key === 'v') return { kind: 'clipboard', action: 'paste' };
   if (mod && input.key === ']') return { kind: 'layer', action: input.shiftKey ? 'bring-front' : 'bring-forward' };
   if (mod && input.key === '[') return { kind: 'layer', action: input.shiftKey ? 'send-back' : 'send-backward' };
   return undefined;
