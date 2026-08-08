@@ -30,6 +30,7 @@ _LOGGER = logging.getLogger(__name__)
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
 REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
 CLIENT_ID = vol.All(str, vol.Length(min=1, max=128))
+UPDATED_AT = vol.All(vol.Coerce(int), vol.Range(min=0))
 BREAKPOINTS = ("mobile", "tablet", "desktop", "wide")
 EXPECTED_REVISION = vol.Any(None, REVISION_ID)
 
@@ -134,6 +135,12 @@ def _validate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     return bundle
 
 
+def _validate_revision_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
+    if envelope.get("parentRevision") == envelope.get("revision"):
+        raise vol.Invalid("Responsive revision cannot reference itself as parentRevision.")
+    return envelope
+
+
 def _audit_blocked_persistence(
     *,
     operation: str,
@@ -185,15 +192,18 @@ RESPONSIVE_BUNDLE = vol.All(
     _validate_bundle,
 )
 
-RESPONSIVE_REVISION_ENVELOPE = vol.Schema(
-    {
-        vol.Required("document"): RESPONSIVE_BUNDLE,
-        vol.Required("revision"): REVISION_ID,
-        vol.Optional("parentRevision"): vol.Any(None, REVISION_ID),
-        vol.Required("updatedAt"): vol.Coerce(int),
-        vol.Required("clientId"): CLIENT_ID,
-    },
-    extra=vol.ALLOW_EXTRA,
+RESPONSIVE_REVISION_ENVELOPE = vol.All(
+    vol.Schema(
+        {
+            vol.Required("document"): RESPONSIVE_BUNDLE,
+            vol.Required("revision"): REVISION_ID,
+            vol.Optional("parentRevision"): vol.Any(None, REVISION_ID),
+            vol.Required("updatedAt"): UPDATED_AT,
+            vol.Required("clientId"): CLIENT_ID,
+        },
+        extra=vol.ALLOW_EXTRA,
+    ),
+    _validate_revision_envelope,
 )
 
 
