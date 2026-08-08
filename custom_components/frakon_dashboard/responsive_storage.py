@@ -7,7 +7,8 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-RESPONSIVE_STORAGE_KEY = "frakon_dashboard.responsive_dashboards"
+from .const import RESPONSIVE_CANVAS_V2_STORAGE_KEY
+
 RESPONSIVE_STORAGE_VERSION = 1
 
 
@@ -18,7 +19,7 @@ class FrakonResponsiveDashboardStorage:
         self._store: Store[dict[str, Any]] = Store(
             hass,
             RESPONSIVE_STORAGE_VERSION,
-            RESPONSIVE_STORAGE_KEY,
+            RESPONSIVE_CANVAS_V2_STORAGE_KEY,
         )
         self._lock = asyncio.Lock()
         self._envelopes: dict[str, dict[str, Any]] | None = None
