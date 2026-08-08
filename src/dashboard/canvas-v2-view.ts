@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from 'lit';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
 import type { Guideline } from '../../packages/studio-engine/src/guidelines';
@@ -20,9 +20,11 @@ import { patchDashboardCanvasV2Item, patchDashboardCanvasV2Snap } from './dashbo
 import { applyDashboardCanvasV2ItemAction } from './dashboard-canvas-v2-item-actions';
 import { applyDashboardCanvasV2LayerAction } from './dashboard-canvas-v2-layer-actions';
 import { DashboardCanvasV2PanSession } from './dashboard-canvas-v2-pan-session';
+import { DashboardCanvasV2PinchSession } from './dashboard-canvas-v2-pinch-session';
 import { canvasV2MoveSelection, normalizeCanvasV2Selection, selectCanvasV2ByMarquee, selectCanvasV2Item } from './dashboard-canvas-v2-selection';
 import { DashboardCanvasV2Session, type DashboardCanvasV2Point } from './dashboard-canvas-v2-session';
 import { DashboardCanvasV2ViewportController } from './dashboard-canvas-v2-viewport-controller';
+import { loadDashboardCanvasV2Viewport, saveDashboardCanvasV2Viewport } from './dashboard-canvas-v2-viewport-memory';
 import { dashboardCanvasV2ViewportShortcut } from './dashboard-canvas-v2-viewport-shortcuts';
 import { dashboardCanvasV2WheelZoom } from './dashboard-canvas-v2-wheel-zoom';
 import { keyboardNudgeDeltaV2, nudgeDashboardV2Selection } from './dashboard-keyboard-nudge-v2';
@@ -62,6 +64,9 @@ export class FrakonCanvasV2View extends LitElement {
   private viewportController = new DashboardCanvasV2ViewportController();
   private panSession?: DashboardCanvasV2PanSession;
   private panPointerId?: number;
+  private pinchSession?: DashboardCanvasV2PinchSession;
+  private readonly touchPointers = new Map<number, Point>();
+  private restoredViewportKey?: string;
 
   static styles = css`
     :host { display: block; }
@@ -84,6 +89,10 @@ export class FrakonCanvasV2View extends LitElement {
     .guideline.y { left: 0; right: 0; height: 1px; }
     .content { width: 100%; height: 100%; min-width: 0; min-height: 0; }
   `;
+
+  protected updated(changed: PropertyValues<this>): void {
+    if (changed.has('document') || changed.has('editMode')) this.restoreViewportMemory();
+  }
 
   private canvasElement(): HTMLElement | undefined { return this.renderRoot.querySelector<HTMLElement>('.canvas') ?? undefined; }
 
@@ -109,7 +118,26 @@ export class FrakonCanvasV2View extends LitElement {
     return { width: Math.max(1, rect?.width ?? this.width), height: Math.max(1, rect?.height ?? this.viewportHeight(document)) };
   }
 
-  private syncViewport(next: ViewportTransform): void { this.viewport = next; }
+  private viewportMemoryKey(): string | undefined {
+    return this.document ? `${this.document.id}:${this.document.breakpoint}` : undefined;
+  }
+
+  private restoreViewportMemory(): void {
+    if (!this.editMode || !this.document || typeof localStorage === 'undefined') return;
+    const key = this.viewportMemoryKey();
+    if (!key || key === this.restoredViewportKey) return;
+    this.restoredViewportKey = key;
+    const restored = loadDashboardCanvasV2Viewport(localStorage, this.document.id, this.document.breakpoint);
+    this.viewportController = new DashboardCanvasV2ViewportController(restored);
+    this.viewport = this.viewportController.snapshot();
+  }
+
+  private syncViewport(next: ViewportTransform): void {
+    this.viewport = next;
+    if (this.editMode && this.document && typeof localStorage !== 'undefined') {
+      saveDashboardCanvasV2Viewport(localStorage, this.document.id, this.document.breakpoint, next);
+    }
+  }
 
   private fitViewport(): void {
     if (this.document) this.syncViewport(this.viewportController.fit(this.document, this.viewportSize(this.document)));
@@ -144,7 +172,7 @@ export class FrakonCanvasV2View extends LitElement {
   }
 
   private onConstraintSelect(event: CustomEvent<FrakonCanvasV2ConstraintSelectDetail>): void {
-    if (!this.editMode || !this.document || this.session || this.marqueeStart || this.panSession) return;
+    if (!this.editMode || !this.document || this.session || this.marqueeStart || this.panSession || this.pinchSession) return;
     event.stopPropagation();
     const next = selectDashboardCanvasV2Constraint(this.document, event.detail.constraintId);
     if (!next) return;
@@ -162,7 +190,7 @@ export class FrakonCanvasV2View extends LitElement {
   }
 
   private onInspectorEdit(event: CustomEvent<FrakonCanvasV2InspectorEditDetail>): void {
-    if (!this.editMode || !this.document || this.session || this.marqueeStart || this.panSession) return;
+    if (!this.editMode || !this.document || this.session || this.marqueeStart || this.panSession || this.pinchSession) return;
     const edit = event.detail;
     const result = edit.kind === 'item' ? patchDashboardCanvasV2Item(this.document, edit.itemId, edit.patch) : patchDashboardCanvasV2Snap(this.document, edit.patch);
     this.collisionIds = result.collisionIds;
@@ -172,12 +200,12 @@ export class FrakonCanvasV2View extends LitElement {
 
   private onKeyDown(event: KeyboardEvent): void {
     if (!this.editMode || !this.document || event.target !== event.currentTarget) return;
-    if (event.code === 'Space' && !this.session && !this.marqueeStart) {
+    if (event.code === 'Space' && !this.session && !this.marqueeStart && !this.pinchSession) {
       event.preventDefault();
       this.spacePressed = true;
       return;
     }
-    if (this.session || this.marqueeStart || this.panSession) return;
+    if (this.session || this.marqueeStart || this.panSession || this.pinchSession) return;
 
     const viewportShortcut = dashboardCanvasV2ViewportShortcut(event);
     if (viewportShortcut) {
@@ -219,8 +247,27 @@ export class FrakonCanvasV2View extends LitElement {
 
   private onKeyUp(event: KeyboardEvent): void { if (event.code === 'Space') this.spacePressed = false; }
 
+  private onCanvasPointerDown(event: PointerEvent): void {
+    if (event.pointerType === 'touch') {
+      this.touchPointers.set(event.pointerId, this.localPoint(event.clientX, event.clientY));
+      if (this.touchPointers.size >= 2) {
+        const [first, second] = [...this.touchPointers.values()].slice(0, 2);
+        this.clearPointerInteraction();
+        this.clearMarquee(true);
+        this.panSession = undefined;
+        this.panPointerId = undefined;
+        this.pinchSession = new DashboardCanvasV2PinchSession({ first, second, viewport: this.viewport });
+        event.preventDefault();
+        event.stopPropagation();
+        this.canvasElement()?.setPointerCapture?.(event.pointerId);
+      }
+      return;
+    }
+    this.beginPan(event);
+  }
+
   private beginPan(event: PointerEvent): void {
-    if (!this.editMode || this.panSession || this.session || this.marqueeStart) return;
+    if (!this.editMode || this.panSession || this.session || this.marqueeStart || this.pinchSession) return;
     const allowed = event.button === 1 || (event.button === 0 && this.spacePressed);
     if (!allowed) return;
     event.preventDefault(); event.stopPropagation(); this.canvasElement()?.focus();
@@ -230,7 +277,7 @@ export class FrakonCanvasV2View extends LitElement {
   }
 
   private beginMove(event: PointerEvent, item: FrakonCanvasItem): void {
-    if (!this.editMode || !this.document || item.locked || this.session || this.marqueeStart || this.panSession || event.button !== 0 || this.spacePressed) return;
+    if (!this.editMode || !this.document || item.locked || this.session || this.marqueeStart || this.panSession || this.pinchSession || event.button !== 0 || this.spacePressed) return;
     event.preventDefault(); event.stopPropagation(); this.canvasElement()?.focus(); this.selectedConstraintId = undefined;
     const nextSelection = this.selection.ids.includes(item.id) ? normalizeCanvasV2Selection(this.selection, this.document) : selectCanvasV2Item(this.selection, item.id);
     this.selection = nextSelection;
@@ -243,7 +290,7 @@ export class FrakonCanvasV2View extends LitElement {
   }
 
   private beginResize(event: PointerEvent, item: FrakonCanvasItem): void {
-    if (!this.editMode || !this.document || item.locked || this.session || this.marqueeStart || this.panSession || event.button !== 0 || this.spacePressed) return;
+    if (!this.editMode || !this.document || item.locked || this.session || this.marqueeStart || this.panSession || this.pinchSession || event.button !== 0 || this.spacePressed) return;
     event.preventDefault(); event.stopPropagation(); this.canvasElement()?.focus(); this.selectedConstraintId = undefined;
     this.selection = selectCanvasV2Item(this.selection, item.id);
     this.movingIds = []; this.guidelines = [];
@@ -253,7 +300,7 @@ export class FrakonCanvasV2View extends LitElement {
   }
 
   private beginMarquee(event: PointerEvent): void {
-    if (!this.editMode || !this.document || this.session || this.marqueeStart || this.panSession || this.spacePressed || event.button !== 0 || event.target !== event.currentTarget) return;
+    if (!this.editMode || !this.document || this.session || this.marqueeStart || this.panSession || this.pinchSession || this.spacePressed || event.button !== 0 || event.target !== event.currentTarget) return;
     event.preventDefault(); this.canvasElement()?.focus(); this.selectedConstraintId = undefined;
     const start = this.documentPoint(event);
     this.marqueeStart = start; this.marqueeBaseSelection = structuredClone(this.selection); this.marqueePointerId = event.pointerId;
@@ -278,13 +325,31 @@ export class FrakonCanvasV2View extends LitElement {
     this.selection = selectCanvasV2ByMarquee(this.document, rect, this.marqueeBaseSelection ?? { ids: [] }, this.marqueeAdditive);
   }
 
+  private updatePinch(event: PointerEvent): boolean {
+    if (event.pointerType !== 'touch' || !this.touchPointers.has(event.pointerId)) return false;
+    this.touchPointers.set(event.pointerId, this.localPoint(event.clientX, event.clientY));
+    if (!this.pinchSession || this.touchPointers.size < 2) return false;
+    const [first, second] = [...this.touchPointers.values()].slice(0, 2);
+    this.syncViewport(this.pinchSession.preview(first, second));
+    return true;
+  }
+
   private onPointerMove(event: PointerEvent): void {
+    if (this.updatePinch(event)) { event.preventDefault(); return; }
     if (this.panSession && this.panPointerId === event.pointerId) { event.preventDefault(); this.syncViewport(this.panSession.preview({ x: event.clientX, y: event.clientY })); return; }
     if (this.session && this.pointerId === event.pointerId) { event.preventDefault(); this.updatePreview(event); return; }
     if (this.marqueeStart && this.marqueePointerId === event.pointerId) { event.preventDefault(); this.updateMarquee(event); }
   }
 
+  private endTouch(event: PointerEvent): boolean {
+    if (event.pointerType !== 'touch' || !this.touchPointers.has(event.pointerId)) return false;
+    this.touchPointers.delete(event.pointerId);
+    if (this.touchPointers.size < 2) this.pinchSession = undefined;
+    return true;
+  }
+
   private endInteraction(event: PointerEvent): void {
+    if (this.endTouch(event)) return;
     if (this.panSession && this.panPointerId === event.pointerId) {
       event.preventDefault(); this.syncViewport(this.panSession.preview({ x: event.clientX, y: event.clientY })); this.panSession = undefined; this.panPointerId = undefined; return;
     }
@@ -295,7 +360,12 @@ export class FrakonCanvasV2View extends LitElement {
     if (this.marqueeStart && this.marqueePointerId === event.pointerId) { event.preventDefault(); this.updateMarquee(event); this.clearMarquee(false); }
   }
 
-  private cancelInteraction(): void { this.panSession = undefined; this.panPointerId = undefined; this.clearPointerInteraction(); this.clearMarquee(true); }
+  private cancelInteraction(event?: PointerEvent): void {
+    if (event?.pointerType === 'touch') this.touchPointers.delete(event.pointerId);
+    if (this.touchPointers.size < 2) this.pinchSession = undefined;
+    this.panSession = undefined; this.panPointerId = undefined; this.clearPointerInteraction(); this.clearMarquee(true);
+  }
+
   private clearPointerInteraction(): void { this.session = undefined; this.pointerId = undefined; this.previewDocument = undefined; this.collisionIds = []; this.movingIds = []; this.guidelines = []; }
   private clearMarquee(restore: boolean): void { if (restore && this.marqueeBaseSelection) this.selection = this.marqueeBaseSelection; this.marqueeStart = undefined; this.marqueeBaseSelection = undefined; this.marqueePointerId = undefined; this.marqueeAdditive = false; this.marqueeRect = undefined; }
 
@@ -325,7 +395,7 @@ export class FrakonCanvasV2View extends LitElement {
 
     return html`
       ${this.editMode ? html`<div class="viewport-toolbar"><frakon-canvas-v2-viewport-toolbar .zoom=${this.viewport.zoom} .language=${this.language} @frakon-canvas-v2-viewport-action=${this.onViewportAction}></frakon-canvas-v2-viewport-toolbar></div>` : nothing}
-      <div class="canvas ${this.panSession ? 'panning' : ''} ${this.spacePressed ? 'space-ready' : ''}" tabindex=${this.editMode ? '0' : '-1'} style=${`height:${canvasHeight}px`} @keydown=${this.onKeyDown} @keyup=${this.onKeyUp} @wheel=${this.onWheel} @pointerdown=${this.beginPan} @pointermove=${this.onPointerMove} @pointerup=${this.endInteraction} @pointercancel=${this.cancelInteraction}>
+      <div class="canvas ${this.panSession || this.pinchSession ? 'panning' : ''} ${this.spacePressed ? 'space-ready' : ''}" tabindex=${this.editMode ? '0' : '-1'} style=${`height:${canvasHeight}px`} @keydown=${this.onKeyDown} @keyup=${this.onKeyUp} @wheel=${this.onWheel} @pointerdown=${this.onCanvasPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.endInteraction} @pointercancel=${this.cancelInteraction}>
         <div class="stage" style=${stageStyle} @pointerdown=${this.beginMarquee}>
           ${source.items.map((item) => html`<article class="item ${selectedIds.has(item.id) ? 'selected' : ''} ${collisions.has(item.id) ? 'collision' : ''}" data-frakon-item-id=${item.id} style=${`left:${item.frame.x}px;top:${item.frame.y}px;width:${item.frame.width}px;height:${item.frame.height}px`} @click=${(event: MouseEvent) => this.selectItem(event, item)}>
             ${this.editMode ? html`<div class="head"><button class="move" ?disabled=${item.locked} @click=${(event: MouseEvent) => event.stopPropagation()} @pointerdown=${(event: PointerEvent) => this.beginMove(event, item)}>↕ ${item.id}</button></div>${!item.locked ? html`<button class="resize" title="Resize" @click=${(event: MouseEvent) => event.stopPropagation()} @pointerdown=${(event: PointerEvent) => this.beginResize(event, item)}></button>` : nothing}` : nothing}
