@@ -27,6 +27,8 @@ function capabilities(write = true): DashboardServerCapabilities {
     revisionSync: true,
     maxItems: 2000,
     responsiveCanvasV2: {
+      contractVersion: 1,
+      contractCompatible: true,
       read: true,
       write,
       atomicRevision: true,
