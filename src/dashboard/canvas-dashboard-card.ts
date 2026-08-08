@@ -3,8 +3,12 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types';
 import { createHomeAssistantDashboardStorage, type DashboardStorageMode } from '../home-assistant/dashboard-storage-factory';
 import './card-host';
-import './canvas-v2-breakpoint-toolbar';
 import type { FrakonCanvasV2BreakpointSelectDetail } from './canvas-v2-breakpoint-toolbar';
+import './canvas-v2-responsive-toolbar';
+import type {
+  FrakonCanvasV2CopyLayoutDetail,
+  FrakonCanvasV2ModeSelectDetail,
+} from './canvas-v2-responsive-toolbar';
 import './canvas-v2-view';
 import type { FrakonCanvasV2DraftDetail } from './canvas-v2-view';
 import { canvasDashboardTranslate, resolveCanvasDashboardLanguage } from './canvas-dashboard-i18n';
@@ -20,6 +24,7 @@ import { loadDashboardV2ReadOnly } from './dashboard-v2-read-loader';
 import { normalizeDashboard, type FrakonBreakpoint, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { ResponsiveV2DraftController, type ResponsiveV2DraftSnapshot } from './responsive-v2-draft-controller';
+import { ResponsiveV2EditorController, type ResponsiveV2EditorSnapshot } from './responsive-v2-editor-controller';
 import './responsive-v2-health-panel';
 import { responsiveCanvasV2HealthReportFromEditorState } from './responsive-v2-health-report';
 
@@ -50,6 +55,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
   @state() private nativeV2ActiveBreakpoint: FrakonBreakpoint = 'desktop';
   @state() private nativeV2AvailableBreakpoints: FrakonBreakpoint[] = [];
   @state() private nativeV2DirtyBreakpoints: FrakonBreakpoint[] = [];
+  @state() private nativeV2BreakpointMode: 'auto' | 'manual' = 'manual';
   @state() private selectedId?: string;
   @state() private preview?: DashboardCanvasPreview;
   @state() private message?: string;
@@ -63,6 +69,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
   private session?: DashboardCanvasSession;
   private pointerId?: number;
   private nativeV2DraftController?: ResponsiveV2DraftController;
+  private nativeV2EditorController?: ResponsiveV2EditorController;
 
   static styles = css`
     :host { display: block; }
@@ -131,7 +138,11 @@ export class FrakonCanvasDashboardCard extends LitElement {
     if (typeof ResizeObserver === 'undefined') return;
     this.resizeObserver = new ResizeObserver((entries) => {
       const next = entries[0]?.contentRect.width;
-      if (next && Math.abs(next - this.width) > 1) this.width = next;
+      if (!next || Math.abs(next - this.width) <= 1) return;
+      this.width = next;
+      if (this.nativeV2EditorController) {
+        this.applyNativeV2EditorSnapshot(this.nativeV2EditorController.resize(next));
+      }
     });
     this.resizeObserver.observe(this);
   }
@@ -181,7 +192,9 @@ export class FrakonCanvasDashboardCard extends LitElement {
     this.nativeV2ActiveBreakpoint = 'desktop';
     this.nativeV2AvailableBreakpoints = [];
     this.nativeV2DirtyBreakpoints = [];
+    this.nativeV2BreakpointMode = 'manual';
     this.nativeV2DraftController = undefined;
+    this.nativeV2EditorController = undefined;
   }
 
   private applyNativeV2Snapshot(snapshot: ResponsiveV2DraftSnapshot): void {
@@ -192,6 +205,11 @@ export class FrakonCanvasDashboardCard extends LitElement {
     this.nativeV2DraftDirty = snapshot.dirtyBreakpoints.length > 0;
     this.nativeV2CanUndo = snapshot.active.canUndo;
     this.nativeV2CanRedo = snapshot.active.canRedo;
+  }
+
+  private applyNativeV2EditorSnapshot(snapshot: ResponsiveV2EditorSnapshot): void {
+    this.nativeV2BreakpointMode = snapshot.mode.kind;
+    this.applyNativeV2Snapshot(snapshot.draft);
   }
 
   private async loadDashboard(id: string): Promise<void> {
@@ -210,7 +228,14 @@ export class FrakonCanvasDashboardCard extends LitElement {
           if (this.document?.id !== id) return;
           this.nativeV2Revision = result.envelope.revision;
           this.nativeV2DraftController = new ResponsiveV2DraftController(result.envelope.document, result.envelope.document.breakpoint);
-          this.applyNativeV2Snapshot(this.nativeV2DraftController.snapshot);
+          this.nativeV2EditorController = new ResponsiveV2EditorController(
+            this.nativeV2DraftController,
+            Math.max(1, this.width),
+            this.config?.edit_mode === true
+              ? { kind: 'manual', breakpoint: result.envelope.document.breakpoint }
+              : { kind: 'auto' },
+          );
+          this.applyNativeV2EditorSnapshot(this.nativeV2EditorController.snapshot);
           this.cancelInteraction();
           return;
         }
@@ -283,10 +308,36 @@ export class FrakonCanvasDashboardCard extends LitElement {
   }
 
   private onNativeV2BreakpointSelect(event: CustomEvent<FrakonCanvasV2BreakpointSelectDetail>): void {
-    const controller = this.nativeV2DraftController;
+    const controller = this.nativeV2EditorController;
     if (!controller) return;
     event.stopPropagation();
-    this.applyNativeV2Snapshot(controller.switchTo(event.detail.breakpoint));
+    this.applyNativeV2EditorSnapshot(controller.selectBreakpoint(event.detail.breakpoint));
+    this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
+  }
+
+  private onNativeV2ModeSelect(event: CustomEvent<FrakonCanvasV2ModeSelectDetail>): void {
+    const controller = this.nativeV2EditorController;
+    if (!controller) return;
+    event.stopPropagation();
+    const mode = event.detail.mode === 'auto'
+      ? { kind: 'auto' as const }
+      : { kind: 'manual' as const, breakpoint: this.nativeV2ActiveBreakpoint };
+    this.applyNativeV2EditorSnapshot(controller.setMode(mode));
+  }
+
+  private onNativeV2CopyLayout(event: CustomEvent<FrakonCanvasV2CopyLayoutDetail>): void {
+    const controller = this.nativeV2EditorController;
+    if (!controller) return;
+    event.stopPropagation();
+    this.applyNativeV2EditorSnapshot(controller.copyLayoutFrom(event.detail.source));
+    this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
+  }
+
+  private onNativeV2ResetLayout(event: Event): void {
+    const controller = this.nativeV2EditorController;
+    if (!controller) return;
+    event.stopPropagation();
+    this.applyNativeV2EditorSnapshot(controller.resetActiveBreakpoint());
     this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
   }
 
@@ -405,11 +456,16 @@ export class FrakonCanvasDashboardCard extends LitElement {
         </header>
         ${this.config?.edit_mode === true ? html`
           <div class="responsive-row">
-            <frakon-canvas-v2-breakpoint-toolbar
+            <frakon-canvas-v2-responsive-toolbar
               .active=${this.nativeV2ActiveBreakpoint}
               .available=${this.nativeV2AvailableBreakpoints}
+              .mode=${this.nativeV2BreakpointMode}
+              .language=${this.language()}
               @frakon-canvas-v2-breakpoint-select=${this.onNativeV2BreakpointSelect}
-            ></frakon-canvas-v2-breakpoint-toolbar>
+              @frakon-canvas-v2-mode-select=${this.onNativeV2ModeSelect}
+              @frakon-canvas-v2-copy-layout=${this.onNativeV2CopyLayout}
+              @frakon-canvas-v2-reset-layout=${this.onNativeV2ResetLayout}
+            ></frakon-canvas-v2-responsive-toolbar>
             ${this.nativeV2DirtyBreakpoints.length
               ? html`<span class="dirty-list">unsaved: ${this.nativeV2DirtyBreakpoints.join(' · ')}</span>`
               : nothing}
