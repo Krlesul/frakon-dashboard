@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { DashboardStorageTransport } from './dashboard-storage';
 import { RESPONSIVE_CANVAS_V2_CONTRACT_VERSION, type DashboardServerCapabilities } from './dashboard-server-capabilities';
 import { createResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
-import { persistResponsiveCanvasV2Revision, responsiveCanvasV2PersistenceDecision } from './responsive-v2-persistence';
+import {
+  persistResponsiveCanvasV2Revision,
+  removeResponsiveCanvasV2Revision,
+  responsiveCanvasV2PersistenceDecision,
+} from './responsive-v2-persistence';
 import { createResponsiveCanvasV2Revision } from './responsive-v2-revision';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 
@@ -38,6 +42,7 @@ class Transport implements DashboardStorageTransport {
   requests: Array<{ command: string; payload: Record<string, unknown> }> = [];
   async request<T>(command: string, payload: Record<string, unknown>): Promise<T> {
     this.requests.push({ command, payload });
+    if (command.endsWith('/remove_responsive_revision')) return { status: 'removed' } as T;
     const envelope = payload.envelope as Record<string, unknown>;
     return { status: 'saved', envelope } as T;
   }
@@ -49,6 +54,14 @@ describe('responsive canvas v2 persistence gate', () => {
     const envelope = createResponsiveCanvasV2Revision(bundle, 'client', undefined, 100);
     const transport = new Transport();
     const result = await persistResponsiveCanvasV2Revision(transport, capabilities(false), envelope, undefined);
+    expect(result).toEqual({ status: 'blocked', reason: 'write-disabled' });
+    expect(transport.requests).toEqual([]);
+  });
+
+  it('blocks remove before transport when server write capability is disabled', async () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: document() }, 'desktop');
+    const transport = new Transport();
+    const result = await removeResponsiveCanvasV2Revision(transport, capabilities(false), bundle, 'r1');
     expect(result).toEqual({ status: 'blocked', reason: 'write-disabled' });
     expect(transport.requests).toEqual([]);
   });
@@ -72,5 +85,21 @@ describe('responsive canvas v2 persistence gate', () => {
     expect(transport.requests).toHaveLength(1);
     expect(transport.requests[0].command).toBe('frakon/dashboard/save_responsive_revision');
     expect(transport.requests[0].payload.contractVersion).toBe(RESPONSIVE_CANVAS_V2_CONTRACT_VERSION);
+  });
+
+  it('maps a hypothetical enabled remove to the guarded responsive endpoint', async () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: document() }, 'desktop');
+    const transport = new Transport();
+    const result = await removeResponsiveCanvasV2Revision(transport, capabilities(true), bundle, 'r7');
+    expect(result).toEqual({ status: 'removed' });
+    expect(transport.requests).toHaveLength(1);
+    expect(transport.requests[0]).toMatchObject({
+      command: 'frakon/dashboard/remove_responsive_revision',
+      payload: {
+        contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+        dashboard_id: 'home',
+        expectedRevision: 'r7',
+      },
+    });
   });
 });
