@@ -1,3 +1,5 @@
+import type { DashboardServerCapabilities } from './dashboard-server-capabilities';
+import type { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
 import type { ResponsiveCanvasV2SyncState } from './responsive-v2-sync-controller';
 
 export interface ResponsiveCanvasV2HealthReport {
@@ -16,26 +18,35 @@ export interface ResponsiveCanvasV2HealthReport {
   error?: string;
 }
 
-export function responsiveCanvasV2HealthReport(state: ResponsiveCanvasV2SyncState): ResponsiveCanvasV2HealthReport {
-  const capabilities = state.capabilities?.responsiveCanvasV2;
-  const conflictBreakpoints = state.conflict?.merge.conflicts.map((conflict) => conflict.breakpoint) ?? [];
-  const dirtyBreakpoints = state.controller?.snapshot.dirtyBreakpoints ?? [];
-  const contractCompatible = capabilities?.contractCompatible === true;
-  const readEnabled = capabilities?.read === true;
-  const writeEnabled = capabilities?.write === true;
-  const atomicRevision = capabilities?.atomicRevision === true;
-  const revisionSync = state.capabilities?.revisionSync === true;
+interface HealthInputs {
+  capabilities?: DashboardServerCapabilities;
+  baseRevision?: string;
+  controller?: ResponsiveV2DraftController;
+  conflictBreakpoints?: string[];
+  error?: string;
+  unloaded?: boolean;
+}
+
+function fromInputs(inputs: HealthInputs): ResponsiveCanvasV2HealthReport {
+  const responsive = inputs.capabilities?.responsiveCanvasV2;
+  const conflictBreakpoints = inputs.conflictBreakpoints ?? [];
+  const dirtyBreakpoints = inputs.controller?.snapshot.dirtyBreakpoints ?? [];
+  const contractCompatible = responsive?.contractCompatible === true;
+  const readEnabled = responsive?.read === true;
+  const writeEnabled = responsive?.write === true;
+  const atomicRevision = responsive?.atomicRevision === true;
+  const revisionSync = inputs.capabilities?.revisionSync === true;
 
   let status: ResponsiveCanvasV2HealthReport['status'];
-  if (state.error) status = 'error';
+  if (inputs.error) status = 'error';
   else if (conflictBreakpoints.length) status = 'conflict';
-  else if (!state.capabilities && !state.envelope && !state.controller) status = 'unloaded';
+  else if (inputs.unloaded === true || (!inputs.capabilities && !inputs.baseRevision && !inputs.controller)) status = 'unloaded';
   else if (!contractCompatible || !readEnabled || !writeEnabled || !atomicRevision || !revisionSync) status = 'blocked';
   else status = 'healthy';
 
   return {
     status,
-    contractVersion: capabilities?.contractVersion,
+    contractVersion: responsive?.contractVersion,
     contractCompatible,
     readEnabled,
     writeEnabled,
@@ -43,9 +54,35 @@ export function responsiveCanvasV2HealthReport(state: ResponsiveCanvasV2SyncStat
     revisionSync,
     loadEndpoint: 'frakon/dashboard/load_responsive_bundle_revision',
     saveEndpoint: 'frakon/dashboard/save_responsive_revision',
-    baseRevision: state.envelope?.revision,
+    baseRevision: inputs.baseRevision,
     dirtyBreakpoints: [...dirtyBreakpoints],
-    conflictBreakpoints,
-    error: state.error?.message,
+    conflictBreakpoints: [...conflictBreakpoints],
+    error: inputs.error,
   };
+}
+
+export function responsiveCanvasV2HealthReport(state: ResponsiveCanvasV2SyncState): ResponsiveCanvasV2HealthReport {
+  return fromInputs({
+    capabilities: state.capabilities,
+    baseRevision: state.envelope?.revision,
+    controller: state.controller,
+    conflictBreakpoints: state.conflict?.merge.conflicts.map((conflict) => conflict.breakpoint) ?? [],
+    error: state.error?.message,
+    unloaded: !state.capabilities && !state.envelope && !state.controller,
+  });
+}
+
+export function responsiveCanvasV2HealthReportFromEditorState(input: {
+  capabilities?: DashboardServerCapabilities;
+  revision?: string;
+  controller?: ResponsiveV2DraftController;
+  error?: string;
+}): ResponsiveCanvasV2HealthReport {
+  return fromInputs({
+    capabilities: input.capabilities,
+    baseRevision: input.revision,
+    controller: input.controller,
+    error: input.error,
+    unloaded: !input.capabilities && !input.revision && !input.controller,
+  });
 }
