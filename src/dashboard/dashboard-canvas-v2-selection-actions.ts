@@ -11,7 +11,11 @@ export type DashboardCanvasV2SelectionAction =
   | 'align-center-y'
   | 'align-bottom'
   | 'match-width'
-  | 'match-height';
+  | 'match-height'
+  | 'distribute-horizontal'
+  | 'distribute-vertical'
+  | 'equal-gap-horizontal'
+  | 'equal-gap-vertical';
 
 export interface DashboardCanvasV2SelectionActionResult {
   status: 'committed' | 'collision' | 'unchanged' | 'invalid';
@@ -23,6 +27,49 @@ export interface DashboardCanvasV2SelectionActionResult {
 
 function same(a: FrakonDashboardDocumentV2, b: FrakonDashboardDocumentV2): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function movableSelected(document: FrakonDashboardDocumentV2, selected: Set<string>) {
+  return document.items.filter((item) => selected.has(item.id) && !item.locked);
+}
+
+function distributedFrames(
+  document: FrakonDashboardDocumentV2,
+  selected: Set<string>,
+  axis: 'x' | 'y',
+  mode: 'centers' | 'gaps',
+): Map<string, number> | undefined {
+  const items = movableSelected(document, selected).sort((a, b) => {
+    const ac = axis === 'x' ? a.frame.x + a.frame.width / 2 : a.frame.y + a.frame.height / 2;
+    const bc = axis === 'x' ? b.frame.x + b.frame.width / 2 : b.frame.y + b.frame.height / 2;
+    return ac - bc;
+  });
+  if (items.length < 3) return undefined;
+
+  const result = new Map<string, number>();
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (mode === 'centers') {
+    const firstCenter = axis === 'x' ? first.frame.x + first.frame.width / 2 : first.frame.y + first.frame.height / 2;
+    const lastCenter = axis === 'x' ? last.frame.x + last.frame.width / 2 : last.frame.y + last.frame.height / 2;
+    const step = (lastCenter - firstCenter) / (items.length - 1);
+    items.slice(1, -1).forEach((item, index) => {
+      const size = axis === 'x' ? item.frame.width : item.frame.height;
+      result.set(item.id, firstCenter + step * (index + 1) - size / 2);
+    });
+    return result;
+  }
+
+  const start = axis === 'x' ? first.frame.x : first.frame.y;
+  const end = axis === 'x' ? last.frame.x + last.frame.width : last.frame.y + last.frame.height;
+  const totalSize = items.reduce((sum, item) => sum + (axis === 'x' ? item.frame.width : item.frame.height), 0);
+  const gap = (end - start - totalSize) / (items.length - 1);
+  let cursor = start + (axis === 'x' ? first.frame.width : first.frame.height) + gap;
+  items.slice(1, -1).forEach((item) => {
+    result.set(item.id, cursor);
+    cursor += (axis === 'x' ? item.frame.width : item.frame.height) + gap;
+  });
+  return result;
 }
 
 export function applyDashboardCanvasV2SelectionAction(
@@ -42,6 +89,16 @@ export function applyDashboardCanvasV2SelectionAction(
   const bottom = Math.max(...items.map((item) => item.frame.y + item.frame.height));
   const centerX = (left + right) / 2;
   const centerY = (top + bottom) / 2;
+  const horizontalDistribution = action === 'distribute-horizontal' || action === 'equal-gap-horizontal'
+    ? distributedFrames(document, selected, 'x', action === 'distribute-horizontal' ? 'centers' : 'gaps')
+    : undefined;
+  const verticalDistribution = action === 'distribute-vertical' || action === 'equal-gap-vertical'
+    ? distributedFrames(document, selected, 'y', action === 'distribute-vertical' ? 'centers' : 'gaps')
+    : undefined;
+
+  if ((action.startsWith('distribute-') || action.startsWith('equal-gap-')) && movableSelected(document, selected).length < 3) {
+    return { status: 'invalid', document: structuredClone(document), collisionIds: [], constraintDiagnostics: [], reason: 'At least three unlocked selected items are required for distribution.' };
+  }
 
   const candidate = normalizeDashboardV2({
     ...document,
@@ -57,6 +114,14 @@ export function applyDashboardCanvasV2SelectionAction(
         case 'align-bottom': frame.y = bottom - frame.height; break;
         case 'match-width': frame.width = anchor.frame.width; break;
         case 'match-height': frame.height = anchor.frame.height; break;
+        case 'distribute-horizontal':
+        case 'equal-gap-horizontal':
+          if (horizontalDistribution?.has(item.id)) frame.x = horizontalDistribution.get(item.id)!;
+          break;
+        case 'distribute-vertical':
+        case 'equal-gap-vertical':
+          if (verticalDistribution?.has(item.id)) frame.y = verticalDistribution.get(item.id)!;
+          break;
       }
       return { ...structuredClone(item), frame };
     }),
