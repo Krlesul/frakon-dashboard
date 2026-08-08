@@ -110,7 +110,7 @@ describe('loadDashboardV2ReadOnly', () => {
   it('prefers a responsive bundle and carries all breakpoints through the existing v2 API', async () => {
     const transport = new Transport();
     transport.responses.set('frakon/dashboard/capabilities', capabilities([1, 2], [1], true));
-    transport.responses.set('frakon/dashboard/load_responsive_revision', responsiveEnvelope());
+    transport.responses.set('frakon/dashboard/load_responsive_bundle_revision', responsiveEnvelope());
     transport.responses.set('frakon/dashboard/load_revision', {
       document: v2,
       revision: 'single-r1',
@@ -130,14 +130,14 @@ describe('loadDashboardV2ReadOnly', () => {
     }
     expect(transport.requests.map((request) => request.command)).toEqual([
       'frakon/dashboard/capabilities',
-      'frakon/dashboard/load_responsive_revision',
+      'frakon/dashboard/load_responsive_bundle_revision',
     ]);
   });
 
   it('restores the responsive server bundle through the exact loader plus controller path used by the card', async () => {
     const transport = new Transport();
     transport.responses.set('frakon/dashboard/capabilities', capabilities([1, 2], [1], true));
-    transport.responses.set('frakon/dashboard/load_responsive_revision', responsiveEnvelope());
+    transport.responses.set('frakon/dashboard/load_responsive_bundle_revision', responsiveEnvelope());
 
     const result = await loadDashboardV2ReadOnly(transport, 'home');
     expect(result.status).toBe('loaded');
@@ -150,10 +150,10 @@ describe('loadDashboardV2ReadOnly', () => {
     expect(controller.snapshot.dirtyBreakpoints).toEqual([]);
   });
 
-  it('falls back from an absent responsive bundle to the single-v2 revision', async () => {
+  it('falls back from an absent responsive bundle to the single-v2 revision without sharing storage paths', async () => {
     const transport = new Transport();
     transport.responses.set('frakon/dashboard/capabilities', capabilities([1, 2], [1], true));
-    transport.responses.set('frakon/dashboard/load_responsive_revision', undefined);
+    transport.responses.set('frakon/dashboard/load_responsive_bundle_revision', undefined);
     transport.responses.set('frakon/dashboard/load_revision', {
       document: v2,
       revision: 'single-r1',
@@ -166,7 +166,7 @@ describe('loadDashboardV2ReadOnly', () => {
     expect(result).toMatchObject({ status: 'loaded', envelope: { revision: 'single-r1' } });
     expect(transport.requests.map((request) => request.command)).toEqual([
       'frakon/dashboard/capabilities',
-      'frakon/dashboard/load_responsive_revision',
+      'frakon/dashboard/load_responsive_bundle_revision',
       'frakon/dashboard/load_revision',
     ]);
   });
