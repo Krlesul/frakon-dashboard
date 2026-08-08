@@ -12,7 +12,7 @@ from .const import (
     RESPONSIVE_CANVAS_V2_KIND,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
-from .storage import FrakonDashboardStorage
+from .responsive_storage import FrakonResponsiveDashboardStorage
 
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
 REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
@@ -88,7 +88,33 @@ RESPONSIVE_REVISION_ENVELOPE = vol.Schema(
 )
 
 
-def register_responsive_write_command(hass: HomeAssistant, storage: FrakonDashboardStorage) -> None:
+def register_responsive_commands(
+    hass: HomeAssistant,
+    storage: FrakonResponsiveDashboardStorage,
+) -> None:
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): "frakon/dashboard/load_responsive_bundle_revision",
+            vol.Required("dashboard_id"): DASHBOARD_ID,
+        }
+    )
+    @websocket_api.async_response
+    async def handle_load_responsive_revision(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        envelope = await storage.load_revision(msg["dashboard_id"])
+        if envelope is None:
+            connection.send_result(msg["id"], None)
+            return
+        try:
+            validated = RESPONSIVE_REVISION_ENVELOPE(envelope)
+        except vol.Invalid as err:
+            connection.send_error(msg["id"], "invalid_responsive_bundle", str(err))
+            return
+        connection.send_result(msg["id"], validated)
+
     @websocket_api.require_admin
     @websocket_api.async_response
     @websocket_api.websocket_command(
@@ -143,4 +169,5 @@ def register_responsive_write_command(hass: HomeAssistant, storage: FrakonDashbo
             return
         connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
 
+    websocket_api.async_register_command(hass, handle_load_responsive_revision)
     websocket_api.async_register_command(hass, handle_save_responsive_revision)
