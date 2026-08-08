@@ -2,6 +2,13 @@ import type { DashboardServerCapabilities } from './dashboard-server-capabilitie
 import type { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
 import type { ResponsiveCanvasV2SyncState } from './responsive-v2-sync-controller';
 
+export interface ResponsiveCanvasV2HealthEditorContext {
+  capabilities: DashboardServerCapabilities;
+  controller: ResponsiveV2DraftController;
+  baseRevision?: string;
+  hasUnresolvedConflict: boolean;
+}
+
 export interface ResponsiveCanvasV2HealthReport {
   status: 'healthy' | 'blocked' | 'conflict' | 'error' | 'unloaded';
   contractVersion?: number;
@@ -21,6 +28,7 @@ export interface ResponsiveCanvasV2HealthReport {
   dirtyBreakpoints: string[];
   conflictBreakpoints: string[];
   error?: string;
+  editorContext?: ResponsiveCanvasV2HealthEditorContext;
 }
 
 interface HealthInputs {
@@ -68,6 +76,14 @@ function fromInputs(inputs: HealthInputs): ResponsiveCanvasV2HealthReport {
     dirtyBreakpoints: [...dirtyBreakpoints],
     conflictBreakpoints: [...conflictBreakpoints],
     error: inputs.error,
+    editorContext: inputs.capabilities && inputs.controller
+      ? {
+          capabilities: inputs.capabilities,
+          controller: inputs.controller,
+          baseRevision: inputs.baseRevision,
+          hasUnresolvedConflict: conflictBreakpoints.length > 0,
+        }
+      : undefined,
   };
 }
 
