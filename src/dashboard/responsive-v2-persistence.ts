@@ -30,6 +30,11 @@ export type ResponsiveCanvasV2PersistResult =
   | { status: 'saved'; envelope: ResponsiveCanvasV2RevisionEnvelope }
   | { status: 'conflict'; remote: ResponsiveCanvasV2RevisionEnvelope };
 
+export type ResponsiveCanvasV2RemoveResult =
+  | { status: 'blocked'; reason: ResponsiveCanvasV2WriteBlocker }
+  | { status: 'removed' }
+  | { status: 'conflict'; remote?: ResponsiveCanvasV2RevisionEnvelope };
+
 interface ServerResponsiveRevisionEnvelope {
   document: ResponsiveCanvasV2Bundle;
   revision: string;
@@ -65,6 +70,32 @@ export async function persistResponsiveCanvasV2Revision(
 
   if (response.status === 'saved') return { status: 'saved', envelope: fromServerEnvelope(response.envelope) };
   return { status: 'conflict', remote: fromServerEnvelope(response.remote) };
+}
+
+export async function removeResponsiveCanvasV2Revision(
+  transport: DashboardStorageTransport,
+  capabilities: DashboardServerCapabilities,
+  bundle: ResponsiveCanvasV2Bundle,
+  expectedRevision: string | undefined,
+  namespace = 'frakon/dashboard',
+): Promise<ResponsiveCanvasV2RemoveResult> {
+  const decision = responsiveCanvasV2PersistenceDecision(capabilities, bundle);
+  if (!decision.allowed) return { status: 'blocked', reason: decision.reason! };
+
+  const response = await transport.request<
+    | { status: 'removed' }
+    | { status: 'conflict'; remote?: ServerResponsiveRevisionEnvelope }
+  >(`${namespace}/remove_responsive_revision`, {
+    contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+    dashboard_id: bundle.id,
+    expectedRevision: expectedRevision ?? null,
+  });
+
+  if (response.status === 'removed') return { status: 'removed' };
+  return {
+    status: 'conflict',
+    remote: response.remote ? fromServerEnvelope(response.remote) : undefined,
+  };
 }
 
 function fromServerEnvelope(envelope: ServerResponsiveRevisionEnvelope): ResponsiveCanvasV2RevisionEnvelope {
