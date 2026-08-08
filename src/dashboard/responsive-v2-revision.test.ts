@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { createResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
-import { compareResponsiveCanvasV2Revisions, createResponsiveCanvasV2Revision } from './responsive-v2-revision';
+import {
+  compareResponsiveCanvasV2Revisions,
+  createResponsiveCanvasV2Revision,
+  createResponsiveCanvasV2RevisionFromParent,
+} from './responsive-v2-revision';
 
 function doc(breakpoint: FrakonDashboardDocumentV2['breakpoint'], width: number, x = 20): FrakonDashboardDocumentV2 {
   return {
@@ -42,6 +46,14 @@ describe('responsive canvas v2 revisions', () => {
     expect(second.parentRevision).toBe(first.revision);
     expect(compareResponsiveCanvasV2Revisions(second, first)).toBe('local-ahead');
     expect(compareResponsiveCanvasV2Revisions(first, second)).toBe('remote-ahead');
+  });
+
+  it('can create a child revision directly from an opaque parent revision id', () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: doc('desktop', 1280) }, 'desktop');
+    const child = createResponsiveCanvasV2RevisionFromParent(bundle, 'client-a', 'server-r42', 1001);
+    expect(child.parentRevision).toBe('server-r42');
+    expect(child.clientId).toBe('client-a');
+    expect(child.updatedAt).toBe(1001);
   });
 
   it('classifies unrelated responsive revisions as conflicts', () => {
