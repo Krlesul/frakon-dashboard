@@ -22,6 +22,8 @@ function capabilities(overrides: Partial<DashboardServerCapabilities['responsive
     revisionSync: true,
     maxItems: 2000,
     responsiveCanvasV2: {
+      contractVersion: 1,
+      contractCompatible: true,
       read: true,
       write: true,
       atomicRevision: true,
@@ -39,15 +41,24 @@ describe('responsive canvas v2 write readiness', () => {
 
   it('reports every relevant server-side blocker instead of hiding after the first one', () => {
     const bundle = createResponsiveCanvasV2Bundle({ desktop: document() }, 'desktop');
-    const server = capabilities({ read: false, write: false, atomicRevision: false, breakpoints: new Set() });
+    const server = capabilities({ contractCompatible: false, read: false, write: false, atomicRevision: false, breakpoints: new Set() });
     server.revisionSync = false;
     expect(responsiveCanvasV2WriteReadiness(server, bundle).blockers).toEqual([
+      'contract-incompatible',
       'read-disabled',
       'write-disabled',
       'atomic-revision-disabled',
       'revision-sync-disabled',
       'unsupported-breakpoint',
     ]);
+  });
+
+  it('blocks an otherwise enabled server when the responsive contract is incompatible', () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: document() }, 'desktop');
+    expect(responsiveCanvasV2WriteReadiness(capabilities({ contractVersion: 2, contractCompatible: false }), bundle)).toEqual({
+      allowed: false,
+      blockers: ['contract-incompatible'],
+    });
   });
 
   it('blocks while a responsive conflict is unresolved', () => {
