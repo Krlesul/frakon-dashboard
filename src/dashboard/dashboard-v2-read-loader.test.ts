@@ -3,6 +3,7 @@ import type { DashboardStorageTransport } from './dashboard-storage';
 import { loadDashboardV2ReadOnly } from './dashboard-v2-read-loader';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { responsiveCanvasV2BundleFromDocument } from './responsive-v2-bundle';
+import { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
 
 const v2: FrakonDashboardDocumentV2 = {
   version: 2,
@@ -35,6 +36,32 @@ function capabilities(readable: number[], writable: number[] = [1], responsive =
       atomicRevision: true,
       breakpoints: ['mobile', 'tablet', 'desktop', 'wide'],
     } : undefined,
+  };
+}
+
+function responsiveEnvelope() {
+  return {
+    document: {
+      kind: 'responsive-canvas-v2',
+      id: 'home',
+      title: 'Home',
+      defaultBreakpoint: 'mobile',
+      documents: {
+        mobile: {
+          ...v2,
+          breakpoint: 'mobile',
+          layout: { ...v2.layout, width: 390 },
+          items: [{ ...v2.items[0], frame: { ...v2.items[0].frame, x: 12 } }],
+        },
+        desktop: {
+          ...v2,
+          items: [{ ...v2.items[0], frame: { ...v2.items[0].frame, x: 120 } }],
+        },
+      },
+    },
+    revision: 'responsive-r1',
+    updatedAt: 200,
+    clientId: 'home-assistant',
   };
 }
 
@@ -83,29 +110,7 @@ describe('loadDashboardV2ReadOnly', () => {
   it('prefers a responsive bundle and carries all breakpoints through the existing v2 API', async () => {
     const transport = new Transport();
     transport.responses.set('frakon/dashboard/capabilities', capabilities([1, 2], [1], true));
-    transport.responses.set('frakon/dashboard/load_responsive_revision', {
-      document: {
-        kind: 'responsive-canvas-v2',
-        id: 'home',
-        title: 'Home',
-        defaultBreakpoint: 'mobile',
-        documents: {
-          mobile: {
-            ...v2,
-            breakpoint: 'mobile',
-            layout: { ...v2.layout, width: 390 },
-            items: [{ ...v2.items[0], frame: { ...v2.items[0].frame, x: 12 } }],
-          },
-          desktop: {
-            ...v2,
-            items: [{ ...v2.items[0], frame: { ...v2.items[0].frame, x: 120 } }],
-          },
-        },
-      },
-      revision: 'responsive-r1',
-      updatedAt: 200,
-      clientId: 'home-assistant',
-    });
+    transport.responses.set('frakon/dashboard/load_responsive_revision', responsiveEnvelope());
     transport.responses.set('frakon/dashboard/load_revision', {
       document: v2,
       revision: 'single-r1',
@@ -127,6 +132,22 @@ describe('loadDashboardV2ReadOnly', () => {
       'frakon/dashboard/capabilities',
       'frakon/dashboard/load_responsive_revision',
     ]);
+  });
+
+  it('restores the responsive server bundle through the exact loader plus controller path used by the card', async () => {
+    const transport = new Transport();
+    transport.responses.set('frakon/dashboard/capabilities', capabilities([1, 2], [1], true));
+    transport.responses.set('frakon/dashboard/load_responsive_revision', responsiveEnvelope());
+
+    const result = await loadDashboardV2ReadOnly(transport, 'home');
+    expect(result.status).toBe('loaded');
+    if (result.status !== 'loaded') return;
+
+    const controller = new ResponsiveV2DraftController(result.envelope.document, result.envelope.document.breakpoint);
+    expect(controller.snapshot.activeBreakpoint).toBe('mobile');
+    expect(controller.snapshot.active.document.items[0].frame.x).toBe(12);
+    expect(controller.snapshot.documents.desktop?.items[0].frame.x).toBe(120);
+    expect(controller.snapshot.dirtyBreakpoints).toEqual([]);
   });
 
   it('falls back from an absent responsive bundle to the single-v2 revision', async () => {
