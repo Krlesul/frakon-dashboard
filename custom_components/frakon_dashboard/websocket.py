@@ -9,8 +9,16 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     READABLE_DOCUMENT_VERSIONS,
-    RESPONSIVE_CANVAS_V2_KIND,
     READABLE_RESPONSIVE_BUNDLE_KINDS,
+    RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+    RESPONSIVE_CANVAS_V2_KIND,
+    RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+    RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+    RESPONSIVE_CANVAS_V2_MAX_ITEMS,
+    RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
+    RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
+    RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
+    RESPONSIVE_CANVAS_V2_STORAGE_KEY,
     WRITABLE_DOCUMENT_VERSIONS,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
@@ -100,11 +108,18 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
                 "revisionSync": True,
                 "maxItems": 2000,
                 "responsiveCanvasV2": {
-                    "contractVersion": 1,
+                    "contractVersion": RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
                     "read": RESPONSIVE_CANVAS_V2_KIND in READABLE_RESPONSIVE_BUNDLE_KINDS,
                     "write": RESPONSIVE_CANVAS_V2_KIND in WRITABLE_RESPONSIVE_BUNDLE_KINDS,
                     "atomicRevision": True,
                     "breakpoints": list(BREAKPOINTS),
+                    "maxItems": RESPONSIVE_CANVAS_V2_MAX_ITEMS,
+                    "maxConstraints": RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+                    "maxSerializedBytes": RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
+                    "storageNamespace": RESPONSIVE_CANVAS_V2_STORAGE_KEY,
+                    "loadEndpoint": RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+                    "saveEndpoint": RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
+                    "removeEndpoint": RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
                 },
             },
         )
