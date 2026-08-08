@@ -22,7 +22,7 @@ class Transport implements DashboardStorageTransport {
         },
       } as T;
     }
-    if (command.endsWith('/load_responsive_revision')) {
+    if (command.endsWith('/load_responsive_bundle_revision')) {
       return {
         document: {
           kind: 'responsive-canvas-v2', id: 'home', title: 'Home', defaultBreakpoint: 'desktop',
@@ -50,6 +50,7 @@ describe('ResponsiveCanvasV2SyncController', () => {
     expect(controller).toBeDefined();
     expect(sync.currentState.envelope?.revision).toBe('r1');
     expect(sync.currentState.controller?.snapshot.dirtyBreakpoints).toEqual([]);
+    expect(transport.requests.at(-1)?.command).toBe('frakon/dashboard/load_responsive_bundle_revision');
   });
 
   it('blocks save before any save transport request when server write is disabled', async () => {
@@ -63,7 +64,7 @@ describe('ResponsiveCanvasV2SyncController', () => {
     expect(sync.currentState.error?.message).toContain('write-disabled');
   });
 
-  it('uses the dedicated responsive endpoint only when server write is explicitly enabled', async () => {
+  it('uses the dedicated responsive save endpoint only when server write is explicitly enabled', async () => {
     const transport = new Transport(true);
     const sync = new ResponsiveCanvasV2SyncController(transport, 'client', 'frakon/dashboard', () => 2);
     await sync.load('home');
