@@ -3,6 +3,7 @@ import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { DashboardV2DraftController } from './dashboard-v2-draft-controller';
 import {
   createResponsiveCanvasV2Bundle,
+  responsiveCanvasV2BundleFromDocument,
   type ResponsiveCanvasV2Bundle,
 } from './responsive-v2-bundle';
 import {
@@ -28,6 +29,23 @@ export class ResponsiveV2DraftController {
   private activeBreakpoint: FrakonBreakpoint;
 
   constructor(base: FrakonDashboardDocumentV2, activeBreakpoint: FrakonBreakpoint = base.breakpoint) {
+    const carriedBundle = responsiveCanvasV2BundleFromDocument(base);
+    if (carriedBundle) {
+      const resolvedActive = carriedBundle.documents[activeBreakpoint]
+        ? activeBreakpoint
+        : carriedBundle.defaultBreakpoint;
+      this.activeBreakpoint = resolvedActive;
+      for (const breakpoint of BREAKPOINTS) {
+        const document = carriedBundle.documents[breakpoint];
+        if (!document) continue;
+        const cleanBase = structuredClone(document);
+        this.baseDocuments.set(breakpoint, cleanBase);
+        this.controllers.set(breakpoint, new DashboardV2DraftController(cleanBase));
+      }
+      this.ensure(resolvedActive);
+      return;
+    }
+
     this.activeBreakpoint = activeBreakpoint;
     this.baseDocuments.set(base.breakpoint, structuredClone(base));
     this.controllers.set(base.breakpoint, new DashboardV2DraftController(base));
