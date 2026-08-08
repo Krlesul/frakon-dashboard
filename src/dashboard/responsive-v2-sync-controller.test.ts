@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DashboardStorageTransport } from './dashboard-storage';
 import { RESPONSIVE_CANVAS_V2_CONTRACT_VERSION } from './dashboard-server-capabilities';
+import { createResponsiveCanvasV2RevisionFromParent } from './responsive-v2-revision';
 import { ResponsiveCanvasV2SyncController } from './responsive-v2-sync-controller';
 
 class Transport implements DashboardStorageTransport {
@@ -44,6 +45,16 @@ class Transport implements DashboardStorageTransport {
   }
 }
 
+function dirty(sync: ResponsiveCanvasV2SyncController): void {
+  const controller = sync.currentState.controller!;
+  const desktop = controller.snapshot.active.document;
+  controller.applyActive({
+    status: 'committed',
+    document: { ...desktop, title: `${desktop.title} changed` },
+    collisionIds: [],
+  }, false);
+}
+
 describe('ResponsiveCanvasV2SyncController', () => {
   it('recovers a clean responsive controller from server revision', async () => {
     const transport = new Transport(false);
@@ -55,10 +66,21 @@ describe('ResponsiveCanvasV2SyncController', () => {
     expect(transport.requests.at(-1)?.command).toBe('frakon/dashboard/load_responsive_bundle_revision');
   });
 
+  it('does not send a save transport request for a clean draft', async () => {
+    const transport = new Transport(true);
+    const sync = new ResponsiveCanvasV2SyncController(transport, 'client', 'frakon/dashboard', () => 2);
+    await sync.load('home');
+    const requestsAfterLoad = transport.requests.length;
+    const saved = await sync.save();
+    expect(saved?.revision).toBe('r1');
+    expect(transport.requests).toHaveLength(requestsAfterLoad);
+  });
+
   it('blocks save before any save transport request when server write is disabled', async () => {
     const transport = new Transport(false);
     const sync = new ResponsiveCanvasV2SyncController(transport, 'client', 'frakon/dashboard', () => 2);
     await sync.load('home');
+    dirty(sync);
     const requestsAfterLoad = transport.requests.length;
     const saved = await sync.save();
     expect(saved).toBeUndefined();
@@ -70,8 +92,43 @@ describe('ResponsiveCanvasV2SyncController', () => {
     const transport = new Transport(true);
     const sync = new ResponsiveCanvasV2SyncController(transport, 'client', 'frakon/dashboard', () => 2);
     await sync.load('home');
+    dirty(sync);
     const saved = await sync.save();
     expect(saved?.parentRevision).toBe('r1');
     expect(transport.requests.at(-1)?.command).toBe('frakon/dashboard/save_responsive_revision');
+  });
+
+  it('rejects a stale audited candidate when the local draft changed afterwards', async () => {
+    const transport = new Transport(true);
+    const sync = new ResponsiveCanvasV2SyncController(transport, 'client', 'frakon/dashboard', () => 2);
+    await sync.load('home');
+    dirty(sync);
+    const controller = sync.currentState.controller!;
+    const candidate = createResponsiveCanvasV2RevisionFromParent(controller.toBundle(), 'preview-client', 'r1', 2);
+    const desktop = controller.snapshot.active.document;
+    controller.applyActive({
+      status: 'committed',
+      document: { ...desktop, title: `${desktop.title} again` },
+      collisionIds: [],
+    }, false);
+    const requestsBeforeSave = transport.requests.length;
+    const saved = await sync.saveCandidate(candidate);
+    expect(saved).toBeUndefined();
+    expect(transport.requests).toHaveLength(requestsBeforeSave);
+    expect(sync.currentState.error?.message).toContain('local draft changed');
+  });
+
+  it('rejects a candidate whose parent revision no longer matches the server base', async () => {
+    const transport = new Transport(true);
+    const sync = new ResponsiveCanvasV2SyncController(transport, 'client', 'frakon/dashboard', () => 2);
+    await sync.load('home');
+    dirty(sync);
+    const controller = sync.currentState.controller!;
+    const candidate = createResponsiveCanvasV2RevisionFromParent(controller.toBundle(), 'preview-client', 'older-base', 2);
+    const requestsBeforeSave = transport.requests.length;
+    const saved = await sync.saveCandidate(candidate);
+    expect(saved).toBeUndefined();
+    expect(transport.requests).toHaveLength(requestsBeforeSave);
+    expect(sync.currentState.error?.message).toContain('base revision changed');
   });
 });
