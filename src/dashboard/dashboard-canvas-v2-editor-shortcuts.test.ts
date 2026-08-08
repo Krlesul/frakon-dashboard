@@ -12,6 +12,13 @@ describe('dashboard canvas v2 editor shortcuts', () => {
     expect(dashboardCanvasV2EditorShortcut({ key: 'D', metaKey: true })).toEqual({ kind: 'item', action: 'duplicate' });
   });
 
+  it('maps Ctrl/Cmd+C and V to internal clipboard actions', () => {
+    expect(dashboardCanvasV2EditorShortcut({ key: 'c', ctrlKey: true })).toEqual({ kind: 'clipboard', action: 'copy' });
+    expect(dashboardCanvasV2EditorShortcut({ key: 'C', metaKey: true })).toEqual({ kind: 'clipboard', action: 'copy' });
+    expect(dashboardCanvasV2EditorShortcut({ key: 'v', ctrlKey: true })).toEqual({ kind: 'clipboard', action: 'paste' });
+    expect(dashboardCanvasV2EditorShortcut({ key: 'V', metaKey: true })).toEqual({ kind: 'clipboard', action: 'paste' });
+  });
+
   it('maps bracket shortcuts to layer moves', () => {
     expect(dashboardCanvasV2EditorShortcut({ key: ']', ctrlKey: true })).toEqual({ kind: 'layer', action: 'bring-forward' });
     expect(dashboardCanvasV2EditorShortcut({ key: '[', metaKey: true })).toEqual({ kind: 'layer', action: 'send-backward' });
