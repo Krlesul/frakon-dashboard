@@ -14,9 +14,12 @@ from .const import (
     READABLE_RESPONSIVE_BUNDLE_KINDS,
     RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
     RESPONSIVE_CANVAS_V2_KIND,
+    RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
     RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
     RESPONSIVE_CANVAS_V2_MAX_ITEMS,
     RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
+    RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
+    RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
 from .responsive_storage import FrakonResponsiveDashboardStorage
@@ -198,7 +201,7 @@ def register_responsive_commands(
 ) -> None:
     @websocket_api.websocket_command(
         {
-            vol.Required("type"): "frakon/dashboard/load_responsive_bundle_revision",
+            vol.Required("type"): RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
             vol.Required("dashboard_id"): DASHBOARD_ID,
         }
     )
@@ -223,7 +226,7 @@ def register_responsive_commands(
     @websocket_api.async_response
     @websocket_api.websocket_command(
         {
-            vol.Required("type"): "frakon/dashboard/save_responsive_revision",
+            vol.Required("type"): RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
             vol.Required("contractVersion"): vol.Coerce(int),
             vol.Required("envelope"): RESPONSIVE_REVISION_ENVELOPE,
             vol.Optional("expectedRevision", default=None): EXPECTED_REVISION,
@@ -297,7 +300,7 @@ def register_responsive_commands(
     @websocket_api.async_response
     @websocket_api.websocket_command(
         {
-            vol.Required("type"): "frakon/dashboard/remove_responsive_revision",
+            vol.Required("type"): RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
             vol.Required("contractVersion"): vol.Coerce(int),
             vol.Required("dashboard_id"): DASHBOARD_ID,
             vol.Optional("expectedRevision", default=None): EXPECTED_REVISION,
