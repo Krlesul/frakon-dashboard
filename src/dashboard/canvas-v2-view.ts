@@ -10,6 +10,7 @@ import './canvas-v2-constraint-overlay';
 import type { FrakonCanvasV2ConstraintSelectDetail } from './canvas-v2-constraint-overlay';
 import './canvas-v2-inspector-panel';
 import type { FrakonCanvasV2InspectorEditDetail } from './canvas-v2-inspector-panel';
+import { selectDashboardCanvasV2Constraint } from './dashboard-canvas-v2-constraint-selection';
 import { dashboardCanvasV2Guidelines } from './dashboard-canvas-v2-guidelines';
 import { patchDashboardCanvasV2Item, patchDashboardCanvasV2Snap } from './dashboard-canvas-v2-inspector-actions';
 import { canvasV2MoveSelection, normalizeCanvasV2Selection, selectCanvasV2ByMarquee, selectCanvasV2Item } from './dashboard-canvas-v2-selection';
@@ -89,10 +90,18 @@ export class FrakonCanvasV2View extends LitElement {
   private onConstraintSelect(event: CustomEvent<FrakonCanvasV2ConstraintSelectDetail>): void {
     if (!this.editMode || !this.document || this.session || this.marqueeStart) return;
     event.stopPropagation();
-    const constraint = (this.document.constraints ?? []).find((candidate) => candidate.id === event.detail.constraintId);
-    if (!constraint) return;
-    this.selectedConstraintId = constraint.id;
-    this.selection = { ids: [constraint.sourceId], anchorId: constraint.sourceId };
+    const next = selectDashboardCanvasV2Constraint(this.document, event.detail.constraintId);
+    if (!next) return;
+    this.selectedConstraintId = next.constraintId;
+    this.selection = next.selection;
+    this.canvasElement()?.focus();
+  }
+
+  private onSelectionSet(event: CustomEvent<{ selectedIds: string[] }>): void {
+    event.stopPropagation();
+    const ids = event.detail.selectedIds.filter((id) => this.document?.items.some((item) => item.id === id));
+    this.selectedConstraintId = undefined;
+    this.selection = { ids, anchorId: ids[0] };
     this.canvasElement()?.focus();
   }
 
@@ -215,7 +224,7 @@ export class FrakonCanvasV2View extends LitElement {
         ${guidelines.map((guideline) => html`<div class="guideline ${guideline.axis}" style=${guideline.axis === 'x' ? `left:${guideline.renderedPosition}px` : `top:${guideline.renderedPosition}px`}></div>`)}
         ${this.marqueeStyle(source) ? html`<div class="marquee" style=${this.marqueeStyle(source)}></div>` : nothing}
       </div>
-      ${this.editMode ? html`<frakon-canvas-v2-inspector-panel .document=${source} .selectedIds=${normalizedSelection.ids} .selectedConstraintId=${this.selectedConstraintId} .diagnostics=${this.constraintDiagnostics} .language=${this.language} @frakon-canvas-v2-inspector-edit=${this.onInspectorEdit}></frakon-canvas-v2-inspector-panel>` : nothing}
+      ${this.editMode ? html`<frakon-canvas-v2-inspector-panel .document=${source} .selectedIds=${normalizedSelection.ids} .selectedConstraintId=${this.selectedConstraintId} .diagnostics=${this.constraintDiagnostics} .language=${this.language} @frakon-canvas-v2-inspector-edit=${this.onInspectorEdit} @frakon-canvas-v2-selection-set=${this.onSelectionSet}></frakon-canvas-v2-inspector-panel>` : nothing}
     `;
   }
 }
