@@ -4,6 +4,7 @@ import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/cons
 import type { SupportedLanguage } from '../i18n';
 import { canvasDashboardTranslate } from './canvas-dashboard-i18n';
 import './canvas-v2-constraint-editor';
+import './canvas-v2-item-toolbar';
 import './canvas-v2-layer-toolbar';
 import './canvas-v2-selection-toolbar';
 import { summarizeDashboardCanvasV2ConstraintDiagnostics } from './dashboard-canvas-v2-constraint-diagnostics';
@@ -62,6 +63,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
         <span class="chip">${this.t('locked')}: ${selection.lockedCount}</span><span class="chip">${this.t('constraints')}: ${selection.constraintCount}</span><span class="chip ${diagnosticClass}">${this.t('diagnostics')}: ${diagnostics.applied}/${diagnostics.total}</span>
       </div>
       ${single ? html`<div class="grid">${this.itemField(single.id,'x',single.frame.x,'X')}${this.itemField(single.id,'y',single.frame.y,'Y')}${this.itemField(single.id,'width',single.frame.width,'W')}${this.itemField(single.id,'height',single.frame.height,'H')}${this.optionalItemField(single.id,'minWidth',single.minWidth,'min W')}${this.optionalItemField(single.id,'minHeight',single.minHeight,'min H')}${this.optionalItemField(single.id,'maxWidth',single.maxWidth,'max W')}${this.optionalItemField(single.id,'maxHeight',single.maxHeight,'max H')}</div><label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>` : nothing}
+      <frakon-canvas-v2-item-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-item-toolbar>
       <frakon-canvas-v2-layer-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-layer-toolbar>
       <frakon-canvas-v2-selection-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-selection-toolbar>
       <frakon-canvas-v2-constraint-editor .document=${this.document} .selectedIds=${this.selectedIds} .selectedConstraintId=${this.selectedConstraintId} .language=${this.language}></frakon-canvas-v2-constraint-editor>
