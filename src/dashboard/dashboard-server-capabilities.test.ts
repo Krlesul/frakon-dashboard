@@ -5,6 +5,10 @@ import {
   loadDashboardServerCapabilities,
   normalizeDashboardServerCapabilities,
   RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+  RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+  RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
+  RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
+  RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
 } from './dashboard-server-capabilities';
 
 class Transport implements DashboardStorageTransport {
@@ -23,6 +27,13 @@ class Transport implements DashboardStorageTransport {
         write: false,
         atomicRevision: true,
         breakpoints: ['mobile', 'tablet', 'desktop', 'wide'],
+        maxItems: 2000,
+        maxConstraints: 4000,
+        maxSerializedBytes: 2_000_000,
+        storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
+        loadEndpoint: RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+        saveEndpoint: RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
+        removeEndpoint: RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
       },
     } as T;
   }
@@ -42,6 +53,15 @@ describe('dashboard server capabilities', () => {
     expect(capabilities.responsiveCanvasV2.write).toBe(false);
     expect(capabilities.responsiveCanvasV2.atomicRevision).toBe(true);
     expect([...capabilities.responsiveCanvasV2.breakpoints]).toEqual(['mobile', 'tablet', 'desktop', 'wide']);
+    expect(capabilities.responsiveCanvasV2).toMatchObject({
+      maxItems: 2000,
+      maxConstraints: 4000,
+      maxSerializedBytes: 2_000_000,
+      storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
+      loadEndpoint: RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+      saveEndpoint: RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
+      removeEndpoint: RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
+    });
   });
 
   it('never treats a writable version as supported when the server cannot read it', () => {
@@ -52,13 +72,20 @@ describe('dashboard server capabilities', () => {
       maxItems: 2000,
     });
     expect([...capabilities.writableDocumentVersions]).toEqual([1]);
-    expect(capabilities.responsiveCanvasV2).toEqual({
+    expect(capabilities.responsiveCanvasV2).toMatchObject({
       contractVersion: undefined,
       contractCompatible: false,
       read: false,
       write: false,
       atomicRevision: false,
       breakpoints: new Set(),
+      maxItems: undefined,
+      maxConstraints: undefined,
+      maxSerializedBytes: undefined,
+      storageNamespace: undefined,
+      loadEndpoint: undefined,
+      saveEndpoint: undefined,
+      removeEndpoint: undefined,
     });
   });
 
@@ -92,6 +119,13 @@ describe('dashboard server capabilities', () => {
           write: true,
           atomicRevision: true,
           breakpoints: ['desktop'],
+          maxItems: 2000,
+          maxConstraints: 4000,
+          maxSerializedBytes: 2_000_000,
+          storageNamespace: 'wrong',
+          loadEndpoint: 'wrong',
+          saveEndpoint: 'wrong',
+          removeEndpoint: 'wrong',
         },
       });
       expect(capabilities.responsiveCanvasV2.contractCompatible).toBe(false);
@@ -99,6 +133,8 @@ describe('dashboard server capabilities', () => {
       expect(capabilities.responsiveCanvasV2.write).toBe(false);
       expect(capabilities.responsiveCanvasV2.atomicRevision).toBe(false);
       expect([...capabilities.responsiveCanvasV2.breakpoints]).toEqual([]);
+      expect(capabilities.responsiveCanvasV2.storageNamespace).toBeUndefined();
+      expect(capabilities.responsiveCanvasV2.loadEndpoint).toBeUndefined();
     }
   });
 
