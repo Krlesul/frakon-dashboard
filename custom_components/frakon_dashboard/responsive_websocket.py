@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     READABLE_RESPONSIVE_BUNDLE_KINDS,
+    RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
     RESPONSIVE_CANVAS_V2_KIND,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
@@ -120,6 +121,7 @@ def register_responsive_commands(
     @websocket_api.websocket_command(
         {
             vol.Required("type"): "frakon/dashboard/save_responsive_revision",
+            vol.Required("contractVersion"): vol.Coerce(int),
             vol.Required("envelope"): RESPONSIVE_REVISION_ENVELOPE,
             vol.Optional("expectedRevision", default=None): EXPECTED_REVISION,
         }
@@ -129,6 +131,14 @@ def register_responsive_commands(
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
+        if msg["contractVersion"] != RESPONSIVE_CANVAS_V2_CONTRACT_VERSION:
+            connection.send_error(
+                msg["id"],
+                "responsive_contract_incompatible",
+                f"Responsive contract version {msg['contractVersion']} is not supported; expected {RESPONSIVE_CANVAS_V2_CONTRACT_VERSION}.",
+            )
+            return
+
         envelope = dict(msg["envelope"])
         bundle = envelope["document"]
         kind = bundle.get("kind")
