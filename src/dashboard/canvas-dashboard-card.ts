@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, LovelaceCardConfig } from '../home-assistant/types';
 import { createHomeAssistantDashboardStorage, type DashboardStorageMode } from '../home-assistant/dashboard-storage-factory';
 import './card-host';
+import './canvas-v2-breakpoint-toolbar';
+import type { FrakonCanvasV2BreakpointSelectDetail } from './canvas-v2-breakpoint-toolbar';
 import './canvas-v2-view';
 import type { FrakonCanvasV2DraftDetail } from './canvas-v2-view';
 import { canvasDashboardTranslate, resolveCanvasDashboardLanguage } from './canvas-dashboard-i18n';
@@ -13,11 +15,11 @@ import {
   type DashboardServerCapabilities,
 } from './dashboard-server-capabilities';
 import { DashboardStorageController } from './dashboard-storage-controller';
-import { DashboardV2DraftController } from './dashboard-v2-draft-controller';
 import { createDashboardV2MigrationPreview } from './dashboard-v2-migration-preview';
 import { loadDashboardV2ReadOnly } from './dashboard-v2-read-loader';
-import { normalizeDashboard, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
+import { normalizeDashboard, type FrakonBreakpoint, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
+import { ResponsiveV2DraftController, type ResponsiveV2DraftSnapshot } from './responsive-v2-draft-controller';
 
 export interface FrakonCanvasDashboardCardConfig extends LovelaceCardConfig {
   type: 'custom:frakon-canvas-dashboard-card';
@@ -30,6 +32,7 @@ export interface FrakonCanvasDashboardCardConfig extends LovelaceCardConfig {
   edit_mode?: boolean;
   storage?: DashboardStorageMode;
   items?: FrakonGridItem[];
+  language?: string;
 }
 
 @customElement('frakon-canvas-dashboard-card')
@@ -42,6 +45,9 @@ export class FrakonCanvasDashboardCard extends LitElement {
   @state() private nativeV2DraftDirty = false;
   @state() private nativeV2CanUndo = false;
   @state() private nativeV2CanRedo = false;
+  @state() private nativeV2ActiveBreakpoint: FrakonBreakpoint = 'desktop';
+  @state() private nativeV2AvailableBreakpoints: FrakonBreakpoint[] = [];
+  @state() private nativeV2DirtyBreakpoints: FrakonBreakpoint[] = [];
   @state() private selectedId?: string;
   @state() private preview?: DashboardCanvasPreview;
   @state() private message?: string;
@@ -54,7 +60,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
   private resizeObserver?: ResizeObserver;
   private session?: DashboardCanvasSession;
   private pointerId?: number;
-  private nativeV2DraftController?: DashboardV2DraftController;
+  private nativeV2DraftController?: ResponsiveV2DraftController;
 
   static styles = css`
     :host { display: block; }
@@ -62,6 +68,8 @@ export class FrakonCanvasDashboardCard extends LitElement {
     header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
     h2 { margin: 0; font-size: 21px; }
     .badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .responsive-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .dirty-list { font-size: 11px; opacity: .72; }
     .badge { padding: 6px 10px; border-radius: 999px; font-size: 12px; background: color-mix(in srgb, var(--primary-color) 15%, transparent); }
     .experimental { background: color-mix(in srgb, #f0a85a 22%, transparent); }
     .blocked { background: color-mix(in srgb, #ff4d67 18%, transparent); }
@@ -167,14 +175,20 @@ export class FrakonCanvasDashboardCard extends LitElement {
     this.nativeV2DraftDirty = false;
     this.nativeV2CanUndo = false;
     this.nativeV2CanRedo = false;
+    this.nativeV2ActiveBreakpoint = 'desktop';
+    this.nativeV2AvailableBreakpoints = [];
+    this.nativeV2DirtyBreakpoints = [];
     this.nativeV2DraftController = undefined;
   }
 
-  private applyNativeV2Snapshot(snapshot: ReturnType<DashboardV2DraftController['undo']>): void {
-    this.nativeV2Document = snapshot.document;
-    this.nativeV2DraftDirty = snapshot.dirty;
-    this.nativeV2CanUndo = snapshot.canUndo;
-    this.nativeV2CanRedo = snapshot.canRedo;
+  private applyNativeV2Snapshot(snapshot: ResponsiveV2DraftSnapshot): void {
+    this.nativeV2Document = snapshot.active.document;
+    this.nativeV2ActiveBreakpoint = snapshot.activeBreakpoint;
+    this.nativeV2AvailableBreakpoints = Object.keys(snapshot.documents) as FrakonBreakpoint[];
+    this.nativeV2DirtyBreakpoints = snapshot.dirtyBreakpoints;
+    this.nativeV2DraftDirty = snapshot.dirtyBreakpoints.length > 0;
+    this.nativeV2CanUndo = snapshot.active.canUndo;
+    this.nativeV2CanRedo = snapshot.active.canRedo;
   }
 
   private async loadDashboard(id: string): Promise<void> {
@@ -192,7 +206,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
         if (result.status === 'loaded') {
           if (this.document?.id !== id) return;
           this.nativeV2Revision = result.envelope.revision;
-          this.nativeV2DraftController = new DashboardV2DraftController(result.envelope.document);
+          this.nativeV2DraftController = new ResponsiveV2DraftController(result.envelope.document, result.envelope.document.breakpoint);
           this.applyNativeV2Snapshot(this.nativeV2DraftController.snapshot);
           this.cancelInteraction();
           return;
@@ -235,7 +249,7 @@ export class FrakonCanvasDashboardCard extends LitElement {
     if (!controller) return;
     const result = event.detail;
     if (result.status === 'committed') {
-      this.applyNativeV2Snapshot(controller.apply(result));
+      this.applyNativeV2Snapshot(controller.applyActive(result, true));
       this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
     } else if (result.status === 'collision') {
       this.message = `${this.t('collisionBlocked')}: ${result.collisionIds.join(', ')}`;
@@ -244,14 +258,14 @@ export class FrakonCanvasDashboardCard extends LitElement {
 
   private undoNativeV2Draft(): void {
     const controller = this.nativeV2DraftController;
-    if (!controller || !controller.snapshot.canUndo) return;
+    if (!controller || !controller.snapshot.active.canUndo) return;
     this.applyNativeV2Snapshot(controller.undo());
     this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
   }
 
   private redoNativeV2Draft(): void {
     const controller = this.nativeV2DraftController;
-    if (!controller || !controller.snapshot.canRedo) return;
+    if (!controller || !controller.snapshot.active.canRedo) return;
     this.applyNativeV2Snapshot(controller.redo());
     this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
   }
@@ -263,6 +277,14 @@ export class FrakonCanvasDashboardCard extends LitElement {
     event.stopPropagation();
     if (event.shiftKey) this.redoNativeV2Draft();
     else this.undoNativeV2Draft();
+  }
+
+  private onNativeV2BreakpointSelect(event: CustomEvent<FrakonCanvasV2BreakpointSelectDetail>): void {
+    const controller = this.nativeV2DraftController;
+    if (!controller) return;
+    event.stopPropagation();
+    this.applyNativeV2Snapshot(controller.switchTo(event.detail.breakpoint));
+    this.message = this.nativeV2DraftDirty ? this.t('v2DraftUnsaved') : undefined;
   }
 
   private async discardNativeV2Draft(): Promise<void> {
@@ -369,11 +391,24 @@ export class FrakonCanvasDashboardCard extends LitElement {
               : nothing}
           </div>
         </header>
+        ${this.config?.edit_mode === true ? html`
+          <div class="responsive-row">
+            <frakon-canvas-v2-breakpoint-toolbar
+              .active=${this.nativeV2ActiveBreakpoint}
+              .available=${this.nativeV2AvailableBreakpoints}
+              @frakon-canvas-v2-breakpoint-select=${this.onNativeV2BreakpointSelect}
+            ></frakon-canvas-v2-breakpoint-toolbar>
+            ${this.nativeV2DirtyBreakpoints.length
+              ? html`<span class="dirty-list">unsaved: ${this.nativeV2DirtyBreakpoints.join(' · ')}</span>`
+              : nothing}
+          </div>
+        ` : nothing}
         ${this.capabilitiesError ? html`<div class="message error">${this.t('capabilityFailed')}: ${this.capabilitiesError}</div>` : nothing}
         ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
         <frakon-canvas-v2-view
           .hass=${this.hass}
           .document=${this.nativeV2Document}
+          .language=${this.language()}
           .width=${Math.max(1, this.width)}
           .editMode=${this.config?.edit_mode === true}
           @frakon-canvas-v2-draft=${this.onNativeV2Draft}
