@@ -10,19 +10,28 @@ export interface ResponsiveCanvasV2RevisionEnvelope {
 
 export type ResponsiveCanvasV2RevisionRelation = 'same' | 'local-ahead' | 'remote-ahead' | 'conflict';
 
+export function createResponsiveCanvasV2RevisionFromParent(
+  bundle: ResponsiveCanvasV2Bundle,
+  clientId: string,
+  parentRevision?: string,
+  updatedAt = Date.now(),
+): ResponsiveCanvasV2RevisionEnvelope {
+  return {
+    bundle: structuredClone(bundle),
+    revision: responsiveRevisionId(clientId, updatedAt, bundle),
+    parentRevision,
+    updatedAt,
+    clientId,
+  };
+}
+
 export function createResponsiveCanvasV2Revision(
   bundle: ResponsiveCanvasV2Bundle,
   clientId: string,
   previous?: ResponsiveCanvasV2RevisionEnvelope,
   updatedAt = Date.now(),
 ): ResponsiveCanvasV2RevisionEnvelope {
-  return {
-    bundle: structuredClone(bundle),
-    revision: responsiveRevisionId(clientId, updatedAt, bundle),
-    parentRevision: previous?.revision,
-    updatedAt,
-    clientId,
-  };
+  return createResponsiveCanvasV2RevisionFromParent(bundle, clientId, previous?.revision, updatedAt);
 }
 
 export function compareResponsiveCanvasV2Revisions(
