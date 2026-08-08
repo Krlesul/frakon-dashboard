@@ -11,6 +11,11 @@ export interface ResponsiveCanvasV2Bundle {
 }
 
 const BREAKPOINTS: FrakonBreakpoint[] = ['mobile', 'tablet', 'desktop', 'wide'];
+const RESPONSIVE_BUNDLE_CARRIER = Symbol('frakon-responsive-canvas-v2-bundle');
+
+type ResponsiveBundleCarrierDocument = FrakonDashboardDocumentV2 & {
+  [RESPONSIVE_BUNDLE_CARRIER]?: ResponsiveCanvasV2Bundle;
+};
 
 export function createResponsiveCanvasV2Bundle(
   documents: ResponsiveCanvasV2Documents,
@@ -58,4 +63,25 @@ export function responsiveCanvasV2BundleDocument(
 ): FrakonDashboardDocumentV2 | undefined {
   const document = bundle.documents[breakpoint];
   return document ? structuredClone(document) : undefined;
+}
+
+export function attachResponsiveCanvasV2Bundle(
+  document: FrakonDashboardDocumentV2,
+  bundle: ResponsiveCanvasV2Bundle,
+): FrakonDashboardDocumentV2 {
+  const carrier = structuredClone(document) as ResponsiveBundleCarrierDocument;
+  Object.defineProperty(carrier, RESPONSIVE_BUNDLE_CARRIER, {
+    value: structuredClone(bundle),
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return carrier;
+}
+
+export function responsiveCanvasV2BundleFromDocument(
+  document: FrakonDashboardDocumentV2,
+): ResponsiveCanvasV2Bundle | undefined {
+  const bundle = (document as ResponsiveBundleCarrierDocument)[RESPONSIVE_BUNDLE_CARRIER];
+  return bundle ? structuredClone(bundle) : undefined;
 }
