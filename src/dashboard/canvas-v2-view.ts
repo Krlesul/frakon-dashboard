@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from 'lit';
+import { LitElement, css, html, nothing, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
 import type { Guideline } from '../../packages/studio-engine/src/guidelines';
@@ -8,6 +8,7 @@ import type { HomeAssistant } from '../home-assistant/types';
 import './card-host';
 import './canvas-v2-inspector-panel';
 import type { FrakonCanvasV2InspectorEditDetail } from './canvas-v2-inspector-panel';
+import { dashboardCanvasV2ConstraintOverlay } from './dashboard-canvas-v2-constraint-overlay';
 import { dashboardCanvasV2Guidelines } from './dashboard-canvas-v2-guidelines';
 import {
   patchDashboardCanvasV2Item,
@@ -71,6 +72,10 @@ export class FrakonCanvasV2View extends LitElement {
     .guideline { position: absolute; z-index: 19; pointer-events: none; background: var(--primary-color); opacity: .82; box-shadow: 0 0 7px color-mix(in srgb, var(--primary-color) 55%, transparent); }
     .guideline.x { top: 0; bottom: 0; width: 1px; }
     .guideline.y { left: 0; right: 0; height: 1px; }
+    .constraint-overlay { position: absolute; z-index: 18; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+    .constraint-line { stroke: var(--primary-color); stroke-width: 1.5; opacity: .58; vector-effect: non-scaling-stroke; }
+    .constraint-line.disabled { stroke-dasharray: 5 5; opacity: .28; }
+    .constraint-label { fill: var(--primary-text-color); font-size: 10px; paint-order: stroke; stroke: var(--card-background-color); stroke-width: 4px; stroke-linejoin: round; }
     .content { width: 100%; height: 100%; min-width: 0; min-height: 0; }
   `;
 
@@ -283,6 +288,7 @@ export class FrakonCanvasV2View extends LitElement {
     const collisions = new Set(this.collisionIds);
     const selectedIds = new Set(normalizedSelection.ids);
     const guidelines = this.renderedGuidelines(source);
+    const constraintLines = this.editMode ? dashboardCanvasV2ConstraintOverlay(source, normalizedSelection.ids) : [];
     return html`
       <div
         class="canvas"
@@ -312,6 +318,16 @@ export class FrakonCanvasV2View extends LitElement {
             </article>
           `;
         })}
+        ${constraintLines.length ? svg`
+          <svg class="constraint-overlay" viewBox=${`0 0 ${source.layout.width} ${Math.max(source.layout.minHeight, ...source.items.map((item) => item.frame.y + item.frame.height), 1)}`} preserveAspectRatio="none" aria-hidden="true">
+            ${constraintLines.map((line) => svg`
+              <g>
+                <line class="constraint-line ${line.enabled ? '' : 'disabled'}" x1=${line.x1} y1=${line.y1} x2=${line.x2} y2=${line.y2}></line>
+                <text class="constraint-label" x=${line.labelX} y=${line.labelY - 5} text-anchor="middle">${line.label}</text>
+              </g>
+            `)}
+          </svg>
+        ` : nothing}
         ${guidelines.map((guideline) => html`<div class="guideline ${guideline.axis}" style=${guideline.axis === 'x' ? `left:${guideline.renderedPosition}px` : `top:${guideline.renderedPosition}px`}></div>`)}
         ${this.marqueeStyle(source) ? html`<div class="marquee" style=${this.marqueeStyle(source)}></div>` : nothing}
       </div>
