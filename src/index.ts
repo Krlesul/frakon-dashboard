@@ -11,6 +11,7 @@ import './cards/vehicle/vehicle-card';
 import './dashboard/dashboard-card';
 import './dashboard/dashboard-card-editor';
 import './dashboard/canvas-dashboard-card';
+import './dashboard/responsive-v2-save-panel';
 
 interface CustomCardRegistration {
   type: string;
