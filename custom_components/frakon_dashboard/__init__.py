@@ -4,6 +4,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_BACKEND, DATA_WEBSOCKET_REGISTERED, DOMAIN
+from .responsive_websocket import register_responsive_write_command
 from .storage import FrakonDashboardStorage
 from .websocket import register_websocket_commands
 
@@ -17,6 +18,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if not data.get(DATA_WEBSOCKET_REGISTERED):
         register_websocket_commands(hass, storage)
+        register_responsive_write_command(hass, storage)
         data[DATA_WEBSOCKET_REGISTERED] = True
 
     return True
