@@ -8,7 +8,7 @@ import { canvasV2SurfaceTranslate, type CanvasV2SurfaceTranslationKey } from './
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { resolveCanvasItemSurface, resolveDashboardSurfaces } from './surface-style-resolver';
 
-type SurfaceEditorTarget = 'card-defaults' | 'selection';
+type SurfaceEditorTarget = 'dashboard' | 'card-defaults' | 'selection';
 
 @customElement('frakon-canvas-v2-surface-editor')
 export class FrakonCanvasV2SurfaceEditor extends LitElement {
@@ -23,7 +23,7 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     .head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .title { font-size:12px; font-weight:700; }
     .targets,.presets,.grid { display:grid; gap:6px; }
-    .targets { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .targets { grid-template-columns:repeat(3,minmax(0,1fr)); }
     .presets { grid-template-columns:repeat(3,minmax(0,1fr)); }
     .grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
     button,select,input { min-width:0; box-sizing:border-box; border:0; border-radius:8px; padding:6px 7px; color:inherit; background:color-mix(in srgb, var(--card-background-color) 88%, var(--primary-text-color) 12%); font:inherit; font-size:11px; }
@@ -34,7 +34,7 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     .wide { grid-column:span 2; }
     .actions { display:flex; gap:6px; flex-wrap:wrap; }
     .hint { font-size:10px; opacity:.62; }
-    @media (max-width:700px) { .presets,.grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .wide { grid-column:span 2; } }
+    @media (max-width:700px) { .targets,.presets,.grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .wide { grid-column:span 2; } }
   `;
 
   private inheritedLanguage(): SupportedLanguage {
@@ -54,9 +54,7 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     return this.document.items.filter((item) => selected.has(item.id));
   }
 
-  private selectionAvailable(): boolean {
-    return this.selectedItems().some((item) => !item.locked);
-  }
+  private selectionAvailable(): boolean { return this.selectedItems().some((item) => !item.locked); }
 
   private effectiveTarget(): SurfaceEditorTarget {
     return this.target === 'selection' && !this.selectionAvailable() ? 'card-defaults' : this.target;
@@ -64,13 +62,17 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
 
   private currentStyle(): SurfaceStyle {
     if (!this.document) return {};
-    if (this.effectiveTarget() === 'card-defaults') return resolveDashboardSurfaces(this.document).card;
+    const target = this.effectiveTarget();
+    if (target === 'dashboard') return resolveDashboardSurfaces(this.document).dashboard;
+    if (target === 'card-defaults') return resolveDashboardSurfaces(this.document).card;
     const first = this.selectedItems()[0];
     return first ? resolveCanvasItemSurface(this.document, first) : resolveDashboardSurfaces(this.document).card;
   }
 
   private actionTarget(): DashboardCanvasV2SurfaceTarget | undefined {
-    if (this.effectiveTarget() === 'card-defaults') return { kind: 'card-defaults' };
+    const target = this.effectiveTarget();
+    if (target === 'dashboard') return { kind: 'dashboard' };
+    if (target === 'card-defaults') return { kind: 'card-defaults' };
     if (!this.selectionAvailable()) return undefined;
     return { kind: 'items', ids: this.selectedIds };
   }
@@ -81,20 +83,11 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     if (!target) return;
     const result = applyDashboardCanvasV2SurfaceStyle(this.document, target, style);
     if (result.status !== 'committed') return;
-    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', {
-      detail: { status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] },
-      bubbles: true,
-      composed: true,
-    }));
+    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', { detail: { status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] }, bubbles: true, composed: true }));
   }
 
-  private patch(patch: Partial<SurfaceStyle>): void {
-    this.commit(normalizeSurfaceStyle({ ...this.currentStyle(), ...patch }));
-  }
-
-  private applyPreset(id: SurfacePresetId): void {
-    this.commit(surfacePreset(id));
-  }
+  private patch(patch: Partial<SurfaceStyle>): void { this.commit(normalizeSurfaceStyle({ ...this.currentStyle(), ...patch })); }
+  private applyPreset(id: SurfacePresetId): void { this.commit(surfacePreset(id)); }
 
   private clearOverride(): void {
     if (!this.document) return;
@@ -102,11 +95,7 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     if (!target) return;
     const result = clearDashboardCanvasV2SurfaceStyle(this.document, target);
     if (result.status !== 'committed') return;
-    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', {
-      detail: { status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] },
-      bubbles: true,
-      composed: true,
-    }));
+    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', { detail: { status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] }, bubbles: true, composed: true }));
   }
 
   private number(event: Event): number { return Number((event.currentTarget as HTMLInputElement).value); }
@@ -118,9 +107,11 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     const selectionAvailable = this.selectionAvailable();
     const target = this.effectiveTarget();
     const style = normalizeSurfaceStyle(this.currentStyle());
+    const targetLabel = target === 'dashboard' ? this.t('dashboard') : target === 'selection' ? `${this.selectedIds.length} ${this.t('selected')}` : this.t('cardDefaults');
     return html`<section class="panel">
-      <div class="head"><span class="title">${this.t('surface')}</span><span class="hint">${target === 'selection' ? `${this.selectedIds.length} ${this.t('selected')}` : this.t('cardDefaults')}</span></div>
+      <div class="head"><span class="title">${this.t('surface')}</span><span class="hint">${targetLabel}</span></div>
       <div class="targets">
+        <button class=${target === 'dashboard' ? 'active' : ''} @click=${() => { this.target = 'dashboard'; }}>${this.t('dashboard')}</button>
         <button class=${target === 'card-defaults' ? 'active' : ''} @click=${() => { this.target = 'card-defaults'; }}>${this.t('cardDefaults')}</button>
         <button class=${target === 'selection' ? 'active' : ''} ?disabled=${!selectionAvailable} @click=${() => { this.target = 'selection'; }}>${this.t('selection')}</button>
       </div>
