@@ -5,19 +5,20 @@ import type { SupportedLanguage } from '../i18n';
 import './card-palette';
 import type { FrakonCardTemplateSelectedDetail } from './card-palette';
 import { canvasDashboardTranslate } from './canvas-dashboard-i18n';
+import { canvasV2CardConfigTranslate, type CanvasV2CardConfigTranslationKey } from './canvas-v2-card-config-i18n';
 import { canvasV2ClipboardTranslate, type CanvasV2ClipboardTranslationKey } from './canvas-v2-clipboard-i18n';
 import './canvas-v2-constraint-editor';
 import './canvas-v2-item-toolbar';
 import './canvas-v2-layer-toolbar';
 import './canvas-v2-selection-toolbar';
-import { patchDashboardCanvasV2CardConfig } from './dashboard-canvas-v2-card-config';
+import { dashboardCanvasV2CardConfigFields, patchDashboardCanvasV2CardConfig, type DashboardCanvasV2CardConfigField } from './dashboard-canvas-v2-card-config';
 import { DashboardCanvasV2ClipboardController } from './dashboard-canvas-v2-clipboard-controller';
 import { summarizeDashboardCanvasV2ConstraintDiagnostics } from './dashboard-canvas-v2-constraint-diagnostics';
 import { insertDashboardCanvasV2Card } from './dashboard-canvas-v2-insert-card';
 import type { DashboardCanvasV2InspectorItemPatch } from './dashboard-canvas-v2-inspector-actions';
 import { dashboardCanvasV2InspectorSelection } from './dashboard-canvas-v2-inspector';
 import { editorTranslate, resolveEditorLanguage } from './editor-i18n';
-import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
+import type { FrakonCanvasItem, FrakonDashboardDocumentV2 } from './layout-model-v2';
 
 export type FrakonCanvasV2InspectorEditDetail =
   | { kind: 'item'; itemId: string; patch: DashboardCanvasV2InspectorItemPatch }
@@ -56,6 +57,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     .label { font-size: 10px; opacity: .65; }
     input[type='number'], input[type='text'] { width: 100%; min-width: 0; box-sizing: border-box; border: 0; border-radius: 6px; padding: 5px 6px; color: inherit; background: color-mix(in srgb, var(--card-background-color) 88%, var(--primary-text-color) 12%); font: inherit; }
     .toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; }
+    .option { min-height:32px; padding:6px 8px; border-radius:9px; background:color-mix(in srgb, var(--card-background-color) 92%, var(--primary-text-color) 8%); }
     .issues { display: grid; gap: 5px; }
     .issue { font-size: 11px; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, #f0a85a 12%, transparent); }
     @media (max-width: 600px) { .grid, .config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -73,6 +75,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
 
   private t(key: Parameters<typeof canvasDashboardTranslate>[1]): string { return canvasDashboardTranslate(this.language, key); }
   private tc(key: CanvasV2ClipboardTranslationKey): string { return canvasV2ClipboardTranslate(this.language, key); }
+  private tcc(key: CanvasV2CardConfigTranslationKey): string { return canvasV2CardConfigTranslate(this.language, key); }
   private te(key: Parameters<typeof editorTranslate>[1]): string { return editorTranslate(resolveEditorLanguage(this.language), key); }
   private dispatchEdit(detail: FrakonCanvasV2InspectorEditDetail): void { this.dispatchEvent(new CustomEvent<FrakonCanvasV2InspectorEditDetail>('frakon-canvas-v2-inspector-edit', { detail, bubbles: true, composed: true })); }
   private numberValue(event: Event): number | undefined { const value = Number((event.currentTarget as HTMLInputElement).value); return Number.isFinite(value) ? value : undefined; }
@@ -83,7 +86,22 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${typeof value === 'string' ? value : ''} @change=${(event: Event) => this.patchCardConfig(itemId, key, (event.currentTarget as HTMLInputElement).value)}></label>`;
   }
 
-  private patchCardConfig(itemId: string, key: 'entity' | 'name' | 'title', value: string): void {
+  private typeSpecificCardField(item: FrakonCanvasItem, field: DashboardCanvasV2CardConfigField) {
+    if (field.kind === 'text') return nothing;
+    const value = item.card[field.key];
+    if (field.kind === 'boolean') {
+      const labelKey: Record<typeof field.key, CanvasV2CardConfigTranslationKey> = {
+        show_brightness: 'showBrightness',
+        show_position: 'showPosition',
+        show_state: 'showState',
+        show_volume: 'showVolume',
+      };
+      return html`<label class="toggle option"><input type="checkbox" .checked=${value === true} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).checked)}>${this.tcc(labelKey[field.key])}</label>`;
+    }
+    return html`<label class="field"><span class="label">${this.tcc('temperatureStep')}</span><input type="number" min=${String(field.min)} max=${String(field.max)} step="0.1" .value=${typeof value === 'number' ? String(value) : ''} @change=${(event: Event) => { const next = Number((event.currentTarget as HTMLInputElement).value); if (Number.isFinite(next)) this.patchCardConfig(item.id, field.key, next); }}></label>`;
+  }
+
+  private patchCardConfig(itemId: string, key: string, value: unknown): void {
     if (!this.document) return;
     const result = patchDashboardCanvasV2CardConfig(this.document, itemId, { [key]: value });
     if (result.status !== 'committed') return;
@@ -181,6 +199,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     const single = selection.single;
     const diagnosticClass = diagnostics.severity === 'error' ? 'error' : diagnostics.severity === 'warning' ? 'warning' : '';
     const canCopy = this.canCopySelection();
+    const typeFields = single ? dashboardCanvasV2CardConfigFields(single.card).filter((field) => field.kind !== 'text') : [];
     return html`<section class="panel">
       <div class="title"><span>${this.t('inspector')}</span><span>${selection.count} ${this.t('selected')}</span></div>
       <div class="summary">
@@ -201,6 +220,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
           ${this.cardConfigField(single.id, 'entity', single.card.entity, this.te('entity'))}
           ${this.cardConfigField(single.id, 'name', single.card.name, this.te('name'))}
           ${this.cardConfigField(single.id, 'title', single.card.title, this.te('title'))}
+          ${typeFields.map((field) => this.typeSpecificCardField(single, field))}
         </div>
         <div class="grid">${this.itemField(single.id,'x',single.frame.x,'X')}${this.itemField(single.id,'y',single.frame.y,'Y')}${this.itemField(single.id,'width',single.frame.width,'W')}${this.itemField(single.id,'height',single.frame.height,'H')}${this.optionalItemField(single.id,'minWidth',single.minWidth,'min W')}${this.optionalItemField(single.id,'minHeight',single.minHeight,'min H')}${this.optionalItemField(single.id,'maxWidth',single.maxWidth,'max W')}${this.optionalItemField(single.id,'maxHeight',single.maxHeight,'max H')}</div>
         <label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>
