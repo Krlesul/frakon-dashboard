@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
+import type { HomeAssistant } from '../home-assistant/types';
 import type { SupportedLanguage } from '../i18n';
 import './card-palette';
 import type { FrakonCardTemplateSelectedDetail } from './card-palette';
@@ -15,6 +16,7 @@ import './canvas-v2-surface-editor';
 import { dashboardCanvasV2CardConfigFields, patchDashboardCanvasV2CardConfig, type DashboardCanvasV2CardConfigField } from './dashboard-canvas-v2-card-config';
 import { DashboardCanvasV2ClipboardController } from './dashboard-canvas-v2-clipboard-controller';
 import { summarizeDashboardCanvasV2ConstraintDiagnostics } from './dashboard-canvas-v2-constraint-diagnostics';
+import { dashboardCanvasV2EntityOptions } from './dashboard-canvas-v2-entity-options';
 import { insertDashboardCanvasV2Card } from './dashboard-canvas-v2-insert-card';
 import type { DashboardCanvasV2InspectorItemPatch } from './dashboard-canvas-v2-inspector-actions';
 import { dashboardCanvasV2InspectorSelection } from './dashboard-canvas-v2-inspector';
@@ -76,6 +78,12 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     super.disconnectedCallback();
   }
 
+  private inheritedHass(): HomeAssistant | undefined {
+    const root = this.getRootNode();
+    if (!(root instanceof ShadowRoot)) return undefined;
+    return (root.host as HTMLElement & { hass?: HomeAssistant }).hass;
+  }
+
   private t(key: Parameters<typeof canvasDashboardTranslate>[1]): string { return canvasDashboardTranslate(this.language, key); }
   private tc(key: CanvasV2ClipboardTranslationKey): string { return canvasV2ClipboardTranslate(this.language, key); }
   private tcc(key: CanvasV2CardConfigTranslationKey): string { return canvasV2CardConfigTranslate(this.language, key); }
@@ -112,9 +120,13 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
       const serialized = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string').join(', ') : '';
       return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${serialized} placeholder=${field.domains?.map((domain) => `${domain}.*`).join(', ') ?? ''} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).value.split(',').map((entry) => entry.trim()).filter(Boolean))}></label>`;
     }
+    if (field.kind === 'entity') {
+      const serialized = typeof value === 'string' ? value : '';
+      const options = dashboardCanvasV2EntityOptions(this.inheritedHass(), field.domains, serialized);
+      return html`<label class="field"><span class="label">${label}</span><select .value=${serialized} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLSelectElement).value)}><option value="" ?disabled=${field.required}>—</option>${options.map((option) => html`<option value=${option.entityId}>${option.label}</option>`)}</select></label>`;
+    }
     const serialized = typeof value === 'string' ? value : '';
-    const placeholder = field.kind === 'entity' ? field.domains?.map((domain) => `${domain}.*`).join(' / ') ?? 'domain.object_id' : '';
-    return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${serialized} placeholder=${placeholder} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).value)}></label>`;
+    return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${serialized} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).value)}></label>`;
   }
 
   private patchCardConfig(itemId: string, key: string, value: unknown): void {
