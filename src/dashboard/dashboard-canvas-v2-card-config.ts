@@ -7,19 +7,37 @@ export interface DashboardCanvasV2CardConfigPatchResult {
 }
 
 export type DashboardCanvasV2CardConfigField =
-  | { key: 'entity' | 'name' | 'title'; kind: 'text' }
-  | { key: 'show_brightness' | 'show_position' | 'show_state' | 'show_volume'; kind: 'boolean' }
-  | { key: 'step'; kind: 'number'; min: number; max: number }
+  | { key: 'entity' | 'temperature_entity' | 'humidity_entity' | 'range_entity' | 'charging_power_entity' | 'charging_switch_entity'; kind: 'entity'; required?: boolean; domains?: readonly string[] }
+  | { key: 'name' | 'title' | 'unit'; kind: 'text' }
+  | { key: 'light_entities'; kind: 'entity-list'; domains?: readonly string[] }
+  | { key: 'show_brightness' | 'show_color_temperature' | 'show_position' | 'show_state' | 'show_volume' | 'compact'; kind: 'boolean' }
+  | { key: 'step' | 'precision'; kind: 'number'; min: number; max: number; integer?: boolean }
   | { key: 'aspect_ratio'; kind: 'select'; options: readonly string[] };
 
-const GENERIC_FIELDS: readonly DashboardCanvasV2CardConfigField[] = [
-  { key: 'entity', kind: 'text' },
-  { key: 'name', kind: 'text' },
-  { key: 'title', kind: 'text' },
-];
+const STRICT_PRIMARY_DOMAINS: Record<string, readonly string[]> = {
+  'custom:frakon-light-card': ['light'],
+  'custom:frakon-climate-card': ['climate'],
+  'custom:frakon-cover-card': ['cover'],
+  'custom:frakon-camera-card': ['camera'],
+  'custom:frakon-media-player-card': ['media_player'],
+};
 
 const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> = {
-  'custom:frakon-light-card': [{ key: 'show_brightness', kind: 'boolean' }],
+  'custom:frakon-sensor-card': [
+    { key: 'precision', kind: 'number', min: 0, max: 6, integer: true },
+    { key: 'unit', kind: 'text' },
+    { key: 'compact', kind: 'boolean' },
+  ],
+  'custom:frakon-room-card': [
+    { key: 'temperature_entity', kind: 'entity' },
+    { key: 'humidity_entity', kind: 'entity' },
+    { key: 'light_entities', kind: 'entity-list', domains: ['light'] },
+  ],
+  'custom:frakon-light-card': [
+    { key: 'show_brightness', kind: 'boolean' },
+    { key: 'show_color_temperature', kind: 'boolean' },
+    { key: 'compact', kind: 'boolean' },
+  ],
   'custom:frakon-climate-card': [{ key: 'step', kind: 'number', min: 0.1, max: 10 }],
   'custom:frakon-cover-card': [{ key: 'show_position', kind: 'boolean' }],
   'custom:frakon-camera-card': [
@@ -27,43 +45,69 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
     { key: 'aspect_ratio', kind: 'select', options: ['16 / 9', '4 / 3', '1 / 1'] },
   ],
   'custom:frakon-media-player-card': [{ key: 'show_volume', kind: 'boolean' }],
-};
-
-const STRICT_ENTITY_DOMAINS: Record<string, string> = {
-  'custom:frakon-light-card': 'light',
-  'custom:frakon-climate-card': 'climate',
-  'custom:frakon-cover-card': 'cover',
-  'custom:frakon-camera-card': 'camera',
-  'custom:frakon-media-player-card': 'media_player',
+  'custom:frakon-vehicle-card': [
+    { key: 'range_entity', kind: 'entity' },
+    { key: 'charging_power_entity', kind: 'entity' },
+    { key: 'charging_switch_entity', kind: 'entity' },
+  ],
 };
 
 export function dashboardCanvasV2CardConfigFields(card: Record<string, unknown>): DashboardCanvasV2CardConfigField[] {
   const type = typeof card.type === 'string' ? card.type : '';
-  return [...GENERIC_FIELDS, ...(TYPE_FIELDS[type] ?? [])].map((field) => ({ ...field }));
+  const primary: DashboardCanvasV2CardConfigField = {
+    key: 'entity',
+    kind: 'entity',
+    required: true,
+    ...(STRICT_PRIMARY_DOMAINS[type] ? { domains: STRICT_PRIMARY_DOMAINS[type] } : {}),
+  };
+  return [
+    primary,
+    { key: 'name', kind: 'text' },
+    { key: 'title', kind: 'text' },
+    ...(TYPE_FIELDS[type] ?? []),
+  ].map((field) => ({ ...field }));
 }
 
 function fieldFor(card: Record<string, unknown>, key: string): DashboardCanvasV2CardConfigField | undefined {
   return dashboardCanvasV2CardConfigFields(card).find((field) => field.key === key);
 }
 
+function entityDomainValid(entityId: string, domains?: readonly string[]): boolean {
+  if (!domains?.length) return entityId.includes('.') && !entityId.startsWith('.') && !entityId.endsWith('.');
+  return domains.some((domain) => entityId.startsWith(`${domain}.`) && entityId.length > domain.length + 1);
+}
+
 function normalizeFieldValue(
-  card: Record<string, unknown>,
   field: DashboardCanvasV2CardConfigField,
   value: unknown,
 ): { valid: true; value: unknown } | { valid: false; reason: string } {
   if (field.kind === 'text') {
     if (value === undefined || value === null || value === '') return { valid: true, value: undefined };
     if (typeof value !== 'string') return { valid: false, reason: `${field.key} must be a string.` };
+    return { valid: true, value: value.trim() || undefined };
+  }
+  if (field.kind === 'entity') {
+    if (value === undefined || value === null || value === '') {
+      return field.required
+        ? { valid: false, reason: `${field.key} is required.` }
+        : { valid: true, value: undefined };
+    }
+    if (typeof value !== 'string') return { valid: false, reason: `${field.key} must be an entity id string.` };
     const normalized = value.trim();
-    if (!normalized) return { valid: true, value: undefined };
-    if (field.key === 'entity') {
-      const type = typeof card.type === 'string' ? card.type : '';
-      const domain = STRICT_ENTITY_DOMAINS[type];
-      if (domain && !normalized.startsWith(`${domain}.`)) {
-        return { valid: false, reason: `${type} requires an ${domain}.* entity.` };
-      }
+    if (!entityDomainValid(normalized, field.domains)) {
+      const expected = field.domains?.length ? field.domains.map((domain) => `${domain}.*`).join(' or ') : 'domain.object_id';
+      return { valid: false, reason: `${field.key} must match ${expected}.` };
     }
     return { valid: true, value: normalized };
+  }
+  if (field.kind === 'entity-list') {
+    if (!Array.isArray(value)) return { valid: false, reason: `${field.key} must be an entity id array.` };
+    const normalized = value.map((entry) => typeof entry === 'string' ? entry.trim() : '').filter(Boolean);
+    if (normalized.some((entry) => !entityDomainValid(entry, field.domains))) {
+      const expected = field.domains?.length ? field.domains.map((domain) => `${domain}.*`).join(' or ') : 'domain.object_id';
+      return { valid: false, reason: `${field.key} entries must match ${expected}.` };
+    }
+    return { valid: true, value: [...new Set(normalized)] };
   }
   if (field.kind === 'boolean') {
     if (typeof value !== 'boolean') return { valid: false, reason: `${field.key} must be a boolean.` };
@@ -75,8 +119,9 @@ function normalizeFieldValue(
     }
     return { valid: true, value };
   }
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < field.min || value > field.max) {
-    return { valid: false, reason: `${field.key} must be a finite number between ${field.min} and ${field.max}.` };
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < field.min || value > field.max || (field.integer && !Number.isInteger(value))) {
+    const integer = field.integer ? ' integer' : '';
+    return { valid: false, reason: `${field.key} must be a finite${integer} number between ${field.min} and ${field.max}.` };
   }
   return { valid: true, value };
 }
@@ -97,7 +142,7 @@ export function patchDashboardCanvasV2CardConfig(
     if (!field) {
       return { status: 'invalid', document: structuredClone(document), reason: `Card config field ${key} is not supported for ${String(card.type ?? 'unknown')}.` };
     }
-    const normalized = normalizeFieldValue(card, field, patch[key]);
+    const normalized = normalizeFieldValue(field, patch[key]);
     if (!normalized.valid) return { status: 'invalid', document: structuredClone(document), reason: normalized.reason };
     if (normalized.value === undefined) delete card[key];
     else card[key] = normalized.value;
