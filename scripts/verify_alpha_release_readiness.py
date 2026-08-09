@@ -10,6 +10,8 @@ HACS = json.loads((ROOT / "hacs.json").read_text())
 HA_MANIFEST = json.loads((ROOT / "custom_components/frakon_dashboard/manifest.json").read_text())
 VITE = (ROOT / "vite.config.ts").read_text()
 INDEX = (ROOT / "src/index.ts").read_text()
+FRONTEND_HELPER = ROOT / "custom_components/frakon_dashboard/frontend.py"
+RELEASE_PACKAGER = ROOT / "scripts/build_hacs_release.py"
 
 errors: list[str] = []
 
@@ -24,10 +26,16 @@ if HA_MANIFEST.get("config_flow") is not True:
     errors.append("HA manifest must enable config_flow")
 if HA_MANIFEST.get("single_config_entry") is not True:
     errors.append("HA manifest must declare single_config_entry")
+if set(HA_MANIFEST.get("dependencies", [])) != {"http", "lovelace"}:
+    errors.append("HA manifest must depend on http and lovelace for bundled frontend registration")
 
-hacs_filename = HACS.get("filename")
-if hacs_filename != "frakon-dashboard.js":
-    errors.append(f"HACS filename must be frakon-dashboard.js, got {hacs_filename!r}")
+if HACS.get("zip_release") is not True:
+    errors.append("HACS must use zip_release so the built frontend is bundled with the integration")
+if HACS.get("hide_default_branch") is not True:
+    errors.append("HACS default branch must be hidden because source branches do not contain the built frontend bundle")
+if HACS.get("filename") != "frakon_dashboard.zip":
+    errors.append(f"HACS filename must be frakon_dashboard.zip, got {HACS.get('filename')!r}")
+
 if not re.search(r"fileName:\s*\(\)\s*=>\s*['\"]frakon-dashboard\.js['\"]", VITE):
     errors.append("Vite library output must stay frakon-dashboard.js")
 if "entry: 'src/index.ts'" not in VITE and 'entry: "src/index.ts"' not in VITE:
@@ -41,6 +49,11 @@ required_card_imports = [
 for import_path in required_card_imports:
     if import_path not in INDEX:
         errors.append(f"production entrypoint is missing {import_path}")
+
+if not FRONTEND_HELPER.is_file():
+    errors.append("bundled frontend runtime helper is missing")
+if not RELEASE_PACKAGER.is_file():
+    errors.append("HACS release packager is missing")
 
 if not package_version or "alpha" not in package_version:
     errors.append("current release readiness policy requires an explicit alpha package version")
