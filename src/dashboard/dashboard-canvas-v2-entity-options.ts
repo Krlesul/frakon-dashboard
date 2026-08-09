@@ -5,6 +5,15 @@ export interface DashboardCanvasV2EntityOption {
   label: string;
 }
 
+export function filterDashboardCanvasV2EntityOptions(
+  options: readonly DashboardCanvasV2EntityOption[],
+  query: string,
+): DashboardCanvasV2EntityOption[] {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (!normalized) return [...options];
+  return options.filter((option) => `${option.label} ${option.entityId}`.toLocaleLowerCase().includes(normalized));
+}
+
 export function dashboardCanvasV2EntityOptions(
   hass: HomeAssistant | undefined,
   domains?: readonly string[],
