@@ -56,6 +56,15 @@ describe('patchDashboardCanvasV2CardConfig', () => {
     expect(patchDashboardCanvasV2CardConfig(source, 'light', { step: Number.NaN }).status).toBe('invalid');
   });
 
+  it('validates camera aspect ratio against the explicit option set', () => {
+    const source = doc();
+    source.items[0].card = { type: 'custom:frakon-camera-card', entity: 'camera.front', aspect_ratio: '16 / 9' };
+    const fields = dashboardCanvasV2CardConfigFields(source.items[0].card);
+    expect(fields.find((field) => field.key === 'aspect_ratio')).toMatchObject({ kind: 'select', options: ['16 / 9', '4 / 3', '1 / 1'] });
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { aspect_ratio: '4 / 3' }).status).toBe('committed');
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { aspect_ratio: '21 / 9' }).status).toBe('invalid');
+  });
+
   it('rejects unsafe arbitrary config keys', () => {
     const result = patchDashboardCanvasV2CardConfig(doc(), 'light', { type: 'custom:other' });
     expect(result.status).toBe('invalid');
