@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toggleDashboardCanvasV2EntityList } from './canvas-v2-entity-list-field';
+import { filterDashboardCanvasV2EntityOptions, toggleDashboardCanvasV2EntityList } from './canvas-v2-entity-list-field';
 
 describe('canvas v2 multi-entity checklist', () => {
   it('adds, removes, trims and deduplicates entity ids deterministically', () => {
@@ -13,5 +13,15 @@ describe('canvas v2 multi-entity checklist', () => {
     expect(toggleDashboardCanvasV2EntityList(['light.unavailable'], 'light.kitchen', true)).toEqual([
       'light.kitchen', 'light.unavailable',
     ]);
+  });
+
+  it('filters by friendly name or entity id without mutating source options', () => {
+    const options = [
+      { entityId:'light.kitchen', label:'Kitchen · light.kitchen' },
+      { entityId:'light.hall', label:'Hall · light.hall' },
+    ];
+    expect(filterDashboardCanvasV2EntityOptions(options, 'kit')).toEqual([options[0]]);
+    expect(filterDashboardCanvasV2EntityOptions(options, 'light.hall')).toEqual([options[1]]);
+    expect(options).toHaveLength(2);
   });
 });
