@@ -23,6 +23,12 @@ describe('patchDashboardCanvasV2CardConfig', () => {
     expect(result.document.items[0].frame).toEqual(doc().items[0].frame);
   });
 
+  it('keeps the primary entity required', () => {
+    const result = patchDashboardCanvasV2CardConfig(doc(), 'light', { entity: '' });
+    expect(result.status).toBe('invalid');
+    expect(result.document.items[0].card.entity).toBe('light.placeholder');
+  });
+
   it('rejects a wrong entity domain for strict cards', () => {
     const result = patchDashboardCanvasV2CardConfig(doc(), 'light', { entity: 'sensor.kitchen' });
     expect(result.status).toBe('invalid');
@@ -46,21 +52,18 @@ describe('patchDashboardCanvasV2CardConfig', () => {
     expect(result.document.items[0].card.name).toBeUndefined();
   });
 
-  it('exposes generic plus type-specific fields', () => {
+  it('exposes all light-specific fields', () => {
     const fields = dashboardCanvasV2CardConfigFields(doc().items[0].card);
-    expect(fields.map((field) => field.key)).toEqual(['entity', 'name', 'title', 'show_brightness']);
+    expect(fields.map((field) => field.key)).toEqual([
+      'entity', 'name', 'title', 'show_brightness', 'show_color_temperature', 'compact',
+    ]);
   });
 
-  it('allows the light brightness toggle', () => {
-    const result = patchDashboardCanvasV2CardConfig(doc(), 'light', { show_brightness: true });
+  it('allows light toggles and rejects another card type field', () => {
+    const result = patchDashboardCanvasV2CardConfig(doc(), 'light', { show_brightness: true, show_color_temperature: false, compact: true });
     expect(result.status).toBe('committed');
-    expect(result.document.items[0].card.show_brightness).toBe(true);
-  });
-
-  it('rejects another card type specific field', () => {
-    const result = patchDashboardCanvasV2CardConfig(doc(), 'light', { show_volume: true });
-    expect(result.status).toBe('invalid');
-    expect(result.document.items[0].card.show_volume).toBeUndefined();
+    expect(result.document.items[0].card).toMatchObject({ show_brightness: true, show_color_temperature: false, compact: true });
+    expect(patchDashboardCanvasV2CardConfig(doc(), 'light', { show_volume: true }).status).toBe('invalid');
   });
 
   it('validates climate step range', () => {
@@ -79,6 +82,46 @@ describe('patchDashboardCanvasV2CardConfig', () => {
     expect(patchDashboardCanvasV2CardConfig(source, 'light', { aspect_ratio: '4 / 3' }).status).toBe('committed');
     expect(patchDashboardCanvasV2CardConfig(source, 'light', { aspect_ratio: '21 / 9' }).status).toBe('invalid');
     expect(patchDashboardCanvasV2CardConfig(source, 'light', { entity: 'light.front' }).status).toBe('invalid');
+  });
+
+  it('validates sensor precision and compact options', () => {
+    const source = doc();
+    source.items[0].card = { type: 'custom:frakon-sensor-card', entity: 'sensor.temperature' };
+    expect(dashboardCanvasV2CardConfigFields(source.items[0].card).map((field) => field.key)).toEqual([
+      'entity', 'name', 'title', 'precision', 'unit', 'compact',
+    ]);
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { precision: 2, unit: '°C', compact: true }).status).toBe('committed');
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { precision: 2.5 }).status).toBe('invalid');
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { precision: 7 }).status).toBe('invalid');
+  });
+
+  it('validates room light entity lists and removes duplicates', () => {
+    const source = doc();
+    source.items[0].card = { type: 'custom:frakon-room-card', entity: 'sensor.room' };
+    const result = patchDashboardCanvasV2CardConfig(source, 'light', {
+      temperature_entity: 'sensor.room_temperature',
+      humidity_entity: 'sensor.room_humidity',
+      light_entities: ['light.ceiling', 'light.ceiling', 'light.lamp'],
+    });
+    expect(result.status).toBe('committed');
+    expect(result.document.items[0].card.light_entities).toEqual(['light.ceiling', 'light.lamp']);
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { light_entities: ['switch.not_light'] }).status).toBe('invalid');
+  });
+
+  it('supports vehicle related entity references', () => {
+    const source = doc();
+    source.items[0].card = { type: 'custom:frakon-vehicle-card', entity: 'sensor.car_battery' };
+    const result = patchDashboardCanvasV2CardConfig(source, 'light', {
+      range_entity: 'sensor.car_range',
+      charging_power_entity: 'sensor.car_power',
+      charging_switch_entity: 'switch.car_charging',
+    });
+    expect(result.status).toBe('committed');
+    expect(result.document.items[0].card).toMatchObject({
+      range_entity: 'sensor.car_range',
+      charging_power_entity: 'sensor.car_power',
+      charging_switch_entity: 'switch.car_charging',
+    });
   });
 
   it('rejects unsafe arbitrary config keys', () => {
