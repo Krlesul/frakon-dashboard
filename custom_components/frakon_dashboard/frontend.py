@@ -21,11 +21,11 @@ def frontend_file_path() -> Path:
     return Path(__file__).parent / "frontend" / FRONTEND_FILENAME
 
 
-def frontend_resource_url(version: str) -> str:
-    return f"{FRONTEND_URL_PATH}/{FRONTEND_FILENAME}?v={version}"
+def frontend_resource_url() -> str:
+    return f"{FRONTEND_URL_PATH}/{FRONTEND_FILENAME}"
 
 
-async def async_register_frontend(hass: HomeAssistant, version: str) -> bool:
+async def async_register_frontend(hass: HomeAssistant) -> bool:
     """Serve bundled JS and ensure it is a Lovelace module in storage mode."""
     frontend_file = frontend_file_path()
     if not frontend_file.is_file():
@@ -36,7 +36,7 @@ async def async_register_frontend(hass: HomeAssistant, version: str) -> bool:
         return False
 
     await hass.http.async_register_static_paths(
-        [StaticPathConfig(FRONTEND_URL_PATH, str(frontend_file.parent), True)]
+        [StaticPathConfig(FRONTEND_URL_PATH, str(frontend_file.parent), False)]
     )
 
     lovelace = hass.data.get(LOVELACE_DATA)
@@ -47,18 +47,17 @@ async def async_register_frontend(hass: HomeAssistant, version: str) -> bool:
     if lovelace.resource_mode != MODE_STORAGE:
         _LOGGER.warning(
             "Lovelace resources are managed in YAML mode; add %s as a module resource manually",
-            frontend_resource_url(version),
+            frontend_resource_url(),
         )
         return True
 
     collection = lovelace.resources
     await collection.async_get_info()
-    target_url = frontend_resource_url(version)
-    prefix = f"{FRONTEND_URL_PATH}/{FRONTEND_FILENAME}"
+    target_url = frontend_resource_url()
 
     for item in collection.async_items() or []:
         existing_url = item.get(CONF_URL)
-        if not isinstance(existing_url, str) or not existing_url.startswith(prefix):
+        if not isinstance(existing_url, str) or not existing_url.startswith(target_url):
             continue
         item_id = item.get(CONF_ID)
         if item_id is None:
