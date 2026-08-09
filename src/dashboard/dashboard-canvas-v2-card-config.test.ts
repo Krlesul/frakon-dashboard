@@ -23,6 +23,21 @@ describe('patchDashboardCanvasV2CardConfig', () => {
     expect(result.document.items[0].frame).toEqual(doc().items[0].frame);
   });
 
+  it('rejects a wrong entity domain for strict cards', () => {
+    const result = patchDashboardCanvasV2CardConfig(doc(), 'light', { entity: 'sensor.kitchen' });
+    expect(result.status).toBe('invalid');
+    expect(result.reason).toContain('light.*');
+    expect(result.document.items[0].card.entity).toBe('light.placeholder');
+  });
+
+  it('keeps universal cards domain-agnostic', () => {
+    const source = doc();
+    source.items[0].card = { type: 'custom:frakon-card', entity: 'sensor.old' };
+    const result = patchDashboardCanvasV2CardConfig(source, 'light', { entity: 'switch.anything' });
+    expect(result.status).toBe('committed');
+    expect(result.document.items[0].card.entity).toBe('switch.anything');
+  });
+
   it('removes optional name/title when set to empty', () => {
     const source = doc();
     source.items[0].card.name = 'Kitchen';
@@ -63,6 +78,7 @@ describe('patchDashboardCanvasV2CardConfig', () => {
     expect(fields.find((field) => field.key === 'aspect_ratio')).toMatchObject({ kind: 'select', options: ['16 / 9', '4 / 3', '1 / 1'] });
     expect(patchDashboardCanvasV2CardConfig(source, 'light', { aspect_ratio: '4 / 3' }).status).toBe('committed');
     expect(patchDashboardCanvasV2CardConfig(source, 'light', { aspect_ratio: '21 / 9' }).status).toBe('invalid');
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { entity: 'light.front' }).status).toBe('invalid');
   });
 
   it('rejects unsafe arbitrary config keys', () => {
