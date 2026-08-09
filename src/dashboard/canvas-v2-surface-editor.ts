@@ -37,7 +37,16 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     @media (max-width:700px) { .presets,.grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .wide { grid-column:span 2; } }
   `;
 
-  private t(key: CanvasV2SurfaceTranslationKey): string { return canvasV2SurfaceTranslate(this.language, key); }
+  private inheritedLanguage(): SupportedLanguage {
+    const root = this.getRootNode();
+    if (root instanceof ShadowRoot) {
+      const hostLanguage = (root.host as HTMLElement & { language?: SupportedLanguage }).language;
+      if (hostLanguage) return hostLanguage;
+    }
+    return this.language;
+  }
+
+  private t(key: CanvasV2SurfaceTranslationKey): string { return canvasV2SurfaceTranslate(this.inheritedLanguage(), key); }
 
   private selectedItems() {
     if (!this.document) return [];
