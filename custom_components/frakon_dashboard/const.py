@@ -3,6 +3,10 @@ STORAGE_KEY = "frakon_dashboard.dashboards"
 STORAGE_VERSION = 1
 DATA_BACKEND = "backend"
 DATA_WEBSOCKET_REGISTERED = "websocket_registered"
+DATA_FRONTEND_REGISTERED = "frontend_registered"
+
+FRONTEND_URL_PATH = "/frakon-dashboard"
+FRONTEND_FILENAME = "frakon-dashboard.js"
 
 READABLE_DOCUMENT_VERSIONS = frozenset({1, 2})
 WRITABLE_DOCUMENT_VERSIONS = frozenset({1})
