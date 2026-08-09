@@ -18,6 +18,7 @@ import { dashboardCanvasV2EditorShortcut } from './dashboard-canvas-v2-editor-sh
 import { dashboardCanvasV2Guidelines } from './dashboard-canvas-v2-guidelines';
 import { patchDashboardCanvasV2Item, patchDashboardCanvasV2Snap } from './dashboard-canvas-v2-inspector-actions';
 import { applyDashboardCanvasV2ItemAction } from './dashboard-canvas-v2-item-actions';
+import { dashboardCanvasV2ItemStyle } from './dashboard-canvas-v2-item-style';
 import { applyDashboardCanvasV2LayerAction } from './dashboard-canvas-v2-layer-actions';
 import { DashboardCanvasV2PanSession } from './dashboard-canvas-v2-pan-session';
 import { DashboardCanvasV2PinchSession } from './dashboard-canvas-v2-pinch-session';
@@ -397,7 +398,7 @@ export class FrakonCanvasV2View extends LitElement {
       ${this.editMode ? html`<div class="viewport-toolbar"><frakon-canvas-v2-viewport-toolbar .zoom=${this.viewport.zoom} .language=${this.language} @frakon-canvas-v2-viewport-action=${this.onViewportAction}></frakon-canvas-v2-viewport-toolbar></div>` : nothing}
       <div class="canvas ${this.panSession || this.pinchSession ? 'panning' : ''} ${this.spacePressed ? 'space-ready' : ''}" tabindex=${this.editMode ? '0' : '-1'} style=${`height:${canvasHeight}px`} @keydown=${this.onKeyDown} @keyup=${this.onKeyUp} @wheel=${this.onWheel} @pointerdown=${this.onCanvasPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.endInteraction} @pointercancel=${this.cancelInteraction}>
         <div class="stage" style=${stageStyle} @pointerdown=${this.beginMarquee}>
-          ${source.items.map((item) => html`<article class="item ${selectedIds.has(item.id) ? 'selected' : ''} ${collisions.has(item.id) ? 'collision' : ''}" data-frakon-item-id=${item.id} style=${`left:${item.frame.x}px;top:${item.frame.y}px;width:${item.frame.width}px;height:${item.frame.height}px`} @click=${(event: MouseEvent) => this.selectItem(event, item)}>
+          ${source.items.map((item) => html`<article class="item ${selectedIds.has(item.id) ? 'selected' : ''} ${collisions.has(item.id) ? 'collision' : ''}" data-frakon-item-id=${item.id} style=${dashboardCanvasV2ItemStyle(source, item)} @click=${(event: MouseEvent) => this.selectItem(event, item)}>
             ${this.editMode ? html`<div class="head"><button class="move" ?disabled=${item.locked} @click=${(event: MouseEvent) => event.stopPropagation()} @pointerdown=${(event: PointerEvent) => this.beginMove(event, item)}>↕ ${item.id}</button></div>${!item.locked ? html`<button class="resize" title="Resize" @click=${(event: MouseEvent) => event.stopPropagation()} @pointerdown=${(event: PointerEvent) => this.beginResize(event, item)}></button>` : nothing}` : nothing}
             <div class="content"><frakon-card-host .hass=${this.hass} .config=${item.card}></frakon-card-host></div>
           </article>`)}
