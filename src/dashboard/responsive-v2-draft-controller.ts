@@ -88,6 +88,15 @@ export class ResponsiveV2DraftController {
     return createResponsiveCanvasV2Bundle(this.documents(), defaultBreakpoint);
   }
 
+  baseBundle(defaultBreakpoint: FrakonBreakpoint = this.activeBreakpoint): ResponsiveCanvasV2Bundle {
+    const documents: ResponsiveCanvasV2Documents = {};
+    for (const breakpoint of BREAKPOINTS) {
+      const document = this.baseDocuments.get(breakpoint);
+      if (document) documents[breakpoint] = structuredClone(document);
+    }
+    return createResponsiveCanvasV2Bundle(documents, documents[defaultBreakpoint] ? defaultBreakpoint : Object.keys(documents)[0] as FrakonBreakpoint);
+  }
+
   switchTo(breakpoint: FrakonBreakpoint): ResponsiveV2DraftSnapshot {
     this.ensure(breakpoint);
     this.activeBreakpoint = breakpoint;
