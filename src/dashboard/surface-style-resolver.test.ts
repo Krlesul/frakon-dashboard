@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { resolveDashboardSurfaces, resolveGridItemSurface } from './surface-style-resolver';
+import { resolveCanvasItemSurface, resolveDashboardSurfaces, resolveGridItemSurface } from './surface-style-resolver';
 import type { FrakonDashboardDocument } from './layout-model';
+import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 
 const document: FrakonDashboardDocument = {
   version: 1,
@@ -18,6 +19,19 @@ const document: FrakonDashboardDocument = {
   ],
 };
 
+const canvasDocument: FrakonDashboardDocumentV2 = {
+  version: 2,
+  id: 'home',
+  title: 'Home',
+  breakpoint: 'desktop',
+  layout: { mode: 'canvas', width: 1200, minHeight: 700, snap: { enabled: true, size: 8 } },
+  cardSurface: { fill: 'glass', border: 'none', borderRadius: 28, padding: 10 },
+  items: [
+    { id: 'light', card: { type: 'custom:frakon-light-card' }, frame: { x: 20, y: 20, width: 240, height: 180 } },
+    { id: 'camera', card: { type: 'custom:frakon-camera-card' }, frame: { x: 300, y: 20, width: 420, height: 240 }, surface: { fill: 'transparent', padding: 0 } },
+  ],
+};
+
 describe('dashboard surface inheritance', () => {
   it('resolves dashboard and default card surfaces independently', () => {
     const resolved = resolveDashboardSurfaces(document);
@@ -31,5 +45,10 @@ describe('dashboard surface inheritance', () => {
 
   it('lets one card override only selected properties', () => {
     expect(resolveGridItemSurface(document, document.items[1])).toMatchObject({ fill: 'transparent', border: 'none', borderRadius: 24, padding: 0 });
+  });
+
+  it('resolves the same inheritance model for canvas v2 items', () => {
+    expect(resolveCanvasItemSurface(canvasDocument, canvasDocument.items[0])).toMatchObject({ fill: 'glass', borderRadius: 28, padding: 10 });
+    expect(resolveCanvasItemSurface(canvasDocument, canvasDocument.items[1])).toMatchObject({ fill: 'transparent', border: 'none', borderRadius: 28, padding: 0 });
   });
 });
