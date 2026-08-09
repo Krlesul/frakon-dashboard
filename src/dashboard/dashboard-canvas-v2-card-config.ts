@@ -7,7 +7,7 @@ export interface DashboardCanvasV2CardConfigPatchResult {
 }
 
 export type DashboardCanvasV2CardConfigField =
-  | { key: 'entity' | 'temperature_entity' | 'humidity_entity' | 'range_entity' | 'charging_power_entity' | 'charging_switch_entity' | 'energy_entity' | 'price_entity'; kind: 'entity'; required?: boolean; domains?: readonly string[] }
+  | { key: 'entity' | 'temperature_entity' | 'humidity_entity' | 'range_entity' | 'charging_power_entity' | 'charging_switch_entity'; kind: 'entity'; required?: boolean; domains?: readonly string[] }
   | { key: 'name' | 'title' | 'unit'; kind: 'text' }
   | { key: 'light_entities'; kind: 'entity-list'; domains?: readonly string[] }
   | { key: 'show_brightness' | 'show_color_temperature' | 'show_position' | 'show_state' | 'show_volume' | 'compact'; kind: 'boolean' }
@@ -49,11 +49,6 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
     { key: 'range_entity', kind: 'entity' },
     { key: 'charging_power_entity', kind: 'entity' },
     { key: 'charging_switch_entity', kind: 'entity' },
-  ],
-  'custom:frakon-energy-card': [
-    { key: 'energy_entity', kind: 'entity' },
-    { key: 'price_entity', kind: 'entity' },
-    { key: 'compact', kind: 'boolean' },
   ],
 };
 
