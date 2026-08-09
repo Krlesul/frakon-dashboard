@@ -28,6 +28,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
   @state() private clipboardMessage?: string;
 
   private readonly clipboard = new DashboardCanvasV2ClipboardController();
+  private readonly clipboardKeyHandler = (event: KeyboardEvent) => this.onClipboardKeyDown(event);
 
   static styles = css`
     :host { display: block; margin-top: 10px; }
@@ -51,6 +52,16 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     @media (max-width: 600px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   `;
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    if (typeof window !== 'undefined') window.addEventListener('keydown', this.clipboardKeyHandler);
+  }
+
+  disconnectedCallback(): void {
+    if (typeof window !== 'undefined') window.removeEventListener('keydown', this.clipboardKeyHandler);
+    super.disconnectedCallback();
+  }
+
   private t(key: Parameters<typeof canvasDashboardTranslate>[1]): string { return canvasDashboardTranslate(this.language, key); }
   private tc(key: CanvasV2ClipboardTranslationKey): string { return canvasV2ClipboardTranslate(this.language, key); }
   private dispatchEdit(detail: FrakonCanvasV2InspectorEditDetail): void { this.dispatchEvent(new CustomEvent<FrakonCanvasV2InspectorEditDetail>('frakon-canvas-v2-inspector-edit', { detail, bubbles: true, composed: true })); }
@@ -58,6 +69,39 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
   private optionalNumberValue(event: Event): number | null | undefined { const raw = (event.currentTarget as HTMLInputElement).value.trim(); if (!raw) return null; const value = Number(raw); return Number.isFinite(value) ? value : undefined; }
   private itemField(itemId: string, key: 'x' | 'y' | 'width' | 'height', value: number, label: string) { return html`<label class="field"><span class="label">${label}</span><input type="number" .value=${String(Math.round(value))} @change=${(event: Event) => { const next = this.numberValue(event); if (next !== undefined) this.dispatchEdit({ kind: 'item', itemId, patch: { [key]: next } }); }}></label>`; }
   private optionalItemField(itemId: string, key: 'minWidth' | 'minHeight' | 'maxWidth' | 'maxHeight', value: number | undefined, label: string) { return html`<label class="field"><span class="label">${label}</span><input type="number" min="1" .value=${value === undefined ? '' : String(Math.round(value))} @change=${(event: Event) => { const next = this.optionalNumberValue(event); if (next !== undefined) this.dispatchEdit({ kind: 'item', itemId, patch: { [key]: next } }); }}></label>`; }
+
+  private canCopySelection(): boolean {
+    return this.document?.items.some((item) => this.selectedIds.includes(item.id) && !item.locked) === true;
+  }
+
+  private canvasHasFocus(): boolean {
+    const root = this.getRootNode();
+    if (!(root instanceof ShadowRoot)) return false;
+    const active = root.activeElement;
+    return active instanceof HTMLElement && active.classList.contains('canvas');
+  }
+
+  private onClipboardKeyDown(event: KeyboardEvent): void {
+    if (event.defaultPrevented || event.altKey || !(event.ctrlKey || event.metaKey) || !this.canvasHasFocus()) return;
+    const key = event.key.toLowerCase();
+    if (key === 'c' && this.canCopySelection()) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.copySelection();
+      return;
+    }
+    if (key === 'x' && this.canCopySelection()) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.cutSelection();
+      return;
+    }
+    if (key === 'v' && this.clipboard.canPaste) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.pasteSelection();
+    }
+  }
 
   private copySelection(): void {
     if (!this.document) return;
@@ -111,7 +155,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     const diagnostics = summarizeDashboardCanvasV2ConstraintDiagnostics(this.diagnostics);
     const single = selection.single;
     const diagnosticClass = diagnostics.severity === 'error' ? 'error' : diagnostics.severity === 'warning' ? 'warning' : '';
-    const canCopy = this.document.items.some((item) => this.selectedIds.includes(item.id) && !item.locked);
+    const canCopy = this.canCopySelection();
     return html`<section class="panel">
       <div class="title"><span>${this.t('inspector')}</span><span>${selection.count} ${this.t('selected')}</span></div>
       <div class="summary">
