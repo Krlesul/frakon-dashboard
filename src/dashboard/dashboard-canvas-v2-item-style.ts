@@ -1,4 +1,4 @@
-import { cssRecordToString } from '../../packages/design-system/src/surface-style';
+import { cssRecordToString, surfaceStyleToCss } from '../../packages/design-system/src/surface-style';
 import type { FrakonCanvasItem, FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { resolveCanvasItemSurface } from './surface-style-resolver';
 
@@ -12,6 +12,6 @@ export function dashboardCanvasV2ItemStyle(
     width: `${item.frame.width}px`,
     height: `${item.frame.height}px`,
   };
-  const surface = cssRecordToString(resolveCanvasItemSurface(document, item));
+  const surface = cssRecordToString(surfaceStyleToCss(resolveCanvasItemSurface(document, item)));
   return `${cssRecordToString(geometry)};${surface}`;
 }
