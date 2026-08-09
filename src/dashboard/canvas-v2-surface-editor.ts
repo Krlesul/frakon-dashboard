@@ -2,7 +2,9 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { SURFACE_PRESETS, surfacePreset, type SurfacePresetId } from '../../packages/design-system/src/surface-presets';
 import { normalizeSurfaceStyle, type SurfaceBorderMode, type SurfaceFillMode, type SurfaceStyle } from '../../packages/design-system/src/surface-style';
+import type { SupportedLanguage } from '../i18n';
 import { applyDashboardCanvasV2SurfaceStyle, clearDashboardCanvasV2SurfaceStyle, type DashboardCanvasV2SurfaceTarget } from './dashboard-canvas-v2-surface-actions';
+import { canvasV2SurfaceTranslate, type CanvasV2SurfaceTranslationKey } from './canvas-v2-surface-i18n';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { resolveCanvasItemSurface, resolveDashboardSurfaces } from './surface-style-resolver';
 
@@ -12,6 +14,7 @@ type SurfaceEditorTarget = 'card-defaults' | 'selection';
 export class FrakonCanvasV2SurfaceEditor extends LitElement {
   @property({ attribute: false }) document?: FrakonDashboardDocumentV2;
   @property({ attribute: false }) selectedIds: string[] = [];
+  @property({ attribute: false }) language: SupportedLanguage = 'en';
   @state() private target: SurfaceEditorTarget = 'selection';
 
   static styles = css`
@@ -34,6 +37,8 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     @media (max-width:700px) { .presets,.grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .wide { grid-column:span 2; } }
   `;
 
+  private t(key: CanvasV2SurfaceTranslationKey): string { return canvasV2SurfaceTranslate(this.language, key); }
+
   private selectedItems() {
     if (!this.document) return [];
     const selected = new Set(this.selectedIds);
@@ -44,15 +49,19 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     return this.selectedItems().some((item) => !item.locked);
   }
 
+  private effectiveTarget(): SurfaceEditorTarget {
+    return this.target === 'selection' && !this.selectionAvailable() ? 'card-defaults' : this.target;
+  }
+
   private currentStyle(): SurfaceStyle {
     if (!this.document) return {};
-    if (this.target === 'card-defaults') return resolveDashboardSurfaces(this.document).card;
+    if (this.effectiveTarget() === 'card-defaults') return resolveDashboardSurfaces(this.document).card;
     const first = this.selectedItems()[0];
     return first ? resolveCanvasItemSurface(this.document, first) : resolveDashboardSurfaces(this.document).card;
   }
 
   private actionTarget(): DashboardCanvasV2SurfaceTarget | undefined {
-    if (this.target === 'card-defaults') return { kind: 'card-defaults' };
+    if (this.effectiveTarget() === 'card-defaults') return { kind: 'card-defaults' };
     if (!this.selectionAvailable()) return undefined;
     return { kind: 'items', ids: this.selectedIds };
   }
@@ -91,40 +100,36 @@ export class FrakonCanvasV2SurfaceEditor extends LitElement {
     }));
   }
 
-  private number(event: Event): number {
-    return Number((event.currentTarget as HTMLInputElement).value);
-  }
-
-  private text(event: Event): string {
-    return (event.currentTarget as HTMLInputElement | HTMLSelectElement).value;
-  }
+  private number(event: Event): number { return Number((event.currentTarget as HTMLInputElement).value); }
+  private text(event: Event): string { return (event.currentTarget as HTMLInputElement | HTMLSelectElement).value; }
+  private presetLabel(id: SurfacePresetId): string { return this.t(id); }
 
   render() {
     if (!this.document) return nothing;
     const selectionAvailable = this.selectionAvailable();
-    if (this.target === 'selection' && !selectionAvailable) this.target = 'card-defaults';
+    const target = this.effectiveTarget();
     const style = normalizeSurfaceStyle(this.currentStyle());
     return html`<section class="panel">
-      <div class="head"><span class="title">Surface</span><span class="hint">${this.target === 'selection' ? `${this.selectedIds.length} selected` : 'Card defaults'}</span></div>
+      <div class="head"><span class="title">${this.t('surface')}</span><span class="hint">${target === 'selection' ? `${this.selectedIds.length} ${this.t('selected')}` : this.t('cardDefaults')}</span></div>
       <div class="targets">
-        <button class=${this.target === 'card-defaults' ? 'active' : ''} @click=${() => { this.target = 'card-defaults'; }}>Card defaults</button>
-        <button class=${this.target === 'selection' ? 'active' : ''} ?disabled=${!selectionAvailable} @click=${() => { this.target = 'selection'; }}>Selection</button>
+        <button class=${target === 'card-defaults' ? 'active' : ''} @click=${() => { this.target = 'card-defaults'; }}>${this.t('cardDefaults')}</button>
+        <button class=${target === 'selection' ? 'active' : ''} ?disabled=${!selectionAvailable} @click=${() => { this.target = 'selection'; }}>${this.t('selection')}</button>
       </div>
-      <div class="presets">${SURFACE_PRESETS.map((preset) => html`<button @click=${() => this.applyPreset(preset.id)}>${preset.label}</button>`)}</div>
+      <div class="presets">${SURFACE_PRESETS.map((preset) => html`<button @click=${() => this.applyPreset(preset.id)}>${this.presetLabel(preset.id)}</button>`)}</div>
       <div class="grid">
-        <label>Fill<select .value=${style.fill ?? 'theme'} @change=${(event: Event) => this.patch({ fill: this.text(event) as SurfaceFillMode })}><option value="theme">Theme</option><option value="transparent">Transparent</option><option value="solid">Solid</option><option value="glass">Glass</option><option value="gradient">Gradient</option><option value="image">Image</option></select></label>
-        <label>Border<select .value=${style.border ?? 'theme'} @change=${(event: Event) => this.patch({ border: this.text(event) as SurfaceBorderMode })}><option value="theme">Theme</option><option value="none">None</option><option value="solid">Solid</option></select></label>
-        <label>Radius<input type="number" min="0" max="128" .value=${String(style.borderRadius ?? 18)} @change=${(event: Event) => this.patch({ borderRadius: this.number(event) })}></label>
-        <label>Padding<input type="number" min="0" max="128" .value=${String(style.padding ?? 0)} @change=${(event: Event) => this.patch({ padding: this.number(event) })}></label>
-        ${style.fill === 'solid' || style.fill === 'glass' ? html`<label>Background<input type="color" .value=${style.backgroundColor ?? '#171a22'} @input=${(event: Event) => this.patch({ backgroundColor: this.text(event) })}></label>` : nothing}
-        <label>Opacity<input type="number" min="0" max="1" step="0.05" .value=${String(style.backgroundOpacity ?? 1)} @change=${(event: Event) => this.patch({ backgroundOpacity: this.number(event) })}></label>
-        ${style.fill === 'glass' ? html`<label>Blur<input type="number" min="0" max="80" .value=${String(style.backdropBlur ?? 0)} @change=${(event: Event) => this.patch({ backdropBlur: this.number(event) })}></label>` : nothing}
-        ${style.border === 'solid' ? html`<label>Border width<input type="number" min="0" max="16" .value=${String(style.borderWidth ?? 1)} @change=${(event: Event) => this.patch({ borderWidth: this.number(event) })}></label><label>Border color<input type="color" .value=${style.borderColor ?? '#ffffff'} @input=${(event: Event) => this.patch({ borderColor: this.text(event) })}></label>` : nothing}
-        ${style.fill === 'gradient' ? html`<label class="wide">Gradient<input type="text" .value=${style.gradient ?? ''} @change=${(event: Event) => this.patch({ gradient: this.text(event) })}></label>` : nothing}
-        ${style.fill === 'image' ? html`<label class="wide">Image URL<input type="text" .value=${style.backgroundImage ?? ''} @change=${(event: Event) => this.patch({ backgroundImage: this.text(event) })}></label>` : nothing}
-        <label class="wide">Shadow<input type="text" .value=${style.shadow ?? ''} @change=${(event: Event) => this.patch({ shadow: this.text(event) })}></label>
+        <label>${this.t('fill')}<select .value=${style.fill ?? 'theme'} @change=${(event: Event) => this.patch({ fill: this.text(event) as SurfaceFillMode })}><option value="theme">${this.t('theme')}</option><option value="transparent">${this.t('transparent')}</option><option value="solid">${this.t('solid')}</option><option value="glass">${this.t('glass')}</option><option value="gradient">${this.t('gradient')}</option><option value="image">${this.t('image')}</option></select></label>
+        <label>${this.t('border')}<select .value=${style.border ?? 'theme'} @change=${(event: Event) => this.patch({ border: this.text(event) as SurfaceBorderMode })}><option value="theme">${this.t('theme')}</option><option value="none">${this.t('none')}</option><option value="solid">${this.t('solid')}</option></select></label>
+        <label>${this.t('radius')}<input type="number" min="0" max="128" .value=${String(style.borderRadius ?? 18)} @change=${(event: Event) => this.patch({ borderRadius: this.number(event) })}></label>
+        <label>${this.t('padding')}<input type="number" min="0" max="128" .value=${String(style.padding ?? 0)} @change=${(event: Event) => this.patch({ padding: this.number(event) })}></label>
+        ${style.fill === 'solid' || style.fill === 'glass' ? html`<label>${this.t('background')}<input type="color" .value=${style.backgroundColor ?? '#171a22'} @input=${(event: Event) => this.patch({ backgroundColor: this.text(event) })}></label>` : nothing}
+        <label>${this.t('opacity')}<input type="number" min="0" max="1" step="0.05" .value=${String(style.backgroundOpacity ?? 1)} @change=${(event: Event) => this.patch({ backgroundOpacity: this.number(event) })}></label>
+        ${style.fill === 'glass' ? html`<label>${this.t('blur')}<input type="number" min="0" max="80" .value=${String(style.backdropBlur ?? 0)} @change=${(event: Event) => this.patch({ backdropBlur: this.number(event) })}></label>` : nothing}
+        ${style.border === 'solid' ? html`<label>${this.t('borderWidth')}<input type="number" min="0" max="16" .value=${String(style.borderWidth ?? 1)} @change=${(event: Event) => this.patch({ borderWidth: this.number(event) })}></label><label>${this.t('borderColor')}<input type="color" .value=${style.borderColor ?? '#ffffff'} @input=${(event: Event) => this.patch({ borderColor: this.text(event) })}></label>` : nothing}
+        ${style.fill === 'gradient' ? html`<label class="wide">${this.t('gradient')}<input type="text" .value=${style.gradient ?? ''} @change=${(event: Event) => this.patch({ gradient: this.text(event) })}></label>` : nothing}
+        ${style.fill === 'image' ? html`<label class="wide">${this.t('imageUrl')}<input type="text" .value=${style.backgroundImage ?? ''} @change=${(event: Event) => this.patch({ backgroundImage: this.text(event) })}></label>` : nothing}
+        <label class="wide">${this.t('shadow')}<input type="text" .value=${style.shadow ?? ''} @change=${(event: Event) => this.patch({ shadow: this.text(event) })}></label>
       </div>
-      <div class="actions"><button @click=${this.clearOverride}>${this.target === 'selection' ? 'Inherit defaults' : 'Reset defaults'}</button></div>
+      <div class="actions"><button @click=${this.clearOverride}>${target === 'selection' ? this.t('inheritDefaults') : this.t('resetDefaults')}</button></div>
     </section>`;
   }
 }
