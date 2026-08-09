@@ -55,7 +55,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     .config-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
     .field { display: grid; gap: 3px; padding: 6px 7px; border-radius: 9px; background: color-mix(in srgb, var(--card-background-color) 92%, var(--primary-text-color) 8%); min-width: 0; }
     .label { font-size: 10px; opacity: .65; }
-    input[type='number'], input[type='text'] { width: 100%; min-width: 0; box-sizing: border-box; border: 0; border-radius: 6px; padding: 5px 6px; color: inherit; background: color-mix(in srgb, var(--card-background-color) 88%, var(--primary-text-color) 12%); font: inherit; }
+    input[type='number'], input[type='text'], select { width: 100%; min-width: 0; box-sizing: border-box; border: 0; border-radius: 6px; padding: 5px 6px; color: inherit; background: color-mix(in srgb, var(--card-background-color) 88%, var(--primary-text-color) 12%); font: inherit; }
     .toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; }
     .option { min-height:32px; padding:6px 8px; border-radius:9px; background:color-mix(in srgb, var(--card-background-color) 92%, var(--primary-text-color) 8%); }
     .issues { display: grid; gap: 5px; }
@@ -97,6 +97,9 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
         show_volume: 'showVolume',
       };
       return html`<label class="toggle option"><input type="checkbox" .checked=${value === true} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).checked)}>${this.tcc(labelKey[field.key])}</label>`;
+    }
+    if (field.kind === 'select') {
+      return html`<label class="field"><span class="label">${this.tcc('aspectRatio')}</span><select .value=${typeof value === 'string' && field.options.includes(value) ? value : field.options[0]} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLSelectElement).value)}>${field.options.map((option) => html`<option value=${option}>${option.replaceAll(' ', '')}</option>`)}</select></label>`;
     }
     return html`<label class="field"><span class="label">${this.tcc('temperatureStep')}</span><input type="number" min=${String(field.min)} max=${String(field.max)} step="0.1" .value=${typeof value === 'number' ? String(value) : ''} @change=${(event: Event) => { const next = Number((event.currentTarget as HTMLInputElement).value); if (Number.isFinite(next)) this.patchCardConfig(item.id, field.key, next); }}></label>`;
   }
