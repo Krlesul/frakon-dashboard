@@ -28,6 +28,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: python scripts/build_hacs_release.py
+      - run: python scripts/verify_hacs_release.py
       - uses: actions/upload-artifact@v7
         with:
           name: frakon-dashboard
