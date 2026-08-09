@@ -28,6 +28,8 @@ if HA_MANIFEST.get("single_config_entry") is not True:
     errors.append("HA manifest must declare single_config_entry")
 if set(HA_MANIFEST.get("dependencies", [])) != {"http", "lovelace"}:
     errors.append("HA manifest must depend on http and lovelace for bundled frontend registration")
+if HA_MANIFEST.get("issue_tracker") != "https://github.com/Krlesul/frakon-dashboard/issues":
+    errors.append("HA manifest must expose the GitHub issue tracker required by HACS")
 
 if HACS.get("zip_release") is not True:
     errors.append("HACS must use zip_release so the built frontend is bundled with the integration")
