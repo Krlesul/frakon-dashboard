@@ -2,6 +2,8 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { ConstraintDiagnostic } from '../../packages/studio-engine/src/constraints';
 import type { SupportedLanguage } from '../i18n';
+import './card-palette';
+import type { FrakonCardTemplateSelectedDetail } from './card-palette';
 import { canvasDashboardTranslate } from './canvas-dashboard-i18n';
 import { canvasV2ClipboardTranslate, type CanvasV2ClipboardTranslationKey } from './canvas-v2-clipboard-i18n';
 import './canvas-v2-constraint-editor';
@@ -10,8 +12,10 @@ import './canvas-v2-layer-toolbar';
 import './canvas-v2-selection-toolbar';
 import { DashboardCanvasV2ClipboardController } from './dashboard-canvas-v2-clipboard-controller';
 import { summarizeDashboardCanvasV2ConstraintDiagnostics } from './dashboard-canvas-v2-constraint-diagnostics';
+import { insertDashboardCanvasV2Card } from './dashboard-canvas-v2-insert-card';
 import type { DashboardCanvasV2InspectorItemPatch } from './dashboard-canvas-v2-inspector-actions';
 import { dashboardCanvasV2InspectorSelection } from './dashboard-canvas-v2-inspector';
+import { editorTranslate, resolveEditorLanguage } from './editor-i18n';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 
 export type FrakonCanvasV2InspectorEditDetail =
@@ -26,6 +30,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
   @property({ attribute: false }) diagnostics: ConstraintDiagnostic[] = [];
   @property({ attribute: false }) language: SupportedLanguage = 'en';
   @state() private clipboardMessage?: string;
+  @state() private showPalette = false;
 
   private readonly clipboard = new DashboardCanvasV2ClipboardController();
   private readonly clipboardKeyHandler = (event: KeyboardEvent) => this.onClipboardKeyDown(event);
@@ -40,8 +45,10 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     .chip.error { background: color-mix(in srgb, #ff4d67 18%, transparent); }
     .clipboard { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
     .clipboard button { border:0; border-radius:8px; padding:6px 9px; color:inherit; background:color-mix(in srgb, var(--primary-color) 14%, transparent); cursor:pointer; font:inherit; font-size:11px; }
+    .clipboard button.primary { background:color-mix(in srgb, var(--primary-color) 24%, transparent); font-weight:700; }
     .clipboard button:disabled { opacity:.38; cursor:not-allowed; }
     .clipboard-message { font-size:11px; opacity:.72; }
+    .palette-wrap { margin-top:2px; }
     .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
     .field { display: grid; gap: 3px; padding: 6px 7px; border-radius: 9px; background: color-mix(in srgb, var(--card-background-color) 92%, var(--primary-text-color) 8%); min-width: 0; }
     .label { font-size: 10px; opacity: .65; }
@@ -64,6 +71,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
 
   private t(key: Parameters<typeof canvasDashboardTranslate>[1]): string { return canvasDashboardTranslate(this.language, key); }
   private tc(key: CanvasV2ClipboardTranslationKey): string { return canvasV2ClipboardTranslate(this.language, key); }
+  private te(key: Parameters<typeof editorTranslate>[1]): string { return editorTranslate(resolveEditorLanguage(this.language), key); }
   private dispatchEdit(detail: FrakonCanvasV2InspectorEditDetail): void { this.dispatchEvent(new CustomEvent<FrakonCanvasV2InspectorEditDetail>('frakon-canvas-v2-inspector-edit', { detail, bubbles: true, composed: true })); }
   private numberValue(event: Event): number | undefined { const value = Number((event.currentTarget as HTMLInputElement).value); return Number.isFinite(value) ? value : undefined; }
   private optionalNumberValue(event: Event): number | null | undefined { const raw = (event.currentTarget as HTMLInputElement).value.trim(); if (!raw) return null; const value = Number(raw); return Number.isFinite(value) ? value : undefined; }
@@ -85,21 +93,13 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     if (event.defaultPrevented || event.altKey || !(event.ctrlKey || event.metaKey) || !this.canvasHasFocus()) return;
     const key = event.key.toLowerCase();
     if (key === 'c' && this.canCopySelection()) {
-      event.preventDefault();
-      event.stopPropagation();
-      this.copySelection();
-      return;
+      event.preventDefault(); event.stopPropagation(); this.copySelection(); return;
     }
     if (key === 'x' && this.canCopySelection()) {
-      event.preventDefault();
-      event.stopPropagation();
-      this.cutSelection();
-      return;
+      event.preventDefault(); event.stopPropagation(); this.cutSelection(); return;
     }
     if (key === 'v' && this.clipboard.canPaste) {
-      event.preventDefault();
-      event.stopPropagation();
-      this.pasteSelection();
+      event.preventDefault(); event.stopPropagation(); this.pasteSelection();
     }
   }
 
@@ -137,13 +137,26 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
       return;
     }
     this.clipboardMessage = this.tc('pasted');
+    this.commitDocument(result.document, result.selectedIds);
+  }
+
+  private addCard(event: CustomEvent<FrakonCardTemplateSelectedDetail>): void {
+    if (!this.document) return;
+    event.stopPropagation();
+    const result = insertDashboardCanvasV2Card(this.document, event.detail.template);
+    if (result.status !== 'committed') return;
+    this.showPalette = false;
+    this.commitDocument(result.document, result.selectedIds);
+  }
+
+  private commitDocument(document: FrakonDashboardDocumentV2, selectedIds: string[]): void {
     this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', {
-      detail: { status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] },
+      detail: { status: 'committed', document, collisionIds: [], constraintDiagnostics: [] },
       bubbles: true,
       composed: true,
     }));
     this.dispatchEvent(new CustomEvent('frakon-canvas-v2-selection-set', {
-      detail: { selectedIds: result.selectedIds },
+      detail: { selectedIds },
       bubbles: true,
       composed: true,
     }));
@@ -164,11 +177,13 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
         <span class="chip">${this.t('locked')}: ${selection.lockedCount}</span><span class="chip">${this.t('constraints')}: ${selection.constraintCount}</span><span class="chip ${diagnosticClass}">${this.t('diagnostics')}: ${diagnostics.applied}/${diagnostics.total}</span>
       </div>
       <div class="clipboard">
+        <button class="primary" @click=${() => { this.showPalette = !this.showPalette; }}>${this.te('addCard')}</button>
         <button ?disabled=${!canCopy} @click=${this.copySelection}>${this.tc('copy')}</button>
         <button ?disabled=${!canCopy} @click=${this.cutSelection}>${this.tc('cut')}</button>
         <button ?disabled=${!this.clipboard.canPaste} @click=${this.pasteSelection}>${this.tc('paste')}</button>
         ${this.clipboardMessage ? html`<span class="clipboard-message">${this.clipboardMessage}</span>` : nothing}
       </div>
+      ${this.showPalette ? html`<div class="palette-wrap"><frakon-card-palette .language=${this.language} @frakon-card-template-selected=${this.addCard}></frakon-card-palette></div>` : nothing}
       ${single ? html`<div class="grid">${this.itemField(single.id,'x',single.frame.x,'X')}${this.itemField(single.id,'y',single.frame.y,'Y')}${this.itemField(single.id,'width',single.frame.width,'W')}${this.itemField(single.id,'height',single.frame.height,'H')}${this.optionalItemField(single.id,'minWidth',single.minWidth,'min W')}${this.optionalItemField(single.id,'minHeight',single.minHeight,'min H')}${this.optionalItemField(single.id,'maxWidth',single.maxWidth,'max W')}${this.optionalItemField(single.id,'maxHeight',single.maxHeight,'max H')}</div><label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>` : nothing}
       <frakon-canvas-v2-item-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-item-toolbar>
       <frakon-canvas-v2-layer-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-layer-toolbar>
