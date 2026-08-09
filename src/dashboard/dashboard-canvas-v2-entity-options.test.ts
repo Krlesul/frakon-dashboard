@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HomeAssistant } from '../home-assistant/types';
-import { dashboardCanvasV2EntityOptions } from './dashboard-canvas-v2-entity-options';
+import { dashboardCanvasV2EntityOptions, filterDashboardCanvasV2EntityOptions } from './dashboard-canvas-v2-entity-options';
 
 const hass = {
   states: {
@@ -31,5 +31,16 @@ describe('dashboard canvas v2 entity options', () => {
       { entityId:'light.hall', label:'light.hall' },
       { entityId:'light.kitchen', label:'Kitchen · light.kitchen' },
     ]);
+  });
+
+  it('searches by friendly name and entity id case-insensitively', () => {
+    const options = dashboardCanvasV2EntityOptions(hass, ['light']);
+    expect(filterDashboardCanvasV2EntityOptions(options, 'KIT')).toEqual([
+      { entityId:'light.kitchen', label:'Kitchen · light.kitchen' },
+    ]);
+    expect(filterDashboardCanvasV2EntityOptions(options, 'hall')).toEqual([
+      { entityId:'light.hall', label:'light.hall' },
+    ]);
+    expect(filterDashboardCanvasV2EntityOptions(options, '   ')).toEqual(options);
   });
 });
