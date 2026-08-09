@@ -32,6 +32,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
   @property({ attribute: false }) diagnostics: ConstraintDiagnostic[] = [];
   @property({ attribute: false }) language: SupportedLanguage = 'en';
   @state() private clipboardMessage?: string;
+  @state() private cardConfigMessage?: string;
   @state() private showPalette = false;
 
   private readonly clipboard = new DashboardCanvasV2ClipboardController();
@@ -58,6 +59,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     input[type='number'], input[type='text'], select { width: 100%; min-width: 0; box-sizing: border-box; border: 0; border-radius: 6px; padding: 5px 6px; color: inherit; background: color-mix(in srgb, var(--card-background-color) 88%, var(--primary-text-color) 12%); font: inherit; }
     .toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; }
     .option { min-height:32px; padding:6px 8px; border-radius:9px; background:color-mix(in srgb, var(--card-background-color) 92%, var(--primary-text-color) 8%); }
+    .config-error { padding:7px 9px; border-radius:9px; font-size:11px; background:color-mix(in srgb, #ff4d67 16%, transparent); }
     .issues { display: grid; gap: 5px; }
     .issue { font-size: 11px; padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, #f0a85a 12%, transparent); }
     @media (max-width: 600px) { .grid, .config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -88,22 +90,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     if (field.key === 'name') return this.te('name');
     if (field.key === 'title') return this.te('title');
     const labels: Record<Exclude<DashboardCanvasV2CardConfigField['key'], 'entity' | 'name' | 'title'>, CanvasV2CardConfigTranslationKey> = {
-      temperature_entity: 'temperatureEntity',
-      humidity_entity: 'humidityEntity',
-      range_entity: 'rangeEntity',
-      charging_power_entity: 'chargingPowerEntity',
-      charging_switch_entity: 'chargingSwitchEntity',
-      unit: 'unit',
-      light_entities: 'lightEntities',
-      show_brightness: 'showBrightness',
-      show_color_temperature: 'showColorTemperature',
-      show_position: 'showPosition',
-      show_state: 'showState',
-      show_volume: 'showVolume',
-      compact: 'compact',
-      step: 'temperatureStep',
-      precision: 'precision',
-      aspect_ratio: 'aspectRatio',
+      temperature_entity: 'temperatureEntity', humidity_entity: 'humidityEntity', range_entity: 'rangeEntity', charging_power_entity: 'chargingPowerEntity', charging_switch_entity: 'chargingSwitchEntity', unit: 'unit', light_entities: 'lightEntities', show_brightness: 'showBrightness', show_color_temperature: 'showColorTemperature', show_position: 'showPosition', show_state: 'showState', show_volume: 'showVolume', compact: 'compact', step: 'temperatureStep', precision: 'precision', aspect_ratio: 'aspectRatio',
     };
     return this.tcc(labels[field.key as keyof typeof labels]);
   }
@@ -132,7 +119,13 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
   private patchCardConfig(itemId: string, key: string, value: unknown): void {
     if (!this.document) return;
     const result = patchDashboardCanvasV2CardConfig(this.document, itemId, { [key]: value });
+    if (result.status === 'invalid' || result.status === 'missing-item') {
+      this.cardConfigMessage = `${this.te('invalidConfig')} ${result.reason ?? ''}`.trim();
+      this.requestUpdate();
+      return;
+    }
     if (result.status !== 'committed') return;
+    this.cardConfigMessage = undefined;
     this.commitDocument(result.document, [itemId]);
   }
 
@@ -150,15 +143,9 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
   private onClipboardKeyDown(event: KeyboardEvent): void {
     if (event.defaultPrevented || event.altKey || !(event.ctrlKey || event.metaKey) || !this.canvasHasFocus()) return;
     const key = event.key.toLowerCase();
-    if (key === 'c' && this.canCopySelection()) {
-      event.preventDefault(); event.stopPropagation(); this.copySelection(); return;
-    }
-    if (key === 'x' && this.canCopySelection()) {
-      event.preventDefault(); event.stopPropagation(); this.cutSelection(); return;
-    }
-    if (key === 'v' && this.clipboard.canPaste) {
-      event.preventDefault(); event.stopPropagation(); this.pasteSelection();
-    }
+    if (key === 'c' && this.canCopySelection()) { event.preventDefault(); event.stopPropagation(); this.copySelection(); return; }
+    if (key === 'x' && this.canCopySelection()) { event.preventDefault(); event.stopPropagation(); this.cutSelection(); return; }
+    if (key === 'v' && this.clipboard.canPaste) { event.preventDefault(); event.stopPropagation(); this.pasteSelection(); }
   }
 
   private copySelection(): void {
@@ -170,30 +157,16 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
   private cutSelection(): void {
     if (!this.document) return;
     const result = this.clipboard.cut(this.document, this.selectedIds);
-    if (result.status !== 'committed') {
-      this.clipboardMessage = this.tc('copyUnavailable');
-      return;
-    }
+    if (result.status !== 'committed') { this.clipboardMessage = this.tc('copyUnavailable'); return; }
     this.clipboardMessage = this.tc('cutDone');
-    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', {
-      detail: { status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] },
-      bubbles: true,
-      composed: true,
-    }));
-    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-selection-set', {
-      detail: { selectedIds: [] },
-      bubbles: true,
-      composed: true,
-    }));
+    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', { detail: { status: 'committed', document: result.document, collisionIds: [], constraintDiagnostics: [] }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-selection-set', { detail: { selectedIds: [] }, bubbles: true, composed: true }));
   }
 
   private pasteSelection(): void {
     if (!this.document) return;
     const result = this.clipboard.paste(this.document);
-    if (result.status !== 'committed') {
-      this.clipboardMessage = this.tc('pasteUnavailable');
-      return;
-    }
+    if (result.status !== 'committed') { this.clipboardMessage = this.tc('pasteUnavailable'); return; }
     this.clipboardMessage = this.tc('pasted');
     this.commitDocument(result.document, result.selectedIds);
   }
@@ -204,20 +177,13 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     const result = insertDashboardCanvasV2Card(this.document, event.detail.template);
     if (result.status !== 'committed') return;
     this.showPalette = false;
+    this.cardConfigMessage = undefined;
     this.commitDocument(result.document, result.selectedIds);
   }
 
   private commitDocument(document: FrakonDashboardDocumentV2, selectedIds: string[]): void {
-    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', {
-      detail: { status: 'committed', document, collisionIds: [], constraintDiagnostics: [] },
-      bubbles: true,
-      composed: true,
-    }));
-    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-selection-set', {
-      detail: { selectedIds },
-      bubbles: true,
-      composed: true,
-    }));
+    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-draft', { detail: { status: 'committed', document, collisionIds: [], constraintDiagnostics: [] }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('frakon-canvas-v2-selection-set', { detail: { selectedIds }, bubbles: true, composed: true }));
   }
 
   render() {
@@ -245,6 +211,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
       ${this.showPalette ? html`<div class="palette-wrap"><frakon-card-palette .language=${this.language} @frakon-card-template-selected=${this.addCard}></frakon-card-palette></div>` : nothing}
       ${single ? html`
         <div class="config-grid">${cardFields.map((field) => this.renderCardConfigField(single, field))}</div>
+        ${this.cardConfigMessage ? html`<div class="config-error">${this.cardConfigMessage}</div>` : nothing}
         <div class="grid">${this.itemField(single.id,'x',single.frame.x,'X')}${this.itemField(single.id,'y',single.frame.y,'Y')}${this.itemField(single.id,'width',single.frame.width,'W')}${this.itemField(single.id,'height',single.frame.height,'H')}${this.optionalItemField(single.id,'minWidth',single.minWidth,'min W')}${this.optionalItemField(single.id,'minHeight',single.minHeight,'min H')}${this.optionalItemField(single.id,'maxWidth',single.maxWidth,'max W')}${this.optionalItemField(single.id,'maxHeight',single.maxHeight,'max H')}</div>
         <label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>
       ` : nothing}
