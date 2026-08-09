@@ -13,7 +13,7 @@ export class FrakonCanvasV2EntityField extends LitElement {
   @property({ attribute: false }) domains?: readonly string[];
   @property() value = '';
   @property() label = '';
-  @property({ attribute: false }) language: SupportedLanguage = 'en';
+  @property({ attribute: false }) language?: SupportedLanguage;
   @property({ type: Boolean }) required = false;
   @state() private query = '';
   @state() private open = false;
@@ -30,8 +30,18 @@ export class FrakonCanvasV2EntityField extends LitElement {
     .empty { padding:6px 7px; font-size:10px; opacity:.55; }
   `;
 
+  private effectiveLanguage(): SupportedLanguage {
+    if (this.language) return this.language;
+    const root = this.getRootNode();
+    if (root instanceof ShadowRoot) {
+      const inherited = (root.host as HTMLElement & { language?: SupportedLanguage }).language;
+      if (inherited) return inherited;
+    }
+    return 'en';
+  }
+
   private t(key: 'searchEntity' | 'noMatchingEntities'): string {
-    return canvasV2CardConfigTranslate(this.language, key);
+    return canvasV2CardConfigTranslate(this.effectiveLanguage(), key);
   }
 
   private options() {
