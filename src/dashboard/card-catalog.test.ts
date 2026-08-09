@@ -13,9 +13,17 @@ describe('FRAKON card catalog', () => {
     expect(result.every((template) => template.category === 'security')).toBe(true);
   });
 
+  it('keeps every visible category backed by at least one card', () => {
+    for (const category of ['general', 'lighting', 'climate', 'security', 'media', 'energy', 'vehicle'] as const) {
+      expect(filterCardCatalog('', category).length).toBeGreaterThan(0);
+    }
+    expect(filterCardCatalog('', 'energy').map((template) => template.type)).toContain('custom:frakon-energy-card');
+  });
+
   it('searches names, descriptions and types', () => {
     expect(filterCardCatalog('camera').map((template) => template.type)).toContain('custom:frakon-camera-card');
     expect(filterCardCatalog('brightness').map((template) => template.type)).toContain('custom:frakon-light-card');
+    expect(filterCardCatalog('energy').map((template) => template.type)).toContain('custom:frakon-energy-card');
   });
 
   it('creates valid default configurations', () => {
