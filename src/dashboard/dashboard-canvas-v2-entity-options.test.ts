@@ -23,4 +23,13 @@ describe('dashboard canvas v2 entity options', () => {
       { entityId:'camera.driveway', label:'camera.driveway' },
     ]);
   });
+
+  it('keeps every configured unavailable entity for multi-select fields', () => {
+    expect(dashboardCanvasV2EntityOptions(hass, ['light'], ['light.kitchen', 'light.garden', 'light.garage'])).toEqual([
+      { entityId:'light.garage', label:'light.garage' },
+      { entityId:'light.garden', label:'light.garden' },
+      { entityId:'light.hall', label:'light.hall' },
+      { entityId:'light.kitchen', label:'Kitchen · light.kitchen' },
+    ]);
+  });
 });
