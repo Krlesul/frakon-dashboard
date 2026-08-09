@@ -107,6 +107,25 @@ describe('ResponsiveV2DraftController', () => {
     expect(controller.snapshot.dirtyBreakpoints).toEqual([]);
   });
 
+  it('replaces every breakpoint with a clean saved base and clears undo history', () => {
+    const controller = new ResponsiveV2DraftController(base());
+    controller.switchTo('mobile');
+    const mobile = controller.snapshot.active.document;
+    controller.applyActive({ status: 'committed', document: { ...mobile, items: mobile.items.map((item) => ({ ...item, frame: { ...item.frame, y: item.frame.y + 32 } })) }, collisionIds: [] }, false);
+    expect(controller.snapshot.dirtyBreakpoints).toContain('mobile');
+    expect(controller.snapshot.active.canUndo).toBe(true);
+
+    const savedBundle = controller.toBundle('mobile');
+    const savedY = savedBundle.documents.mobile?.items[0].frame.y;
+    controller.replaceFromBundle(savedBundle, 'mobile');
+
+    expect(controller.snapshot.activeBreakpoint).toBe('mobile');
+    expect(controller.snapshot.active.document.items[0].frame.y).toBe(savedY);
+    expect(controller.snapshot.dirtyBreakpoints).toEqual([]);
+    expect(controller.snapshot.active.canUndo).toBe(false);
+    expect(controller.snapshot.active.canRedo).toBe(false);
+  });
+
   it('exports current breakpoint drafts back into one responsive bundle', () => {
     const controller = new ResponsiveV2DraftController(base());
     controller.switchTo('mobile');
