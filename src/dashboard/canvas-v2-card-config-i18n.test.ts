@@ -8,5 +8,6 @@ describe('canvas v2 card config i18n', () => {
     expect(canvasV2CardConfigTranslate('de', 'showVolume')).toContain('Lautstärke');
     expect(canvasV2CardConfigTranslate('sk', 'showPosition')).toContain('polohu');
     expect(canvasV2CardConfigTranslate('pl', 'showState')).toContain('stan');
+    expect(canvasV2CardConfigTranslate('cs', 'aspectRatio')).toContain('stran');
   });
 });
