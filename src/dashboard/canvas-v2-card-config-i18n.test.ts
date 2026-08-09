@@ -9,5 +9,9 @@ describe('canvas v2 card config i18n', () => {
     expect(canvasV2CardConfigTranslate('sk', 'showPosition')).toContain('polohu');
     expect(canvasV2CardConfigTranslate('pl', 'showState')).toContain('stan');
     expect(canvasV2CardConfigTranslate('cs', 'aspectRatio')).toContain('stran');
+    expect(canvasV2CardConfigTranslate('cs', 'searchEntity')).toContain('Hledat');
+    expect(canvasV2CardConfigTranslate('de', 'noMatchingEntities')).toContain('Keine');
+    expect(canvasV2CardConfigTranslate('sk', 'searchEntity')).toContain('Hľadať');
+    expect(canvasV2CardConfigTranslate('pl', 'noMatchingEntities')).toContain('Brak');
   });
 });
