@@ -29,6 +29,14 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
   'custom:frakon-media-player-card': [{ key: 'show_volume', kind: 'boolean' }],
 };
 
+const STRICT_ENTITY_DOMAINS: Record<string, string> = {
+  'custom:frakon-light-card': 'light',
+  'custom:frakon-climate-card': 'climate',
+  'custom:frakon-cover-card': 'cover',
+  'custom:frakon-camera-card': 'camera',
+  'custom:frakon-media-player-card': 'media_player',
+};
+
 export function dashboardCanvasV2CardConfigFields(card: Record<string, unknown>): DashboardCanvasV2CardConfigField[] {
   const type = typeof card.type === 'string' ? card.type : '';
   return [...GENERIC_FIELDS, ...(TYPE_FIELDS[type] ?? [])].map((field) => ({ ...field }));
@@ -38,11 +46,24 @@ function fieldFor(card: Record<string, unknown>, key: string): DashboardCanvasV2
   return dashboardCanvasV2CardConfigFields(card).find((field) => field.key === key);
 }
 
-function normalizeFieldValue(field: DashboardCanvasV2CardConfigField, value: unknown): { valid: true; value: unknown } | { valid: false; reason: string } {
+function normalizeFieldValue(
+  card: Record<string, unknown>,
+  field: DashboardCanvasV2CardConfigField,
+  value: unknown,
+): { valid: true; value: unknown } | { valid: false; reason: string } {
   if (field.kind === 'text') {
     if (value === undefined || value === null || value === '') return { valid: true, value: undefined };
     if (typeof value !== 'string') return { valid: false, reason: `${field.key} must be a string.` };
-    return { valid: true, value: value.trim() || undefined };
+    const normalized = value.trim();
+    if (!normalized) return { valid: true, value: undefined };
+    if (field.key === 'entity') {
+      const type = typeof card.type === 'string' ? card.type : '';
+      const domain = STRICT_ENTITY_DOMAINS[type];
+      if (domain && !normalized.startsWith(`${domain}.`)) {
+        return { valid: false, reason: `${type} requires an ${domain}.* entity.` };
+      }
+    }
+    return { valid: true, value: normalized };
   }
   if (field.kind === 'boolean') {
     if (typeof value !== 'boolean') return { valid: false, reason: `${field.key} must be a boolean.` };
@@ -76,7 +97,7 @@ export function patchDashboardCanvasV2CardConfig(
     if (!field) {
       return { status: 'invalid', document: structuredClone(document), reason: `Card config field ${key} is not supported for ${String(card.type ?? 'unknown')}.` };
     }
-    const normalized = normalizeFieldValue(field, patch[key]);
+    const normalized = normalizeFieldValue(card, field, patch[key]);
     if (!normalized.valid) return { status: 'invalid', document: structuredClone(document), reason: normalized.reason };
     if (normalized.value === undefined) delete card[key];
     else card[key] = normalized.value;
