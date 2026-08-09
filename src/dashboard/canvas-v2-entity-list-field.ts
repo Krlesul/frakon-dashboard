@@ -5,6 +5,12 @@ import { dashboardCanvasV2EntityOptions } from './dashboard-canvas-v2-entity-opt
 
 export interface FrakonCanvasV2EntityListChangedDetail { value: string[]; }
 
+export function toggleDashboardCanvasV2EntityList(selected: readonly string[], entityId: string, checked: boolean): string[] {
+  const next = new Set(selected.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()));
+  if (checked) next.add(entityId); else next.delete(entityId);
+  return [...next].sort();
+}
+
 @customElement('frakon-canvas-v2-entity-list-field')
 export class FrakonCanvasV2EntityListField extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
@@ -25,13 +31,11 @@ export class FrakonCanvasV2EntityListField extends LitElement {
   `;
 
   private normalizedSelected(): string[] {
-    return [...new Set(this.selected.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))];
+    return toggleDashboardCanvasV2EntityList(this.selected, '', false).filter(Boolean);
   }
 
   private toggle(entityId: string, checked: boolean): void {
-    const next = new Set(this.normalizedSelected());
-    if (checked) next.add(entityId); else next.delete(entityId);
-    const value = [...next].sort();
+    const value = toggleDashboardCanvasV2EntityList(this.normalizedSelected(), entityId, checked);
     this.selected = value;
     this.dispatchEvent(new CustomEvent<FrakonCanvasV2EntityListChangedDetail>('frakon-canvas-v2-entity-list-changed', {
       detail: { value }, bubbles: true, composed: true,
