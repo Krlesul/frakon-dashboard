@@ -1,6 +1,8 @@
 import { LitElement, css, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from '../home-assistant/types';
+import type { SupportedLanguage } from '../i18n';
+import { canvasV2CardConfigTranslate } from './canvas-v2-card-config-i18n';
 import { dashboardCanvasV2EntityOptions, filterDashboardCanvasV2EntityOptions } from './dashboard-canvas-v2-entity-options';
 
 export interface FrakonCanvasV2EntityChangedDetail { value: string; }
@@ -11,6 +13,7 @@ export class FrakonCanvasV2EntityField extends LitElement {
   @property({ attribute: false }) domains?: readonly string[];
   @property() value = '';
   @property() label = '';
+  @property({ attribute: false }) language: SupportedLanguage = 'en';
   @property({ type: Boolean }) required = false;
   @state() private query = '';
   @state() private open = false;
@@ -26,6 +29,10 @@ export class FrakonCanvasV2EntityField extends LitElement {
     .id { font-size:9px; opacity:.55; }
     .empty { padding:6px 7px; font-size:10px; opacity:.55; }
   `;
+
+  private t(key: 'searchEntity' | 'noMatchingEntities'): string {
+    return canvasV2CardConfigTranslate(this.language, key);
+  }
 
   private options() {
     return filterDashboardCanvasV2EntityOptions(
@@ -49,10 +56,10 @@ export class FrakonCanvasV2EntityField extends LitElement {
     const selected = dashboardCanvasV2EntityOptions(this.hass, this.domains, this.value).find((option) => option.entityId === this.value);
     const display = this.open ? this.query : selected?.label ?? this.value;
     return html`<label class="field"><span class="label">${this.label}</span>
-      <input type="search" .value=${display} placeholder="Search entity…" @focus=${() => { this.open = true; this.query = ''; }} @input=${(event:Event) => { this.open = true; this.query = (event.currentTarget as HTMLInputElement).value; }} @keydown=${(event:KeyboardEvent) => { if (event.key === 'Escape') { this.open = false; this.query = ''; (event.currentTarget as HTMLInputElement).blur(); } }}>
+      <input type="search" .value=${display} placeholder=${this.t('searchEntity')} @focus=${() => { this.open = true; this.query = ''; }} @input=${(event:Event) => { this.open = true; this.query = (event.currentTarget as HTMLInputElement).value; }} @keydown=${(event:KeyboardEvent) => { if (event.key === 'Escape') { this.open = false; this.query = ''; (event.currentTarget as HTMLInputElement).blur(); } }}>
       ${this.open ? html`<div class="menu">
         ${!this.required ? html`<button class=${this.value === '' ? 'active' : ''} @mousedown=${(event:MouseEvent) => event.preventDefault()} @click=${() => this.select('')}>—</button>` : ''}
-        ${options.length ? options.map((option) => html`<button class=${option.entityId === this.value ? 'active' : ''} @mousedown=${(event:MouseEvent) => event.preventDefault()} @click=${() => this.select(option.entityId)}><span>${option.label}</span><span class="id">${option.entityId}</span></button>`) : html`<span class="empty">No matching entities</span>`}
+        ${options.length ? options.map((option) => html`<button class=${option.entityId === this.value ? 'active' : ''} @mousedown=${(event:MouseEvent) => event.preventDefault()} @click=${() => this.select(option.entityId)}><span>${option.label}</span><span class="id">${option.entityId}</span></button>`) : html`<span class="empty">${this.t('noMatchingEntities')}</span>`}
       </div>` : ''}
     </label>`;
   }
