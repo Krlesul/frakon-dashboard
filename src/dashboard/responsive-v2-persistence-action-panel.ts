@@ -49,7 +49,12 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
     });
   }
 
-  private emitSaved(envelope: ResponsiveCanvasV2RevisionEnvelope): void {
+  private acceptSaved(envelope: ResponsiveCanvasV2RevisionEnvelope): void {
+    this.controller?.replaceFromBundle(envelope.bundle);
+    this.baseRevision = envelope.revision;
+    this.conflict = undefined;
+    this.message = 'Saved';
+    this.requestUpdate();
     this.dispatchEvent(new CustomEvent('frakon-responsive-v2-saved', {
       detail: { envelope }, bubbles: true, composed: true,
     }));
@@ -69,9 +74,7 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
         candidate: event.detail.candidate,
       });
       if (result.status === 'saved') {
-        this.conflict = undefined;
-        this.message = 'Saved';
-        this.emitSaved(result.envelope);
+        this.acceptSaved(result.envelope);
       } else if (result.status === 'conflict') {
         this.conflict = result.conflict;
         this.message = undefined;
@@ -100,9 +103,7 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
         selections: event.detail.selections,
       });
       if (result.status === 'saved') {
-        this.conflict = undefined;
-        this.message = 'Saved';
-        this.emitSaved(result.envelope);
+        this.acceptSaved(result.envelope);
       } else if (result.status === 'conflict') {
         this.conflict = result.conflict;
       } else if (result.status === 'incomplete') {
