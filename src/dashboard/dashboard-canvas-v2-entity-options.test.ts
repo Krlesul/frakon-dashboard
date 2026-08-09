@@ -1,0 +1,26 @@
+import { describe, expect, it } from 'vitest';
+import type { HomeAssistant } from '../home-assistant/types';
+import { dashboardCanvasV2EntityOptions } from './dashboard-canvas-v2-entity-options';
+
+const hass = {
+  states: {
+    'light.kitchen': { entity_id:'light.kitchen', state:'on', attributes:{ friendly_name:'Kitchen' } },
+    'light.hall': { entity_id:'light.hall', state:'off', attributes:{} },
+    'climate.living_room': { entity_id:'climate.living_room', state:'heat', attributes:{ friendly_name:'Living room' } },
+  },
+} as unknown as HomeAssistant;
+
+describe('dashboard canvas v2 entity options', () => {
+  it('filters options to allowed domains and exposes friendly names', () => {
+    expect(dashboardCanvasV2EntityOptions(hass, ['light'])).toEqual([
+      { entityId:'light.hall', label:'light.hall' },
+      { entityId:'light.kitchen', label:'Kitchen · light.kitchen' },
+    ]);
+  });
+
+  it('keeps the currently configured entity even when it is unavailable', () => {
+    expect(dashboardCanvasV2EntityOptions(hass, ['camera'], 'camera.driveway')).toEqual([
+      { entityId:'camera.driveway', label:'camera.driveway' },
+    ]);
+  });
+});
