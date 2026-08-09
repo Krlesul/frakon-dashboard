@@ -60,12 +60,13 @@ export function dashboardCanvasV2CardConfigFields(card: Record<string, unknown>)
     required: true,
     ...(STRICT_PRIMARY_DOMAINS[type] ? { domains: STRICT_PRIMARY_DOMAINS[type] } : {}),
   };
-  return [
+  const fields: DashboardCanvasV2CardConfigField[] = [
     primary,
     { key: 'name', kind: 'text' },
     { key: 'title', kind: 'text' },
     ...(TYPE_FIELDS[type] ?? []),
-  ].map((field) => ({ ...field }));
+  ];
+  return fields.map((field) => structuredClone(field));
 }
 
 function fieldFor(card: Record<string, unknown>, key: string): DashboardCanvasV2CardConfigField | undefined {
