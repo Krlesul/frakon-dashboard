@@ -21,6 +21,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m compileall -q custom_components/frakon_dashboard
+      - run: python scripts/verify_responsive_write_lock.py
       - run: npm install
       - run: npm run lint
       - run: npm test
