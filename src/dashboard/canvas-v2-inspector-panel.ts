@@ -11,6 +11,7 @@ import './canvas-v2-constraint-editor';
 import './canvas-v2-item-toolbar';
 import './canvas-v2-layer-toolbar';
 import './canvas-v2-selection-toolbar';
+import './canvas-v2-surface-editor';
 import { dashboardCanvasV2CardConfigFields, patchDashboardCanvasV2CardConfig, type DashboardCanvasV2CardConfigField } from './dashboard-canvas-v2-card-config';
 import { DashboardCanvasV2ClipboardController } from './dashboard-canvas-v2-clipboard-controller';
 import { summarizeDashboardCanvasV2ConstraintDiagnostics } from './dashboard-canvas-v2-constraint-diagnostics';
@@ -215,6 +216,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
         <div class="grid">${this.itemField(single.id,'x',single.frame.x,'X')}${this.itemField(single.id,'y',single.frame.y,'Y')}${this.itemField(single.id,'width',single.frame.width,'W')}${this.itemField(single.id,'height',single.frame.height,'H')}${this.optionalItemField(single.id,'minWidth',single.minWidth,'min W')}${this.optionalItemField(single.id,'minHeight',single.minHeight,'min H')}${this.optionalItemField(single.id,'maxWidth',single.maxWidth,'max W')}${this.optionalItemField(single.id,'maxHeight',single.maxHeight,'max H')}</div>
         <label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>
       ` : nothing}
+      <frakon-canvas-v2-surface-editor .document=${this.document} .selectedIds=${this.selectedIds}></frakon-canvas-v2-surface-editor>
       <frakon-canvas-v2-item-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-item-toolbar>
       <frakon-canvas-v2-layer-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-layer-toolbar>
       <frakon-canvas-v2-selection-toolbar .document=${this.document} .selectedIds=${this.selectedIds} .language=${this.language}></frakon-canvas-v2-selection-toolbar>
