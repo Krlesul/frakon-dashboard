@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DashboardStorageTransport } from './dashboard-storage';
 import { RESPONSIVE_CANVAS_V2_CONTRACT_VERSION, type DashboardServerCapabilities } from './dashboard-server-capabilities';
 import { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
-import { saveResponsiveV2EditorCandidate } from './responsive-v2-editor-save-coordinator';
+import { resolveResponsiveV2EditorConflict, saveResponsiveV2EditorCandidate } from './responsive-v2-editor-save-coordinator';
 import { createResponsiveCanvasV2RevisionFromParent } from './responsive-v2-revision';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 
@@ -45,11 +45,13 @@ function dirtyController(): ResponsiveV2DraftController {
 
 class Transport implements DashboardStorageTransport {
   requests: Array<{ command: string; payload: Record<string, unknown> }> = [];
-  constructor(private readonly mode: 'saved' | 'conflict' = 'saved') {}
+  private conflictCount = 0;
+  constructor(private readonly mode: 'saved' | 'conflict' | 'conflict-once' = 'saved') {}
   async request<T>(command: string, payload: Record<string, unknown>): Promise<T> {
     this.requests.push({ command, payload });
     const envelope = payload.envelope as Record<string, unknown>;
-    if (this.mode === 'saved') return { status: 'saved', envelope } as T;
+    const shouldConflict = this.mode === 'conflict' || (this.mode === 'conflict-once' && this.conflictCount++ === 0);
+    if (!shouldConflict) return { status: 'saved', envelope } as T;
     const remoteBundle = structuredClone(envelope.document) as ReturnType<ResponsiveV2DraftController['toBundle']>;
     remoteBundle.documents.desktop!.items[0].frame.x = 120;
     return {
@@ -98,5 +100,25 @@ describe('responsive v2 editor save coordinator', () => {
     expect(result.conflict.local.revision).toBe(candidate.revision);
     expect(result.conflict.remote.revision).toBe('remote-r2');
     expect(result.conflict.merge.conflicts.map((item) => item.breakpoint)).toContain('desktop');
+  });
+
+  it('resolves selected breakpoint against the remote revision', async () => {
+    const controller = dirtyController();
+    const candidate = createResponsiveCanvasV2RevisionFromParent(controller.toBundle(), 'client', 'r1', 2);
+    const transport = new Transport('conflict-once');
+    const first = await saveResponsiveV2EditorCandidate({ transport, capabilities: capabilities(true), controller, baseRevision: 'r1', candidate });
+    if (first.status !== 'conflict') throw new Error('Expected conflict');
+    const resolved = await resolveResponsiveV2EditorConflict({
+      transport,
+      capabilities: capabilities(true),
+      conflict: first.conflict,
+      selections: { desktop: 'local' },
+      now: () => 4,
+    });
+    expect(resolved.status).toBe('saved');
+    if (resolved.status !== 'saved') throw new Error('Expected saved resolution');
+    expect(resolved.envelope.parentRevision).toBe('remote-r2');
+    expect(resolved.envelope.bundle.documents.desktop?.items[0].frame.x).toBe(80);
+    expect(transport.requests).toHaveLength(2);
   });
 });
