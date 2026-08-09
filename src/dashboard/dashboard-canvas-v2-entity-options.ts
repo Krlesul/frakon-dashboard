@@ -8,7 +8,7 @@ export interface DashboardCanvasV2EntityOption {
 export function dashboardCanvasV2EntityOptions(
   hass: HomeAssistant | undefined,
   domains?: readonly string[],
-  current?: string,
+  current?: string | readonly string[],
 ): DashboardCanvasV2EntityOption[] {
   const allowed = domains?.length ? new Set(domains) : undefined;
   const states = hass?.states ?? {};
@@ -17,7 +17,10 @@ export function dashboardCanvasV2EntityOptions(
     if (!domain || !objectId) return false;
     return !allowed || allowed.has(domain);
   });
-  if (current?.includes('.') && !ids.includes(current)) ids.push(current);
+  const configured = Array.isArray(current) ? current : current ? [current] : [];
+  for (const entityId of configured) {
+    if (entityId.includes('.') && !ids.includes(entityId)) ids.push(entityId);
+  }
   return [...new Set(ids)].sort((a, b) => a.localeCompare(b)).map((entityId) => {
     const friendly = states[entityId]?.attributes?.friendly_name;
     return {
