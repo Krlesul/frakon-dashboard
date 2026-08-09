@@ -60,17 +60,7 @@ export class ResponsiveV2DraftController {
       ?? BREAKPOINTS.map((breakpoint) => bundle.documents[breakpoint]).find(Boolean);
     if (!first) throw new Error('Responsive v2 bundle has no breakpoint document.');
     const controller = new ResponsiveV2DraftController(first, activeBreakpoint);
-    controller.controllers.clear();
-    controller.baseDocuments.clear();
-    for (const breakpoint of BREAKPOINTS) {
-      const document = bundle.documents[breakpoint];
-      if (!document) continue;
-      const base = structuredClone(document);
-      controller.baseDocuments.set(breakpoint, base);
-      controller.controllers.set(breakpoint, new DashboardV2DraftController(base));
-    }
-    controller.activeBreakpoint = activeBreakpoint;
-    controller.ensure(activeBreakpoint);
+    controller.replaceFromBundle(bundle, activeBreakpoint);
     return controller;
   }
 
@@ -95,6 +85,27 @@ export class ResponsiveV2DraftController {
       if (document) documents[breakpoint] = structuredClone(document);
     }
     return createResponsiveCanvasV2Bundle(documents, documents[defaultBreakpoint] ? defaultBreakpoint : Object.keys(documents)[0] as FrakonBreakpoint);
+  }
+
+  replaceFromBundle(
+    bundle: ResponsiveCanvasV2Bundle,
+    activeBreakpoint: FrakonBreakpoint = this.activeBreakpoint,
+  ): ResponsiveV2DraftSnapshot {
+    const resolvedActive = bundle.documents[activeBreakpoint]
+      ? activeBreakpoint
+      : bundle.defaultBreakpoint;
+    this.controllers.clear();
+    this.baseDocuments.clear();
+    for (const breakpoint of BREAKPOINTS) {
+      const document = bundle.documents[breakpoint];
+      if (!document) continue;
+      const base = structuredClone(document);
+      this.baseDocuments.set(breakpoint, base);
+      this.controllers.set(breakpoint, new DashboardV2DraftController(base));
+    }
+    this.activeBreakpoint = resolvedActive;
+    this.ensure(resolvedActive);
+    return this.snapshot;
   }
 
   switchTo(breakpoint: FrakonBreakpoint): ResponsiveV2DraftSnapshot {
