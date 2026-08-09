@@ -9,6 +9,8 @@ import { canvasDashboardTranslate } from './canvas-dashboard-i18n';
 import { canvasV2CardConfigTranslate, type CanvasV2CardConfigTranslationKey } from './canvas-v2-card-config-i18n';
 import { canvasV2ClipboardTranslate, type CanvasV2ClipboardTranslationKey } from './canvas-v2-clipboard-i18n';
 import './canvas-v2-constraint-editor';
+import './canvas-v2-entity-list-field';
+import type { FrakonCanvasV2EntityListChangedDetail } from './canvas-v2-entity-list-field';
 import './canvas-v2-item-toolbar';
 import './canvas-v2-layer-toolbar';
 import './canvas-v2-selection-toolbar';
@@ -117,8 +119,8 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
       return html`<label class="field"><span class="label">${label}</span><select .value=${typeof value === 'string' && field.options.includes(value) ? value : field.options[0]} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLSelectElement).value)}>${field.options.map((option) => html`<option value=${option}>${option.replaceAll(' ', '')}</option>`)}</select></label>`;
     }
     if (field.kind === 'entity-list') {
-      const serialized = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string').join(', ') : '';
-      return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${serialized} placeholder=${field.domains?.map((domain) => `${domain}.*`).join(', ') ?? ''} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).value.split(',').map((entry) => entry.trim()).filter(Boolean))}></label>`;
+      const selected = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+      return html`<frakon-canvas-v2-entity-list-field .hass=${this.inheritedHass()} .domains=${field.domains} .selected=${selected} .label=${label} @frakon-canvas-v2-entity-list-changed=${(event: CustomEvent<FrakonCanvasV2EntityListChangedDetail>) => this.patchCardConfig(item.id, field.key, event.detail.value)}></frakon-canvas-v2-entity-list-field>`;
     }
     if (field.kind === 'entity') {
       const serialized = typeof value === 'string' ? value : '';
