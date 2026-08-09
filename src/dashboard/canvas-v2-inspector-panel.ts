@@ -9,6 +9,8 @@ import { canvasDashboardTranslate } from './canvas-dashboard-i18n';
 import { canvasV2CardConfigTranslate, type CanvasV2CardConfigTranslationKey } from './canvas-v2-card-config-i18n';
 import { canvasV2ClipboardTranslate, type CanvasV2ClipboardTranslationKey } from './canvas-v2-clipboard-i18n';
 import './canvas-v2-constraint-editor';
+import './canvas-v2-entity-field';
+import type { FrakonCanvasV2EntityChangedDetail } from './canvas-v2-entity-field';
 import './canvas-v2-entity-list-field';
 import type { FrakonCanvasV2EntityListChangedDetail } from './canvas-v2-entity-list-field';
 import './canvas-v2-item-toolbar';
@@ -18,7 +20,6 @@ import './canvas-v2-surface-editor';
 import { dashboardCanvasV2CardConfigFields, patchDashboardCanvasV2CardConfig, type DashboardCanvasV2CardConfigField } from './dashboard-canvas-v2-card-config';
 import { DashboardCanvasV2ClipboardController } from './dashboard-canvas-v2-clipboard-controller';
 import { summarizeDashboardCanvasV2ConstraintDiagnostics } from './dashboard-canvas-v2-constraint-diagnostics';
-import { dashboardCanvasV2EntityOptions } from './dashboard-canvas-v2-entity-options';
 import { insertDashboardCanvasV2Card } from './dashboard-canvas-v2-insert-card';
 import type { DashboardCanvasV2InspectorItemPatch } from './dashboard-canvas-v2-inspector-actions';
 import { dashboardCanvasV2InspectorSelection } from './dashboard-canvas-v2-inspector';
@@ -124,8 +125,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     }
     if (field.kind === 'entity') {
       const serialized = typeof value === 'string' ? value : '';
-      const options = dashboardCanvasV2EntityOptions(this.inheritedHass(), field.domains, serialized);
-      return html`<label class="field"><span class="label">${label}</span><select .value=${serialized} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLSelectElement).value)}><option value="" ?disabled=${field.required}>—</option>${options.map((option) => html`<option value=${option.entityId}>${option.label}</option>`)}</select></label>`;
+      return html`<frakon-canvas-v2-entity-field .hass=${this.inheritedHass()} .domains=${field.domains} .value=${serialized} .label=${label} .required=${field.required === true} @frakon-canvas-v2-entity-changed=${(event: CustomEvent<FrakonCanvasV2EntityChangedDetail>) => this.patchCardConfig(item.id, field.key, event.detail.value)}></frakon-canvas-v2-entity-field>`;
     }
     const serialized = typeof value === 'string' ? value : '';
     return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${serialized} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).value)}></label>`;
