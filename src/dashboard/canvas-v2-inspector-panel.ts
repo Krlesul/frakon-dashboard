@@ -82,26 +82,51 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
   private optionalNumberValue(event: Event): number | null | undefined { const raw = (event.currentTarget as HTMLInputElement).value.trim(); if (!raw) return null; const value = Number(raw); return Number.isFinite(value) ? value : undefined; }
   private itemField(itemId: string, key: 'x' | 'y' | 'width' | 'height', value: number, label: string) { return html`<label class="field"><span class="label">${label}</span><input type="number" .value=${String(Math.round(value))} @change=${(event: Event) => { const next = this.numberValue(event); if (next !== undefined) this.dispatchEdit({ kind: 'item', itemId, patch: { [key]: next } }); }}></label>`; }
   private optionalItemField(itemId: string, key: 'minWidth' | 'minHeight' | 'maxWidth' | 'maxHeight', value: number | undefined, label: string) { return html`<label class="field"><span class="label">${label}</span><input type="number" min="1" .value=${value === undefined ? '' : String(Math.round(value))} @change=${(event: Event) => { const next = this.optionalNumberValue(event); if (next !== undefined) this.dispatchEdit({ kind: 'item', itemId, patch: { [key]: next } }); }}></label>`; }
-  private cardConfigField(itemId: string, key: 'entity' | 'name' | 'title', value: unknown, label: string) {
-    return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${typeof value === 'string' ? value : ''} @change=${(event: Event) => this.patchCardConfig(itemId, key, (event.currentTarget as HTMLInputElement).value)}></label>`;
+
+  private cardFieldLabel(field: DashboardCanvasV2CardConfigField): string {
+    if (field.key === 'entity') return this.te('entity');
+    if (field.key === 'name') return this.te('name');
+    if (field.key === 'title') return this.te('title');
+    const labels: Record<Exclude<DashboardCanvasV2CardConfigField['key'], 'entity' | 'name' | 'title'>, CanvasV2CardConfigTranslationKey> = {
+      temperature_entity: 'temperatureEntity',
+      humidity_entity: 'humidityEntity',
+      range_entity: 'rangeEntity',
+      charging_power_entity: 'chargingPowerEntity',
+      charging_switch_entity: 'chargingSwitchEntity',
+      unit: 'unit',
+      light_entities: 'lightEntities',
+      show_brightness: 'showBrightness',
+      show_color_temperature: 'showColorTemperature',
+      show_position: 'showPosition',
+      show_state: 'showState',
+      show_volume: 'showVolume',
+      compact: 'compact',
+      step: 'temperatureStep',
+      precision: 'precision',
+      aspect_ratio: 'aspectRatio',
+    };
+    return this.tcc(labels[field.key as keyof typeof labels]);
   }
 
-  private typeSpecificCardField(item: FrakonCanvasItem, field: DashboardCanvasV2CardConfigField) {
-    if (field.kind === 'text') return nothing;
+  private renderCardConfigField(item: FrakonCanvasItem, field: DashboardCanvasV2CardConfigField) {
     const value = item.card[field.key];
+    const label = this.cardFieldLabel(field);
     if (field.kind === 'boolean') {
-      const labelKey: Record<typeof field.key, CanvasV2CardConfigTranslationKey> = {
-        show_brightness: 'showBrightness',
-        show_position: 'showPosition',
-        show_state: 'showState',
-        show_volume: 'showVolume',
-      };
-      return html`<label class="toggle option"><input type="checkbox" .checked=${value === true} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).checked)}>${this.tcc(labelKey[field.key])}</label>`;
+      return html`<label class="toggle option"><input type="checkbox" .checked=${value === true} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).checked)}>${label}</label>`;
+    }
+    if (field.kind === 'number') {
+      return html`<label class="field"><span class="label">${label}</span><input type="number" min=${String(field.min)} max=${String(field.max)} step=${field.integer ? '1' : '0.1'} .value=${typeof value === 'number' ? String(value) : ''} @change=${(event: Event) => { const next = Number((event.currentTarget as HTMLInputElement).value); if (Number.isFinite(next)) this.patchCardConfig(item.id, field.key, next); }}></label>`;
     }
     if (field.kind === 'select') {
-      return html`<label class="field"><span class="label">${this.tcc('aspectRatio')}</span><select .value=${typeof value === 'string' && field.options.includes(value) ? value : field.options[0]} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLSelectElement).value)}>${field.options.map((option) => html`<option value=${option}>${option.replaceAll(' ', '')}</option>`)}</select></label>`;
+      return html`<label class="field"><span class="label">${label}</span><select .value=${typeof value === 'string' && field.options.includes(value) ? value : field.options[0]} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLSelectElement).value)}>${field.options.map((option) => html`<option value=${option}>${option.replaceAll(' ', '')}</option>`)}</select></label>`;
     }
-    return html`<label class="field"><span class="label">${this.tcc('temperatureStep')}</span><input type="number" min=${String(field.min)} max=${String(field.max)} step="0.1" .value=${typeof value === 'number' ? String(value) : ''} @change=${(event: Event) => { const next = Number((event.currentTarget as HTMLInputElement).value); if (Number.isFinite(next)) this.patchCardConfig(item.id, field.key, next); }}></label>`;
+    if (field.kind === 'entity-list') {
+      const serialized = Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string').join(', ') : '';
+      return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${serialized} placeholder=${field.domains?.map((domain) => `${domain}.*`).join(', ') ?? ''} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).value.split(',').map((entry) => entry.trim()).filter(Boolean))}></label>`;
+    }
+    const serialized = typeof value === 'string' ? value : '';
+    const placeholder = field.kind === 'entity' ? field.domains?.map((domain) => `${domain}.*`).join(' / ') ?? 'domain.object_id' : '';
+    return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${serialized} placeholder=${placeholder} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).value)}></label>`;
   }
 
   private patchCardConfig(itemId: string, key: string, value: unknown): void {
@@ -202,7 +227,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     const single = selection.single;
     const diagnosticClass = diagnostics.severity === 'error' ? 'error' : diagnostics.severity === 'warning' ? 'warning' : '';
     const canCopy = this.canCopySelection();
-    const typeFields = single ? dashboardCanvasV2CardConfigFields(single.card).filter((field) => field.kind !== 'text') : [];
+    const cardFields = single ? dashboardCanvasV2CardConfigFields(single.card) : [];
     return html`<section class="panel">
       <div class="title"><span>${this.t('inspector')}</span><span>${selection.count} ${this.t('selected')}</span></div>
       <div class="summary">
@@ -219,12 +244,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
       </div>
       ${this.showPalette ? html`<div class="palette-wrap"><frakon-card-palette .language=${this.language} @frakon-card-template-selected=${this.addCard}></frakon-card-palette></div>` : nothing}
       ${single ? html`
-        <div class="config-grid">
-          ${this.cardConfigField(single.id, 'entity', single.card.entity, this.te('entity'))}
-          ${this.cardConfigField(single.id, 'name', single.card.name, this.te('name'))}
-          ${this.cardConfigField(single.id, 'title', single.card.title, this.te('title'))}
-          ${typeFields.map((field) => this.typeSpecificCardField(single, field))}
-        </div>
+        <div class="config-grid">${cardFields.map((field) => this.renderCardConfigField(single, field))}</div>
         <div class="grid">${this.itemField(single.id,'x',single.frame.x,'X')}${this.itemField(single.id,'y',single.frame.y,'Y')}${this.itemField(single.id,'width',single.frame.width,'W')}${this.itemField(single.id,'height',single.frame.height,'H')}${this.optionalItemField(single.id,'minWidth',single.minWidth,'min W')}${this.optionalItemField(single.id,'minHeight',single.minHeight,'min H')}${this.optionalItemField(single.id,'maxWidth',single.maxWidth,'max W')}${this.optionalItemField(single.id,'maxHeight',single.maxHeight,'max H')}</div>
         <label class="toggle"><input type="checkbox" .checked=${single.locked === true} @change=${(event: Event) => this.dispatchEdit({ kind: 'item', itemId: single.id, patch: { locked: (event.currentTarget as HTMLInputElement).checked } })}>${this.t('locked')}</label>
       ` : nothing}
