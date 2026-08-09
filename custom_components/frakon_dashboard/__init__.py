@@ -3,7 +3,13 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DATA_BACKEND, DATA_WEBSOCKET_REGISTERED, DOMAIN
+from .const import (
+    DATA_BACKEND,
+    DATA_FRONTEND_REGISTERED,
+    DATA_WEBSOCKET_REGISTERED,
+    DOMAIN,
+)
+from .frontend import async_register_frontend
 from .responsive_storage import FrakonResponsiveDashboardStorage
 from .responsive_websocket import register_responsive_commands
 from .storage import FrakonDashboardStorage
@@ -29,10 +35,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         register_responsive_commands(hass, responsive_storage)
         data[DATA_WEBSOCKET_REGISTERED] = True
 
+    if not data.get(DATA_FRONTEND_REGISTERED):
+        if await async_register_frontend(hass):
+            data[DATA_FRONTEND_REGISTERED] = True
+
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    # WebSocket commands are registered for the Home Assistant process lifetime.
-    # Keeping the backend objects prevents dangling handlers after an entry reload.
+    # WebSocket commands and the static frontend path are registered for the
+    # Home Assistant process lifetime. Keeping backend objects prevents dangling
+    # handlers after a config-entry reload.
     return True
