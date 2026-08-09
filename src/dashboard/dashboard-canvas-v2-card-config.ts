@@ -9,7 +9,8 @@ export interface DashboardCanvasV2CardConfigPatchResult {
 export type DashboardCanvasV2CardConfigField =
   | { key: 'entity' | 'name' | 'title'; kind: 'text' }
   | { key: 'show_brightness' | 'show_position' | 'show_state' | 'show_volume'; kind: 'boolean' }
-  | { key: 'step'; kind: 'number'; min: number; max: number };
+  | { key: 'step'; kind: 'number'; min: number; max: number }
+  | { key: 'aspect_ratio'; kind: 'select'; options: readonly string[] };
 
 const GENERIC_FIELDS: readonly DashboardCanvasV2CardConfigField[] = [
   { key: 'entity', kind: 'text' },
@@ -21,7 +22,10 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
   'custom:frakon-light-card': [{ key: 'show_brightness', kind: 'boolean' }],
   'custom:frakon-climate-card': [{ key: 'step', kind: 'number', min: 0.1, max: 10 }],
   'custom:frakon-cover-card': [{ key: 'show_position', kind: 'boolean' }],
-  'custom:frakon-camera-card': [{ key: 'show_state', kind: 'boolean' }],
+  'custom:frakon-camera-card': [
+    { key: 'show_state', kind: 'boolean' },
+    { key: 'aspect_ratio', kind: 'select', options: ['16 / 9', '4 / 3', '1 / 1'] },
+  ],
   'custom:frakon-media-player-card': [{ key: 'show_volume', kind: 'boolean' }],
 };
 
@@ -42,6 +46,12 @@ function normalizeFieldValue(field: DashboardCanvasV2CardConfigField, value: unk
   }
   if (field.kind === 'boolean') {
     if (typeof value !== 'boolean') return { valid: false, reason: `${field.key} must be a boolean.` };
+    return { valid: true, value };
+  }
+  if (field.kind === 'select') {
+    if (typeof value !== 'string' || !field.options.includes(value)) {
+      return { valid: false, reason: `${field.key} must be one of: ${field.options.join(', ')}.` };
+    }
     return { valid: true, value };
   }
   if (typeof value !== 'number' || !Number.isFinite(value) || value < field.min || value > field.max) {
