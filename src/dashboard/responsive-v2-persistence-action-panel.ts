@@ -8,6 +8,7 @@ import type { ResponsiveCanvasV2ConflictSelections } from './responsive-v2-confl
 import type { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
 import { resolveResponsiveV2EditorConflict, saveResponsiveV2EditorCandidate } from './responsive-v2-editor-save-coordinator';
 import type { ResponsiveCanvasV2RevisionEnvelope } from './responsive-v2-revision';
+import { responsiveV2SavedState } from './responsive-v2-saved-state';
 import './responsive-v2-save-panel';
 import { ResponsiveCanvasV2SavePreviewSession } from './responsive-v2-save-preview-session';
 import type { ResponsiveCanvasV2ConflictSession } from './responsive-v2-sync-controller';
@@ -50,13 +51,17 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
   }
 
   private acceptSaved(envelope: ResponsiveCanvasV2RevisionEnvelope): void {
-    this.controller?.replaceFromBundle(envelope.bundle);
+    const controller = this.controller;
+    if (!controller) return;
+    controller.replaceFromBundle(envelope.bundle);
     this.baseRevision = envelope.revision;
     this.conflict = undefined;
     this.message = 'Saved';
     this.requestUpdate();
     this.dispatchEvent(new CustomEvent('frakon-responsive-v2-saved', {
-      detail: { envelope }, bubbles: true, composed: true,
+      detail: { envelope, state: responsiveV2SavedState(controller, envelope) },
+      bubbles: true,
+      composed: true,
     }));
   }
 
