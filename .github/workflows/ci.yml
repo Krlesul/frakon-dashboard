@@ -29,6 +29,12 @@ jobs:
       - run: npm run build
       - run: python scripts/build_hacs_release.py
       - run: python scripts/verify_hacs_release.py
+      - name: Simulate Home Assistant install
+        run: |
+          rm -rf /tmp/frakon-ha-config
+          mkdir -p /tmp/frakon-ha-config
+          unzip -q dist/frakon_dashboard.zip -d /tmp/frakon-ha-config
+          python scripts/verify_home_assistant_install.py /tmp/frakon-ha-config
       - uses: actions/upload-artifact@v7
         with:
           name: frakon-dashboard
