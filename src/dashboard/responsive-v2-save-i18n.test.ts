@@ -15,4 +15,12 @@ describe('responsive v2 save i18n', () => {
     expect(responsiveV2SaveTranslate('de', 'save')).toContain('speichern');
     expect(responsiveV2SaveTranslate('pl', 'save')).toContain('Zapisz');
   });
+
+  it('contains localized non-mutating server validation labels', () => {
+    expect(responsiveV2SaveTranslate('en', 'validateOnServer')).toContain('Validate');
+    expect(responsiveV2SaveTranslate('cs', 'validateOnServer')).toContain('Ověřit');
+    expect(responsiveV2SaveTranslate('de', 'validateOnServer')).toContain('Server');
+    expect(responsiveV2SaveTranslate('sk', 'validationValid')).toContain('úložisko');
+    expect(responsiveV2SaveTranslate('pl', 'validationConflict')).toContain('rewizję');
+  });
 });
