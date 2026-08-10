@@ -3,6 +3,7 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .build_websocket import register_build_info_command
 from .const import (
     DATA_BACKEND,
     DATA_FRONTEND_REGISTERED,
@@ -33,6 +34,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not data.get(DATA_WEBSOCKET_REGISTERED):
         register_websocket_commands(hass, storage)
         register_responsive_commands(hass, responsive_storage)
+        register_build_info_command(hass)
         data[DATA_WEBSOCKET_REGISTERED] = True
 
     if not data.get(DATA_FRONTEND_REGISTERED):
