@@ -22,6 +22,7 @@ export interface ResponsiveCanvasV2HealthReport {
   maxSerializedBytes?: number;
   storageNamespace?: string;
   loadEndpoint?: string;
+  dryRunEndpoint?: string;
   saveEndpoint?: string;
   removeEndpoint?: string;
   baseRevision?: string;
@@ -70,6 +71,7 @@ function fromInputs(inputs: HealthInputs): ResponsiveCanvasV2HealthReport {
     maxSerializedBytes: responsive?.maxSerializedBytes,
     storageNamespace: responsive?.storageNamespace,
     loadEndpoint: responsive?.loadEndpoint,
+    dryRunEndpoint: responsive?.dryRunEndpoint,
     saveEndpoint: responsive?.saveEndpoint,
     removeEndpoint: responsive?.removeEndpoint,
     baseRevision: inputs.baseRevision,
