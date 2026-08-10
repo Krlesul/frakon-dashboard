@@ -4,43 +4,44 @@ This checklist is for the first real installation of the current FRAKON Dashboar
 
 > Use a non-critical test dashboard first. Do not rely on this alpha as the only control surface for gates, locks, heating protection or other safety-critical devices.
 
-## 1. Download the verified bundle
+## 1. Download the verified alpha package
 
 1. Open the latest successful `CI` workflow run for the current pull request.
-2. Download the `frakon-dashboard` artifact.
-3. Extract `frakon-dashboard.js`.
-
-The expected file name is exactly:
+2. Download the `frakon-dashboard` workflow artifact.
+3. Inside the artifact use the verified integration package:
 
 ```text
-frakon-dashboard.js
+frakon_dashboard.zip
 ```
 
-## 2. Copy the frontend and backend into Home Assistant
+The CI pipeline builds this ZIP from the current backend plus the current Vite frontend and then verifies its contents before publishing the artifact.
 
-Create this directory if it does not exist:
+The ZIP must contain:
 
 ```text
-/config/www/frakon-dashboard/
+custom_components/
+└── frakon_dashboard/
+    ├── __init__.py
+    ├── manifest.json
+    ├── frontend.py
+    ├── responsive_storage.py
+    ├── responsive_websocket.py
+    ├── storage.py
+    ├── websocket.py
+    ├── translations/
+    └── frontend/
+        └── frakon-dashboard.js
 ```
 
-Copy the downloaded bundle to:
+## 2. Install the alpha package
 
-```text
-/config/www/frakon-dashboard/frakon-dashboard.js
-```
-
-For server-side persistence also copy:
-
-```text
-custom_components/frakon_dashboard
-```
-
-to:
+For the first private alpha test, extract `frakon_dashboard.zip` into the Home Assistant config directory so the final path is:
 
 ```text
 /config/custom_components/frakon_dashboard
 ```
+
+Do **not** separately copy the JavaScript bundle into `/config/www`. The integration now ships and serves its own bundled frontend.
 
 Restart Home Assistant and add **FRAKON Dashboard** from:
 
@@ -48,27 +49,29 @@ Restart Home Assistant and add **FRAKON Dashboard** from:
 Settings → Devices & services → Add integration
 ```
 
-## 3. Register the Lovelace resource
-
-In Home Assistant open:
+The integration exposes the frontend module at:
 
 ```text
-Settings → Dashboards → Resources
+/frakon-dashboard/frakon-dashboard.js
 ```
 
-Add:
+In Lovelace storage mode the integration attempts to create or repair this JavaScript-module resource automatically. In YAML resource mode it does not rewrite YAML; add the URL above manually as a module resource.
+
+## 3. Run the install self-check
+
+If you have terminal access to the Home Assistant config directory, run the repository self-check against the installed config:
+
+```bash
+python3 scripts/verify_home_assistant_install.py /config
+```
+
+Expected result:
 
 ```text
-/local/frakon-dashboard/frakon-dashboard.js?v=alpha-1
+FRAKON Dashboard install self-check: OK
 ```
 
-Resource type:
-
-```text
-JavaScript module
-```
-
-If the resource already exists, change the query suffix after every copied build, for example from `alpha-1` to `alpha-2`. This avoids browser and service-worker cache confusion during development.
+The self-check verifies the integration directory, manifest domain/version/config flow, required `http` and `lovelace` dependencies, bundled frontend size and production custom-element registration markers.
 
 ## 4. Test the stable grid dashboard first
 
@@ -95,25 +98,19 @@ items: []
 
 The `entity` field is currently required by the Home Assistant card contract but is not used as the dashboard's only data source.
 
-## 5. Stable editor smoke test
-
-Confirm the following in this order:
+Confirm:
 
 - FRAKON Dashboard renders without a red custom-element error.
 - The editor language follows `language: cs`.
 - A FRAKON card can be added and assigned to a real Home Assistant entity.
-- The card can be moved and resized with pointer handles.
-- Multi-selection and marquee selection work.
-- Locked cards remain immovable.
-- Collision feedback prevents invalid commits.
+- Pointer move/resize, marquee, multi-selection and locked cards work.
+- Collision feedback blocks invalid commits.
 - Undo and Redo restore layout changes.
-- Reloading another browser or device restores the server-side layout.
-- Export and Import preserve the dashboard.
-- Automatic layout preview can be generated, applied and restored.
+- Reloading another browser/device restores server-side layout where that storage path is enabled.
 
-## 6. Experimental native canvas v2
+## 5. Experimental native canvas v2
 
-Add a second Manual card using the same backend but a separate dashboard ID:
+Add a second Manual card with a separate dashboard ID:
 
 ```yaml
 type: custom:frakon-canvas-dashboard-card
@@ -126,25 +123,32 @@ storage: home-assistant
 items: []
 ```
 
-The native v2 editor currently supports local-draft editing with:
+The native v2 editor currently includes:
 
-- free pixel move and resize,
+- free-pixel move and resize,
 - multi-select and marquee,
-- constraints and live constraint diagnostics,
 - alignment guidelines,
+- constraints and live constraint diagnostics,
 - align/distribute/equal-gap actions,
 - layers / z-order,
-- duplicate and delete,
+- Add Card palette,
+- Copy / Cut / Paste plus `Ctrl/Cmd+C/X/V`,
 - Undo / Redo,
 - zoom, pan, wheel zoom and pinch-to-zoom,
 - per-device viewport memory,
-- Mobile / Tablet / Desktop / Wide breakpoint drafts.
+- Mobile / Tablet / Desktop / Wide breakpoint drafts,
+- Auto / Manual responsive mode,
+- Copy layout from another breakpoint and Reset active layout,
+- searchable single-entity selectors,
+- searchable multi-entity checklists,
+- schema-driven card configuration,
+- Dashboard / Card defaults / Selection surface styling,
+- responsive persistence diagnostics,
+- Save Readiness and breakpoint-aware conflict-resolution UI.
 
-Responsive v2 server **reads** are enabled. Responsive v2 server **writes remain intentionally locked** during this alpha stage. The save-readiness model must therefore report `write-disabled` and no responsive save request should mutate Home Assistant storage.
+Responsive v2 server **reads are enabled**. Responsive v2 server **writes remain intentionally locked** during this alpha stage.
 
-In edit mode with `storage: home-assistant`, confirm that the **Responsive persistence diagnostics** panel is visible below the breakpoint toolbar.
-
-## 7. Responsive breakpoint test
+## 6. Responsive breakpoint test
 
 Use these breakpoint boundaries:
 
@@ -153,20 +157,19 @@ Use these breakpoint boundaries:
 - desktop: 1024–1599 px
 - wide: 1600 px and above
 
-For native v2, verify:
+Verify:
 
-- each breakpoint can keep different frame geometry,
+- each breakpoint keeps independent frame geometry,
 - switching breakpoints preserves each local Undo/Redo timeline,
 - shared card configuration remains synchronized,
-- zoom/pan memory is independent per breakpoint and device,
-- Auto mode follows viewport width,
-- Manual mode keeps the explicitly selected breakpoint after resize.
+- zoom/pan memory is independent per breakpoint/device,
+- Auto follows viewport width,
+- Manual keeps the selected breakpoint after resize,
+- Copy layout and Reset active are single undoable draft operations.
 
-## 8. Responsive storage isolation and transport metadata test
+## 7. Responsive storage isolation and transport metadata
 
-Responsive bundles use a dedicated Home Assistant Store namespace and must not overwrite legacy/single-document dashboard data.
-
-The diagnostics panel should report these current alpha values:
+The diagnostics panel should report the current alpha contract:
 
 ```text
 contractVersion: 1
@@ -179,74 +182,76 @@ saveEndpoint: frakon/dashboard/save_responsive_revision
 removeEndpoint: frakon/dashboard/remove_responsive_revision
 ```
 
-Use the same `dashboard_id` for a legacy/single-v2 test document and a responsive bundle test. Verify that:
+Responsive bundles use a dedicated Home Assistant Store namespace and must not overwrite legacy/single-document dashboard data.
 
-1. `frakon/dashboard/load_revision` still returns the legacy/single-document revision.
-2. `frakon/dashboard/load_responsive_bundle_revision` independently returns the responsive bundle revision or `null`.
-3. Loading the experimental canvas prefers the responsive bundle when present.
-4. If the responsive bundle is absent, the client falls back to single-v2 and then v1.
-5. A malformed responsive bundle is reported as invalid and is not silently hidden behind fallback data.
-6. The responsive storage namespace shown by diagnostics is not the legacy dashboard Store key.
+Verify that a responsive bundle is preferred when present, single-v2 is used when responsive data is absent, and v1 remains the final compatibility fallback. A malformed responsive bundle must be reported as invalid rather than silently hidden behind fallback data.
 
-## 9. Responsive validation and quota test
+## 8. Responsive validation and quota test
 
-Before any write unlock, verify locally or with guarded test payloads that responsive validation rejects:
+Before any write unlock, validation must reject:
 
 - more than 2000 items across all breakpoint documents,
 - more than 4000 constraints in one breakpoint,
 - duplicate item IDs,
 - negative or non-finite frame coordinates,
 - zero/non-finite frame dimensions,
-- invalid or missing constraint references,
+- invalid/missing constraint references,
 - self-referential constraints,
 - duplicate constraint IDs,
 - enabled constraint dependency cycles,
-- a serialized responsive bundle larger than 2,000,000 bytes.
+- a serialized responsive bundle larger than 2,000,000 bytes,
+- invalid revision envelopes including negative timestamps or self-parent revisions.
 
-A disabled constraint may temporarily close an otherwise cyclic dependency graph; enabling it must be rejected until the cycle is removed.
-
-## 10. Responsive write-safety and audit test
+## 9. Responsive write-safety and audit test
 
 Before responsive writes are intentionally enabled, verify all of the following:
 
-- server capabilities report `responsiveCanvasV2.read = true`,
-- server capabilities report `responsiveCanvasV2.write = false`,
+- `responsiveCanvasV2.read = true`,
+- `responsiveCanvasV2.write = false`,
 - `atomicRevision = true`,
-- the Save Readiness model lists `write-disabled`,
-- the Save control remains disabled,
-- a direct `save_responsive_revision` attempt is rejected with `unsupported_responsive_write`,
-- a direct `remove_responsive_revision` attempt is rejected with `unsupported_responsive_write`,
-- the responsive Home Assistant Store remains unchanged after either rejected request,
-- Home Assistant logs contain a sanitized blocked-persistence audit line with operation, dashboard ID, contract version and reason,
-- the audit log does **not** contain the responsive bundle/card payload.
+- revision sync is enabled,
+- Save Readiness lists `write-disabled`,
+- Save remains disabled,
+- direct `save_responsive_revision` is rejected with `unsupported_responsive_write`,
+- direct `remove_responsive_revision` is rejected with `unsupported_responsive_write`,
+- responsive storage remains unchanged after rejected requests,
+- Home Assistant logs contain only sanitized blocked-persistence audit metadata and never the dashboard/card payload.
 
-Do not enable the responsive write allowlist until real-device round-trip, restart recovery and multi-device conflict tests pass.
+The CI workflow separately enforces this write-lock invariant. Do not change the responsive writable allowlist until the real-device round-trip, restart recovery and multi-device conflict tests pass.
 
-## 11. Browser console check
+## 10. Save/conflict UI dry run
 
-Open the browser developer console and record:
+The current frontend already contains the complete guarded flow:
+
+```text
+stable preview
+→ exact candidate validation
+→ capability/write gate
+→ optimistic save
+→ breakpoint conflict session
+→ Local / Remote selection per breakpoint
+→ child revision against the latest remote revision
+```
+
+With the alpha write lock active, this flow must stop before transport mutation. After the future controlled unlock, verify that a successful save resets all breakpoint drafts to a clean base, clears Undo/Redo history and advances the displayed revision.
+
+## 11. Browser console and runtime check
+
+Record:
 
 - red JavaScript errors,
-- failed requests for `frakon-dashboard.js`,
-- custom element registration errors,
+- failed requests for `/frakon-dashboard/frakon-dashboard.js`,
+- custom-element registration errors,
 - Home Assistant card creation errors,
 - WebSocket capability/load errors,
-- storage or revision errors.
+- storage/revision errors.
 
-When reporting a problem, include:
-
-- Home Assistant version,
-- browser and device,
-- exact resource URL including the cache suffix,
-- dashboard YAML,
-- console error text,
-- screenshot or screen recording,
-- exported FRAKON dashboard JSON when the issue concerns layout.
+When reporting an issue include Home Assistant version, browser/device, dashboard YAML, console error text, screenshot/recording and exported FRAKON dashboard JSON when layout is involved.
 
 ## 12. Current expected limitations
 
-- Public HACS release installation is not ready yet; this test still uses the verified CI artifact and manual backend copy.
-- Responsive v2 writes are deliberately disabled even though the validated transport and conflict-resolution layers are already implemented.
-- The experimental canvas is not yet the recommended sole production editor.
-- Automatic importance scoring is currently based on card type and optional manual `priority` metadata; full live contextual AI scoring will be added later.
-- Real-device testing across multiple Home Assistant installations is still required before the responsive write gate is opened.
+- The repository is still private, so this is not yet a public HACS distribution flow.
+- A final FRAKON brand asset is still required before public HACS publication.
+- Responsive v2 writes are deliberately disabled even though the validated save/conflict/remove transport layers are implemented.
+- Real-device testing across multiple Home Assistant installations/devices is still required before the responsive write gate is opened.
+- The experimental canvas should not yet be the sole production control surface for safety-critical functions.
