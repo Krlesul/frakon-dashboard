@@ -4,6 +4,7 @@ import type { DashboardLayoutCapabilities } from './dashboard-layout-version-pol
 export const RESPONSIVE_CANVAS_V2_CONTRACT_VERSION = 1;
 export const RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE = 'frakon_dashboard.responsive_dashboards';
 export const RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT = 'frakon/dashboard/load_responsive_bundle_revision';
+export const RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT = 'frakon/dashboard/dry_run_responsive_revision';
 export const RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT = 'frakon/dashboard/save_responsive_revision';
 export const RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT = 'frakon/dashboard/remove_responsive_revision';
 
@@ -18,6 +19,7 @@ export interface DashboardResponsiveCanvasV2CapabilityResponse {
   maxSerializedBytes?: number;
   storageNamespace?: string;
   loadEndpoint?: string;
+  dryRunEndpoint?: string;
   saveEndpoint?: string;
   removeEndpoint?: string;
 }
@@ -42,6 +44,7 @@ export interface DashboardResponsiveCanvasV2Capabilities {
   maxSerializedBytes?: number;
   storageNamespace?: string;
   loadEndpoint?: string;
+  dryRunEndpoint?: string;
   saveEndpoint?: string;
   removeEndpoint?: string;
 }
@@ -101,6 +104,7 @@ export function normalizeDashboardServerCapabilities(
       maxSerializedBytes: contractCompatible ? positiveInteger(responsive?.maxSerializedBytes) : undefined,
       storageNamespace: contractCompatible && typeof responsive?.storageNamespace === 'string' ? responsive.storageNamespace : undefined,
       loadEndpoint: contractCompatible && typeof responsive?.loadEndpoint === 'string' ? responsive.loadEndpoint : undefined,
+      dryRunEndpoint: contractCompatible && typeof responsive?.dryRunEndpoint === 'string' ? responsive.dryRunEndpoint : undefined,
       saveEndpoint: contractCompatible && typeof responsive?.saveEndpoint === 'string' ? responsive.saveEndpoint : undefined,
       removeEndpoint: contractCompatible && typeof responsive?.removeEndpoint === 'string' ? responsive.removeEndpoint : undefined,
     },
