@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from '../home-assistant/types';
 import type { SupportedLanguage } from '../i18n';
+import './dashboard-build-info-badge';
 import type { DashboardStorageTransport } from './dashboard-storage';
 import { applyResponsiveV2SavedStateToParent, type ResponsiveV2ParentStateHost } from './responsive-v2-parent-state-bridge';
 import './responsive-v2-persistence-action-panel';
@@ -64,9 +65,11 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
     const report = this.report;
     if (!report) return nothing;
     const context = report.editorContext;
+    const hass = this.inheritedHass();
     const transport = this.transport();
 
     return html`<div class="stack">
+      <frakon-dashboard-build-info-badge .hass=${hass}></frakon-dashboard-build-info-badge>
       <section class="panel" aria-label=${this.t('title')}>
         <div class="head"><span>${this.t('title')}</span><span class="status ${report.status}">${this.t(report.status)}</span></div>
         <div class="grid">
