@@ -3,6 +3,7 @@ import type { DashboardStorageTransport } from './dashboard-storage';
 import { RESPONSIVE_CANVAS_V2_CONTRACT_VERSION, type DashboardServerCapabilities } from './dashboard-server-capabilities';
 import { createResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
 import {
+  dryRunResponsiveCanvasV2Revision,
   persistResponsiveCanvasV2Revision,
   removeResponsiveCanvasV2Revision,
   responsiveCanvasV2PersistenceDecision,
@@ -34,6 +35,7 @@ function capabilities(write: boolean): DashboardServerCapabilities {
       write,
       atomicRevision: true,
       breakpoints: new Set(['mobile', 'tablet', 'desktop', 'wide']),
+      dryRunEndpoint: 'frakon/dashboard/dry_run_responsive_revision',
     },
   };
 }
@@ -42,6 +44,9 @@ class Transport implements DashboardStorageTransport {
   requests: Array<{ command: string; payload: Record<string, unknown> }> = [];
   async request<T>(command: string, payload: Record<string, unknown>): Promise<T> {
     this.requests.push({ command, payload });
+    if (command.endsWith('/dry_run_responsive_revision')) {
+      return { status: 'valid', currentRevision: payload.expectedRevision ?? null, writeEnabled: false } as T;
+    }
     if (command.endsWith('/remove_responsive_revision')) return { status: 'removed' } as T;
     const envelope = payload.envelope as Record<string, unknown>;
     return { status: 'saved', envelope } as T;
@@ -56,6 +61,22 @@ describe('responsive canvas v2 persistence gate', () => {
     const result = await persistResponsiveCanvasV2Revision(transport, capabilities(false), envelope, undefined);
     expect(result).toEqual({ status: 'blocked', reason: 'write-disabled' });
     expect(transport.requests).toEqual([]);
+  });
+
+  it('allows non-mutating server dry-run while write capability remains disabled', async () => {
+    const bundle = createResponsiveCanvasV2Bundle({ desktop: document() }, 'desktop');
+    const envelope = createResponsiveCanvasV2Revision(bundle, 'client', undefined, 100);
+    const transport = new Transport();
+    const result = await dryRunResponsiveCanvasV2Revision(transport, capabilities(false), envelope, undefined);
+    expect(result).toEqual({ status: 'valid', currentRevision: undefined, writeEnabled: false });
+    expect(transport.requests).toHaveLength(1);
+    expect(transport.requests[0]).toMatchObject({
+      command: 'frakon/dashboard/dry_run_responsive_revision',
+      payload: {
+        contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+        expectedRevision: null,
+      },
+    });
   });
 
   it('blocks remove before transport when server write capability is disabled', async () => {
