@@ -7,5 +7,6 @@ describe('responsive v2 health i18n', () => {
     expect(responsiveV2HealthTranslate('de', 'blocked')).toBe('Blockiert');
     expect(responsiveV2HealthTranslate('sk', 'write')).toBe('Zápis');
     expect(responsiveV2HealthTranslate('pl', 'conflict')).toBe('Konflikt');
+    expect(responsiveV2HealthTranslate('cs', 'dryRunEndpoint')).toContain('bez zápisu');
   });
 });
