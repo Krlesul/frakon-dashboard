@@ -18,6 +18,7 @@ RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS = 4000
 RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES = 2_000_000
 RESPONSIVE_CANVAS_V2_STORAGE_KEY = "frakon_dashboard.responsive_dashboards"
 RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT = "frakon/dashboard/load_responsive_bundle_revision"
+RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT = "frakon/dashboard/dry_run_responsive_revision"
 RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT = "frakon/dashboard/save_responsive_revision"
 RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT = "frakon/dashboard/remove_responsive_revision"
 READABLE_RESPONSIVE_BUNDLE_KINDS = frozenset({RESPONSIVE_CANVAS_V2_KIND})
