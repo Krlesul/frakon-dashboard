@@ -5,6 +5,7 @@ import {
   loadDashboardServerCapabilities,
   normalizeDashboardServerCapabilities,
   RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+  RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
   RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
   RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
   RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
@@ -32,6 +33,7 @@ class Transport implements DashboardStorageTransport {
         maxSerializedBytes: 2_000_000,
         storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
         loadEndpoint: RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+        dryRunEndpoint: RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
         saveEndpoint: RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
         removeEndpoint: RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
       },
@@ -59,6 +61,7 @@ describe('dashboard server capabilities', () => {
       maxSerializedBytes: 2_000_000,
       storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
       loadEndpoint: RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+      dryRunEndpoint: RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
       saveEndpoint: RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
       removeEndpoint: RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
     });
@@ -84,6 +87,7 @@ describe('dashboard server capabilities', () => {
       maxSerializedBytes: undefined,
       storageNamespace: undefined,
       loadEndpoint: undefined,
+      dryRunEndpoint: undefined,
       saveEndpoint: undefined,
       removeEndpoint: undefined,
     });
@@ -124,6 +128,7 @@ describe('dashboard server capabilities', () => {
           maxSerializedBytes: 2_000_000,
           storageNamespace: 'wrong',
           loadEndpoint: 'wrong',
+          dryRunEndpoint: 'wrong',
           saveEndpoint: 'wrong',
           removeEndpoint: 'wrong',
         },
@@ -135,6 +140,7 @@ describe('dashboard server capabilities', () => {
       expect([...capabilities.responsiveCanvasV2.breakpoints]).toEqual([]);
       expect(capabilities.responsiveCanvasV2.storageNamespace).toBeUndefined();
       expect(capabilities.responsiveCanvasV2.loadEndpoint).toBeUndefined();
+      expect(capabilities.responsiveCanvasV2.dryRunEndpoint).toBeUndefined();
     }
   });
 
