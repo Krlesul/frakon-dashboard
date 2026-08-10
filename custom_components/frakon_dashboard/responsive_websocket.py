@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from .const import (
     READABLE_RESPONSIVE_BUNDLE_KINDS,
     RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+    RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
     RESPONSIVE_CANVAS_V2_KIND,
     RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
     RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
@@ -207,6 +208,29 @@ RESPONSIVE_REVISION_ENVELOPE = vol.All(
 )
 
 
+def _validate_candidate_lineage(
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+    envelope: dict[str, Any],
+    expected_revision: str | None,
+) -> bool:
+    if envelope.get("parentRevision") != expected_revision:
+        connection.send_error(
+            msg["id"],
+            "invalid_parent_revision",
+            "Envelope parentRevision must match expectedRevision.",
+        )
+        return False
+    if expected_revision is not None and envelope.get("revision") == expected_revision:
+        connection.send_error(
+            msg["id"],
+            "invalid_revision",
+            "A responsive revision must differ from its parent revision.",
+        )
+        return False
+    return True
+
+
 def register_responsive_commands(
     hass: HomeAssistant,
     storage: FrakonResponsiveDashboardStorage,
@@ -233,6 +257,52 @@ def register_responsive_commands(
             connection.send_error(msg["id"], "invalid_responsive_bundle", str(err))
             return
         connection.send_result(msg["id"], validated)
+
+    @websocket_api.require_admin
+    @websocket_api.async_response
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
+            vol.Required("contractVersion"): vol.Coerce(int),
+            vol.Required("envelope"): RESPONSIVE_REVISION_ENVELOPE,
+            vol.Optional("expectedRevision", default=None): EXPECTED_REVISION,
+        }
+    )
+    async def handle_dry_run_responsive_revision(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        envelope = dict(msg["envelope"])
+        bundle = envelope["document"]
+        dashboard_id = bundle["id"]
+        contract_version = msg["contractVersion"]
+        if contract_version != RESPONSIVE_CANVAS_V2_CONTRACT_VERSION:
+            connection.send_error(
+                msg["id"],
+                "responsive_contract_incompatible",
+                f"Responsive contract version {contract_version} is not supported; expected {RESPONSIVE_CANVAS_V2_CONTRACT_VERSION}.",
+            )
+            return
+
+        expected_revision = msg.get("expectedRevision")
+        if not _validate_candidate_lineage(connection, msg, envelope, expected_revision):
+            return
+
+        remote = await storage.load_revision(dashboard_id)
+        remote_revision = remote.get("revision") if remote else None
+        if remote_revision != expected_revision:
+            connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
+            return
+
+        connection.send_result(
+            msg["id"],
+            {
+                "status": "valid",
+                "currentRevision": remote_revision,
+                "writeEnabled": bundle.get("kind") in WRITABLE_RESPONSIVE_BUNDLE_KINDS,
+            },
+        )
 
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -280,19 +350,7 @@ def register_responsive_commands(
             return
 
         expected_revision = msg.get("expectedRevision")
-        if envelope.get("parentRevision") != expected_revision:
-            connection.send_error(
-                msg["id"],
-                "invalid_parent_revision",
-                "Envelope parentRevision must match expectedRevision.",
-            )
-            return
-        if expected_revision is not None and envelope.get("revision") == expected_revision:
-            connection.send_error(
-                msg["id"],
-                "invalid_revision",
-                "A saved responsive revision must differ from its parent revision.",
-            )
+        if not _validate_candidate_lineage(connection, msg, envelope, expected_revision):
             return
 
         saved, remote = await storage.save_revision(envelope, expected_revision)
@@ -355,5 +413,6 @@ def register_responsive_commands(
         connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
 
     websocket_api.async_register_command(hass, handle_load_responsive_revision)
+    websocket_api.async_register_command(hass, handle_dry_run_responsive_revision)
     websocket_api.async_register_command(hass, handle_save_responsive_revision)
     websocket_api.async_register_command(hass, handle_remove_responsive_revision)
