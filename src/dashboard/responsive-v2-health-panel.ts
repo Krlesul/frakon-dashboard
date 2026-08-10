@@ -3,9 +3,11 @@ import { customElement, property } from 'lit/decorators.js';
 import type { HomeAssistant } from '../home-assistant/types';
 import type { SupportedLanguage } from '../i18n';
 import type { DashboardStorageTransport } from './dashboard-storage';
+import { applyResponsiveV2SavedStateToParent, type ResponsiveV2ParentStateHost } from './responsive-v2-parent-state-bridge';
 import './responsive-v2-persistence-action-panel';
 import type { ResponsiveCanvasV2HealthReport } from './responsive-v2-health-report';
 import { responsiveV2HealthTranslate, type ResponsiveV2HealthTranslationKey } from './responsive-v2-health-i18n';
+import type { ResponsiveCanvasV2RevisionEnvelope } from './responsive-v2-revision';
 
 @customElement('frakon-responsive-v2-health-panel')
 export class FrakonResponsiveV2HealthPanel extends LitElement {
@@ -33,10 +35,14 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
   private yn(value: boolean): string { return this.t(value ? 'yes' : 'no'); }
   private list(values: string[]): string { return values.length ? values.join(', ') : this.t('none'); }
 
-  private inheritedHass(): HomeAssistant | undefined {
+  private inheritedHost(): ResponsiveV2ParentStateHost | undefined {
     const root = this.getRootNode();
     if (!(root instanceof ShadowRoot)) return undefined;
-    return (root.host as HTMLElement & { hass?: HomeAssistant }).hass;
+    return root.host as ResponsiveV2ParentStateHost;
+  }
+
+  private inheritedHass(): HomeAssistant | undefined {
+    return (this.inheritedHost() as ResponsiveV2ParentStateHost & { hass?: HomeAssistant } | undefined)?.hass;
   }
 
   private transport(): DashboardStorageTransport | undefined {
@@ -45,6 +51,13 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
     return {
       request: <T>(command: string, payload: Record<string, unknown>) => hass.callWS!<T>({ type: command, ...payload }),
     };
+  }
+
+  private onSaved(event: CustomEvent<{ envelope: ResponsiveCanvasV2RevisionEnvelope }>): void {
+    const host = this.inheritedHost();
+    const controller = this.report?.editorContext?.controller;
+    if (!host || !controller) return;
+    applyResponsiveV2SavedStateToParent(host, event.detail.envelope.revision, controller.snapshot);
   }
 
   render() {
@@ -85,6 +98,7 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
           .baseRevision=${context.baseRevision}
           .hasUnresolvedConflict=${context.hasUnresolvedConflict}
           .language=${this.language}
+          @frakon-responsive-v2-saved=${this.onSaved}
         ></frakon-responsive-v2-persistence-action-panel>
       ` : nothing}
     </div>`;
