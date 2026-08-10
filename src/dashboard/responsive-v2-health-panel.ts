@@ -71,6 +71,7 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
           <div class="row wide"><span class="key">${this.t('dirtyBreakpoints')}</span><span class="value">${this.list(report.dirtyBreakpoints)}</span></div>
           <div class="row wide"><span class="key">${this.t('conflictBreakpoints')}</span><span class="value">${this.list(report.conflictBreakpoints)}</span></div>
           <div class="row wide"><span class="key">${this.t('loadEndpoint')}</span><span class="value">${report.loadEndpoint ?? '—'}</span></div>
+          <div class="row wide"><span class="key">${this.t('dryRunEndpoint')}</span><span class="value">${report.dryRunEndpoint ?? '—'}</span></div>
           <div class="row wide"><span class="key">${this.t('saveEndpoint')}</span><span class="value">${report.saveEndpoint ?? '—'}</span></div>
           <div class="row wide"><span class="key">${this.t('removeEndpoint')}</span><span class="value">${report.removeEndpoint ?? '—'}</span></div>
         </div>
