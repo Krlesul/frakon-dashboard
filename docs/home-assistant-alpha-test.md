@@ -144,7 +144,8 @@ The native v2 editor currently includes:
 - schema-driven card configuration,
 - Dashboard / Card defaults / Selection surface styling,
 - responsive persistence diagnostics,
-- Save Readiness and breakpoint-aware conflict-resolution UI.
+- Save Readiness and breakpoint-aware conflict-resolution UI,
+- non-mutating server-side responsive candidate validation.
 
 Responsive v2 server **reads are enabled**. Responsive v2 server **writes remain intentionally locked** during this alpha stage.
 
@@ -178,6 +179,7 @@ maxItems: 2000
 maxConstraints: 4000
 maxSerializedBytes: 2000000
 loadEndpoint: frakon/dashboard/load_responsive_bundle_revision
+dryRunEndpoint: frakon/dashboard/dry_run_responsive_revision
 saveEndpoint: frakon/dashboard/save_responsive_revision
 removeEndpoint: frakon/dashboard/remove_responsive_revision
 ```
@@ -217,15 +219,37 @@ Before responsive writes are intentionally enabled, verify all of the following:
 - responsive storage remains unchanged after rejected requests,
 - Home Assistant logs contain only sanitized blocked-persistence audit metadata and never the dashboard/card payload.
 
-The CI workflow separately enforces this write-lock invariant. Do not change the responsive writable allowlist until the real-device round-trip, restart recovery and multi-device conflict tests pass.
+The CI workflow separately enforces this write-lock invariant. It also checks that the dry-run handler remains admin-only and contains no storage save/remove mutation calls. Do not change the responsive writable allowlist until the real-device round-trip, restart recovery and multi-device conflict tests pass.
 
-## 10. Save/conflict UI dry run
+## 10. Server validation dry run
 
-The current frontend already contains the complete guarded flow:
+Create at least one local native-v2 change while `responsiveCanvasV2.write = false`.
+
+The persistence panel should expose:
+
+```text
+Ověřit na serveru / Validate on server
+```
+
+Run it and verify:
+
+1. The request uses `frakon/dashboard/dry_run_responsive_revision`.
+2. The same contract v1, bundle, frame, constraint, quota and revision-envelope validation used by Save is applied.
+3. A candidate based on the current remote revision returns `valid`.
+4. The UI reports that server validation passed and explicitly states that storage was not changed.
+5. The server still reports `writeEnabled: false`.
+6. Reloading `load_responsive_bundle_revision` after dry run returns exactly the pre-dry-run persisted data.
+7. If another client advances the remote revision first, dry run returns `conflict` and the existing breakpoint Local / Remote resolver opens.
+8. Resolving that conflict while `write=false` must still stop at the write gate; dry run must never become a hidden save path.
+
+## 11. Save/conflict UI flow
+
+The current frontend contains the complete guarded flow:
 
 ```text
 stable preview
 → exact candidate validation
+→ server dry run (available while writes are locked)
 → capability/write gate
 → optimistic save
 → breakpoint conflict session
@@ -233,9 +257,9 @@ stable preview
 → child revision against the latest remote revision
 ```
 
-With the alpha write lock active, this flow must stop before transport mutation. After the future controlled unlock, verify that a successful save resets all breakpoint drafts to a clean base, clears Undo/Redo history and advances the displayed revision.
+With the alpha write lock active, the actual Save flow must stop before transport mutation. After the future controlled unlock, verify that a successful save resets all breakpoint drafts to a clean base, clears Undo/Redo history and advances the displayed revision.
 
-## 11. Browser console and runtime check
+## 12. Browser console and runtime check
 
 Record:
 
@@ -243,12 +267,12 @@ Record:
 - failed requests for `/frakon-dashboard/frakon-dashboard.js`,
 - custom-element registration errors,
 - Home Assistant card creation errors,
-- WebSocket capability/load errors,
+- WebSocket capability/load/dry-run errors,
 - storage/revision errors.
 
 When reporting an issue include Home Assistant version, browser/device, dashboard YAML, console error text, screenshot/recording and exported FRAKON dashboard JSON when layout is involved.
 
-## 12. Current expected limitations
+## 13. Current expected limitations
 
 - The repository is still private, so this is not yet a public HACS distribution flow.
 - A final FRAKON brand asset is still required before public HACS publication.
