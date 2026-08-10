@@ -1,6 +1,7 @@
 import type { DashboardStorageTransport } from './dashboard-storage';
 import {
   RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+  RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
   RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
   RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
   type DashboardServerCapabilities,
@@ -37,12 +38,30 @@ export type ResponsiveCanvasV2RemoveResult =
   | { status: 'removed' }
   | { status: 'conflict'; remote?: ResponsiveCanvasV2RevisionEnvelope };
 
+export type ResponsiveCanvasV2DryRunBlocker =
+  | 'contract-incompatible'
+  | 'read-disabled'
+  | 'atomic-revision-disabled'
+  | 'revision-sync-disabled'
+  | 'dry-run-unavailable';
+
+export type ResponsiveCanvasV2DryRunResult =
+  | { status: 'blocked'; reason: ResponsiveCanvasV2DryRunBlocker }
+  | { status: 'valid'; currentRevision?: string; writeEnabled: boolean }
+  | { status: 'conflict'; remote?: ResponsiveCanvasV2RevisionEnvelope };
+
 interface ServerResponsiveRevisionEnvelope {
   document: ResponsiveCanvasV2Bundle;
   revision: string;
   parentRevision?: string;
   updatedAt: number;
   clientId: string;
+}
+
+function defaultDryRunEndpoint(namespace: string): string {
+  return namespace === 'frakon/dashboard'
+    ? RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT
+    : `${namespace}/dry_run_responsive_revision`;
 }
 
 function defaultSaveEndpoint(namespace: string): string {
@@ -55,6 +74,49 @@ function defaultRemoveEndpoint(namespace: string): string {
   return namespace === 'frakon/dashboard'
     ? RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT
     : `${namespace}/remove_responsive_revision`;
+}
+
+export async function dryRunResponsiveCanvasV2Revision(
+  transport: DashboardStorageTransport,
+  capabilities: DashboardServerCapabilities,
+  envelope: ResponsiveCanvasV2RevisionEnvelope,
+  expectedRevision: string | undefined,
+  namespace = 'frakon/dashboard',
+): Promise<ResponsiveCanvasV2DryRunResult> {
+  const responsive = capabilities.responsiveCanvasV2;
+  if (!responsive.contractCompatible) return { status: 'blocked', reason: 'contract-incompatible' };
+  if (!responsive.read) return { status: 'blocked', reason: 'read-disabled' };
+  if (!responsive.atomicRevision) return { status: 'blocked', reason: 'atomic-revision-disabled' };
+  if (!capabilities.revisionSync) return { status: 'blocked', reason: 'revision-sync-disabled' };
+  const dryRunEndpoint = responsive.dryRunEndpoint ?? defaultDryRunEndpoint(namespace);
+  if (!dryRunEndpoint) return { status: 'blocked', reason: 'dry-run-unavailable' };
+
+  const response = await transport.request<
+    | { status: 'valid'; currentRevision: string | null; writeEnabled: boolean }
+    | { status: 'conflict'; remote?: ServerResponsiveRevisionEnvelope | null }
+  >(dryRunEndpoint, {
+    contractVersion: RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
+    envelope: {
+      document: structuredClone(envelope.bundle),
+      revision: envelope.revision,
+      parentRevision: envelope.parentRevision,
+      updatedAt: envelope.updatedAt,
+      clientId: envelope.clientId,
+    },
+    expectedRevision: expectedRevision ?? null,
+  });
+
+  if (response.status === 'valid') {
+    return {
+      status: 'valid',
+      currentRevision: response.currentRevision ?? undefined,
+      writeEnabled: response.writeEnabled === true,
+    };
+  }
+  return {
+    status: 'conflict',
+    remote: response.remote ? fromServerEnvelope(response.remote) : undefined,
+  };
 }
 
 export async function persistResponsiveCanvasV2Revision(
