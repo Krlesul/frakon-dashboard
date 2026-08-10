@@ -12,6 +12,7 @@ VITE = (ROOT / "vite.config.ts").read_text()
 INDEX = (ROOT / "src/index.ts").read_text()
 FRONTEND_HELPER = ROOT / "custom_components/frakon_dashboard/frontend.py"
 RELEASE_PACKAGER = ROOT / "scripts/build_hacs_release.py"
+INSTALL_SELF_CHECK = ROOT / "scripts/verify_home_assistant_install.py"
 
 errors: list[str] = []
 
@@ -56,6 +57,8 @@ if not FRONTEND_HELPER.is_file():
     errors.append("bundled frontend runtime helper is missing")
 if not RELEASE_PACKAGER.is_file():
     errors.append("HACS release packager is missing")
+if not INSTALL_SELF_CHECK.is_file():
+    errors.append("Home Assistant install self-check is missing")
 
 if not package_version or "alpha" not in package_version:
     errors.append("current release readiness policy requires an explicit alpha package version")
