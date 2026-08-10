@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
   RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
   RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
   RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
@@ -39,6 +40,7 @@ function capabilities(write = false) {
       maxSerializedBytes: 2_000_000,
       storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
       loadEndpoint: RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+      dryRunEndpoint: RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
       saveEndpoint: RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
       removeEndpoint: RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
     },
@@ -76,6 +78,7 @@ describe('responsive canvas v2 health report', () => {
       maxSerializedBytes: 2_000_000,
       storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
       loadEndpoint: RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+      dryRunEndpoint: RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
       saveEndpoint: RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
       removeEndpoint: RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
     });
@@ -102,6 +105,7 @@ describe('responsive canvas v2 health report', () => {
       readEnabled: true,
       writeEnabled: false,
       storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
+      dryRunEndpoint: RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
       dirtyBreakpoints: [],
     });
     expect(report.editorContext).toEqual({
