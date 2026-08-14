@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { SupportedLanguage } from '../i18n';
 import type { DashboardServerCapabilities } from './dashboard-server-capabilities';
 import type { DashboardStorageTransport } from './dashboard-storage';
+import type { ResponsiveV2DryRunObservation } from './responsive-v2-alpha-report';
 import './responsive-v2-conflict-panel';
 import type { ResponsiveCanvasV2ConflictSelections } from './responsive-v2-conflict-resolution';
 import type { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
@@ -59,6 +60,14 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
     });
   }
 
+  private emitDryRunObservation(observation: ResponsiveV2DryRunObservation): void {
+    this.dispatchEvent(new CustomEvent<ResponsiveV2DryRunObservation>('frakon-responsive-v2-dry-run-result', {
+      detail: observation,
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
   private acceptSaved(envelope: ResponsiveCanvasV2RevisionEnvelope): void {
     const controller = this.controller;
     if (!controller) return;
@@ -92,21 +101,39 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
         baseRevision: this.baseRevision,
         candidate: preview.candidate,
       });
+      const checkedAt = Date.now();
       if (result.status === 'valid') {
         this.serverValidatedRevision = preview.candidate.revision;
         this.message = this.t('validationValid');
+        this.emitDryRunObservation({ status: 'valid', candidateRevision: preview.candidate.revision, checkedAt });
       } else if (result.status === 'conflict') {
         this.conflict = result.conflict;
         this.message = this.t('validationConflict');
+        this.emitDryRunObservation({
+          status: 'conflict',
+          candidateRevision: preview.candidate.revision,
+          remoteRevision: result.conflict.remote.revision,
+          checkedAt,
+        });
       } else if (result.status === 'remote-removed') {
         this.message = this.t('validationConflict');
+        this.emitDryRunObservation({ status: 'remote-removed', candidateRevision: preview.candidate.revision, checkedAt });
       } else if (result.status === 'clean') {
         this.message = this.t('clean');
+        this.emitDryRunObservation({ status: 'clean', checkedAt });
       } else {
         this.message = `${this.t('validationBlocked')}: ${result.reason}`;
+        this.emitDryRunObservation({
+          status: 'blocked',
+          candidateRevision: preview.candidate.revision,
+          reason: result.reason,
+          checkedAt,
+        });
       }
     } catch (error) {
-      this.message = error instanceof Error ? error.message : String(error);
+      const reason = error instanceof Error ? error.message : String(error);
+      this.message = reason;
+      this.emitDryRunObservation({ status: 'error', reason, checkedAt: Date.now() });
     } finally {
       this.saving = false;
     }
