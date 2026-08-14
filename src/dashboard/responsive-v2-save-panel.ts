@@ -19,6 +19,9 @@ export class FrakonResponsiveV2SavePanel extends LitElement {
     .status.blocked { background: color-mix(in srgb, #ff4d67 17%, transparent); }
     .status.clean { background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); }
     .meta { display: grid; gap: 4px; font-size: 11px; opacity: .82; }
+    .receipt { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .receipt-state { padding:2px 6px; border-radius:999px; font-size:10px; background:color-mix(in srgb, #ff4d67 14%, transparent); }
+    .receipt-state.valid { background:color-mix(in srgb, #4bbf73 18%, transparent); }
     .blockers { display: grid; gap: 4px; }
     .blocker { padding: 6px 8px; border-radius: 8px; font-size: 11px; background: color-mix(in srgb, #ff4d67 13%, transparent); }
     button { justify-self: start; border: 0; border-radius: 9px; padding: 7px 10px; color: inherit; background: color-mix(in srgb, var(--primary-color) 18%, transparent); cursor: pointer; font: inherit; }
@@ -63,6 +66,10 @@ export class FrakonResponsiveV2SavePanel extends LitElement {
         <span>${this.t('dirtyBreakpoints')}: ${preview.dirtyBreakpoints.length ? preview.dirtyBreakpoints.join(' · ') : this.t('noDirtyBreakpoints')}</span>
         <span>${this.t('baseRevision')}: ${preview.baseRevision ?? '—'}</span>
         <span>${this.t('candidateRevision')}: ${preview.candidate.revision}</span>
+        <span class="receipt">
+          <span>${this.t('serverValidatedRevision')}: ${this.serverValidatedRevision ?? '—'}</span>
+          <span class="receipt-state ${validationMatches ? 'valid' : ''}">${this.t(validationMatches ? 'validated' : 'notValidated')}</span>
+        </span>
       </div>
       ${preview.readiness.blockers.length || (preview.wouldWrite && !validationMatches) ? html`<div class="blockers">
         ${preview.readiness.blockers.map((blocker) => html`<div class="blocker">${this.t(blocker)}</div>`)}
