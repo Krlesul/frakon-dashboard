@@ -18,13 +18,18 @@ export function dashboardCanvasV2EntityOptions(
   hass: HomeAssistant | undefined,
   domains?: readonly string[],
   current?: string | readonly string[],
+  deviceClasses?: readonly string[],
 ): DashboardCanvasV2EntityOption[] {
-  const allowed = domains?.length ? new Set(domains) : undefined;
+  const allowedDomains = domains?.length ? new Set(domains) : undefined;
+  const allowedDeviceClasses = deviceClasses?.length ? new Set(deviceClasses) : undefined;
   const states = hass?.states ?? {};
   const ids = Object.keys(states).filter((entityId) => {
     const [domain, objectId] = entityId.split('.', 2);
     if (!domain || !objectId) return false;
-    return !allowed || allowed.has(domain);
+    if (allowedDomains && !allowedDomains.has(domain)) return false;
+    if (!allowedDeviceClasses) return true;
+    const deviceClass = states[entityId]?.attributes?.device_class;
+    return typeof deviceClass === 'string' && allowedDeviceClasses.has(deviceClass);
   });
   const configured = Array.isArray(current) ? current : current ? [current] : [];
   for (const entityId of configured) {
