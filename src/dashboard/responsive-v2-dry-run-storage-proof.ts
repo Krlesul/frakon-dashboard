@@ -19,6 +19,8 @@ function persistedFingerprint(result: ResponsiveCanvasV2ReadResult): string | un
   return JSON.stringify({
     revision: result.envelope.revision,
     parentRevision: result.envelope.parentRevision ?? null,
+    updatedAt: result.envelope.updatedAt,
+    clientId: result.envelope.clientId,
     bundle: result.envelope.bundle,
   });
 }
