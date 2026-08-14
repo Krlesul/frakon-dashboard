@@ -10,8 +10,9 @@ HACS = json.loads((ROOT / "hacs.json").read_text())
 HA_MANIFEST = json.loads((ROOT / "custom_components/frakon_dashboard/manifest.json").read_text())
 VITE = (ROOT / "vite.config.ts").read_text()
 INDEX = (ROOT / "src/index.ts").read_text()
-CONST_SOURCE = (ROOT / "custom_components/frakon_dashboard/const.py").read_text()
 INTEGRATION_ROOT = ROOT / "custom_components/frakon_dashboard"
+INIT_SOURCE = (INTEGRATION_ROOT / "__init__.py").read_text()
+CONST_SOURCE = (INTEGRATION_ROOT / "const.py").read_text()
 FRONTEND_HELPER = INTEGRATION_ROOT / "frontend.py"
 FRONTEND_HELPER_SOURCE = FRONTEND_HELPER.read_text() if FRONTEND_HELPER.is_file() else ""
 BUILD_INFO_PROVIDER = INTEGRATION_ROOT / "build_info.py"
@@ -71,6 +72,10 @@ if not BUILD_INFO_PROVIDER.is_file():
     errors.append("runtime build-info provider is missing")
 if not BUILD_INFO_WEBSOCKET.is_file():
     errors.append("runtime build-info WebSocket endpoint is missing")
+if "from .build_websocket import register_build_info_command" not in INIT_SOURCE:
+    errors.append("integration __init__ must import register_build_info_command")
+if "register_build_info_command(hass)" not in INIT_SOURCE:
+    errors.append("integration __init__ must register the build-info WebSocket command")
 if not RELEASE_PACKAGER.is_file():
     errors.append("HACS release packager is missing")
 if not INSTALL_SELF_CHECK.is_file():
