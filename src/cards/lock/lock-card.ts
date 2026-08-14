@@ -9,6 +9,12 @@ export interface FrakonLockCardConfig extends LovelaceCardConfig {
   show_state?: boolean;
 }
 
+export function frakonLockActionForState(state: string): 'lock' | 'unlock' | undefined {
+  if (state === 'locked') return 'unlock';
+  if (state === 'unlocked') return 'lock';
+  return undefined;
+}
+
 @customElement('frakon-lock-card')
 export class FrakonLockCard extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
@@ -17,7 +23,7 @@ export class FrakonLockCard extends LitElement {
   static styles = css`
     ${unsafeCSS(baseStyles)}
     .card{min-height:150px;padding:20px;border:1px solid var(--frakon-border);border-radius:var(--frakon-radius-card);background:var(--frakon-surface);box-shadow:0 18px 50px rgb(0 0 0 / 18%);display:grid;gap:18px}
-    .name{font-size:21px;font-weight:680}.state{margin-top:7px;opacity:.65}.actions{display:flex;gap:8px;flex-wrap:wrap}button{min-width:92px;height:44px;border:0;border-radius:14px;color:inherit;background:color-mix(in srgb,var(--frakon-accent) 14%,transparent);cursor:pointer;font:inherit;font-weight:650}.primary{background:color-mix(in srgb,var(--frakon-accent) 28%,transparent)}
+    .name{font-size:21px;font-weight:680}.state{margin-top:7px;opacity:.65}.actions{display:flex;gap:8px;flex-wrap:wrap}button{min-width:92px;height:44px;border:0;border-radius:14px;color:inherit;background:color-mix(in srgb,var(--frakon-accent) 14%,transparent);cursor:pointer;font:inherit;font-weight:650}.primary{background:color-mix(in srgb,var(--frakon-accent) 28%,transparent)}button:disabled{opacity:.42;cursor:not-allowed}
   `;
 
   setConfig(config: FrakonLockCardConfig): void {
@@ -27,8 +33,8 @@ export class FrakonLockCard extends LitElement {
 
   getCardSize(): number { return 3; }
 
-  private call(service: 'lock' | 'unlock'): void {
-    if (!this.hass || !this.config) return;
+  private call(service: 'lock' | 'unlock', state: string): void {
+    if (!this.hass || !this.config || frakonLockActionForState(state) !== service) return;
     void this.hass.callService('lock', service, { entity_id: this.config.entity });
   }
 
@@ -37,10 +43,14 @@ export class FrakonLockCard extends LitElement {
     const entity = this.hass.states[this.config.entity];
     if (!entity) return html`<article class="card">Entity not found</article>`;
     const name = this.config.name ?? String(entity.attributes.friendly_name ?? this.config.entity);
+    const action = frakonLockActionForState(entity.state);
     const locked = entity.state === 'locked';
     return html`<article class="card">
       <div><div class="name">${name}</div>${this.config.show_state ? html`<div class="state">${entity.state}</div>` : nothing}</div>
-      <div class="actions"><button class=${locked ? '' : 'primary'} @click=${() => this.call('lock')}>Lock</button><button class=${locked ? 'primary' : ''} @click=${() => this.call('unlock')}>Unlock</button></div>
+      <div class="actions">
+        <button class=${!locked ? 'primary' : ''} ?disabled=${action !== 'lock'} @click=${() => this.call('lock', entity.state)}>Lock</button>
+        <button class=${locked ? 'primary' : ''} ?disabled=${action !== 'unlock'} @click=${() => this.call('unlock', entity.state)}>Unlock</button>
+      </div>
     </article>`;
   }
 }
