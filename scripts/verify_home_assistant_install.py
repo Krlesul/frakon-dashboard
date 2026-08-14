@@ -13,6 +13,9 @@ EXPECTED_VERSION = "0.16.0-alpha.1"
 DOMAIN = "frakon_dashboard"
 REQUIRED_FILES = (
     "__init__.py",
+    "build_info.py",
+    "build-info.json",
+    "build_websocket.py",
     "config_flow.py",
     "const.py",
     "frontend.py",
@@ -63,6 +66,14 @@ def main() -> int:
     if runtime_version != EXPECTED_VERSION:
         fail(f"runtime integration version is {runtime_version!r}, expected {EXPECTED_VERSION!r}")
 
+    try:
+        build_info = json.loads((integration / "build-info.json").read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - CLI diagnostic
+        fail(f"cannot parse build-info.json: {exc}")
+    source_commit = build_info.get("sourceCommit") if isinstance(build_info, dict) else None
+    if not isinstance(source_commit, str) or not source_commit.strip():
+        fail("build-info.json is missing sourceCommit")
+
     frontend_helper = (integration / "frontend.py").read_text(encoding="utf-8")
     if "?v={INTEGRATION_VERSION}" not in frontend_helper:
         fail("frontend resource URL is not cache-busted with INTEGRATION_VERSION")
@@ -90,6 +101,7 @@ def main() -> int:
     print(f"config: {root}")
     print(f"integration: {integration}")
     print(f"version: {EXPECTED_VERSION}")
+    print(f"source commit: {source_commit}")
     print(f"frontend bytes: {size}")
     print(f"resource URL: {resource_url}")
     return 0
