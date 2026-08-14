@@ -31,6 +31,7 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
   @state() private saving = false;
   @state() private conflict?: ResponsiveCanvasV2ConflictSession;
   @state() private message?: string;
+  @state() private serverValidatedRevision?: string;
 
   private readonly previewSession = new ResponsiveCanvasV2SavePreviewSession(clientId());
 
@@ -64,6 +65,7 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
     controller.replaceFromBundle(envelope.bundle);
     this.baseRevision = envelope.revision;
     this.conflict = undefined;
+    this.serverValidatedRevision = undefined;
     this.message = 'Saved';
     this.requestUpdate();
     this.dispatchEvent(new CustomEvent('frakon-responsive-v2-saved', {
@@ -80,6 +82,7 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
     const preview = this.preview();
     if (this.saving || !transport || !capabilities || !controller || !preview?.hasLocalChanges) return;
     this.saving = true;
+    this.serverValidatedRevision = undefined;
     this.message = undefined;
     try {
       const result = await dryRunResponsiveV2EditorCandidate({
@@ -90,6 +93,7 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
         candidate: preview.candidate,
       });
       if (result.status === 'valid') {
+        this.serverValidatedRevision = preview.candidate.revision;
         this.message = this.t('validationValid');
       } else if (result.status === 'conflict') {
         this.conflict = result.conflict;
@@ -111,6 +115,10 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
   private async save(event: CustomEvent<{ candidate: ResponsiveCanvasV2RevisionEnvelope }>): Promise<void> {
     event.stopPropagation();
     if (this.saving || !this.transport || !this.capabilities || !this.controller) return;
+    if (this.serverValidatedRevision !== event.detail.candidate.revision) {
+      this.message = this.t('validationRequired');
+      return;
+    }
     this.saving = true;
     this.message = undefined;
     try {
@@ -124,14 +132,18 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
       if (result.status === 'saved') {
         this.acceptSaved(result.envelope);
       } else if (result.status === 'conflict') {
+        this.serverValidatedRevision = undefined;
         this.conflict = result.conflict;
         this.message = undefined;
       } else if (result.status === 'clean') {
+        this.serverValidatedRevision = undefined;
         this.message = 'No local changes';
       } else {
+        this.serverValidatedRevision = undefined;
         this.message = result.status === 'stale' ? `Save preview is stale: ${result.reason}` : `Save blocked: ${result.reason}`;
       }
     } catch (error) {
+      this.serverValidatedRevision = undefined;
       this.message = error instanceof Error ? error.message : String(error);
     } finally {
       this.saving = false;
@@ -142,6 +154,7 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
     event.stopPropagation();
     if (this.saving || !this.transport || !this.capabilities || !this.conflict) return;
     this.saving = true;
+    this.serverValidatedRevision = undefined;
     this.message = undefined;
     try {
       const result = await resolveResponsiveV2EditorConflict({
@@ -175,7 +188,7 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
     return html`<div class="stack" aria-busy=${this.saving ? 'true' : 'false'}>
       ${this.conflict
         ? html`<frakon-responsive-v2-conflict-panel .conflict=${this.conflict} .language=${this.language} @frakon-responsive-v2-conflict-resolve=${this.resolve}></frakon-responsive-v2-conflict-panel>`
-        : html`<frakon-responsive-v2-save-panel .preview=${preview} .language=${this.language} @frakon-responsive-v2-save-request=${this.save}></frakon-responsive-v2-save-panel>`}
+        : html`<frakon-responsive-v2-save-panel .preview=${preview} .language=${this.language} .serverValidatedRevision=${this.serverValidatedRevision} @frakon-responsive-v2-save-request=${this.save}></frakon-responsive-v2-save-panel>`}
       ${!this.conflict ? html`<div class="actions"><button ?disabled=${this.saving || !dryRunAvailable} @click=${this.dryRun}>${this.t('validateOnServer')}</button></div>` : nothing}
       ${this.message ? html`<div class="message">${this.message}</div>` : nothing}
     </div>`;
