@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import type { SupportedLanguage } from '../i18n';
 import type { ResponsiveCanvasV2SavePreview } from './responsive-v2-save-preview';
 import { responsiveV2SaveTranslate } from './responsive-v2-save-i18n';
+import { responsiveV2ServerValidationReceipt } from './responsive-v2-server-validation-receipt';
 
 @customElement('frakon-responsive-v2-save-panel')
 export class FrakonResponsiveV2SavePanel extends LitElement {
@@ -32,13 +33,15 @@ export class FrakonResponsiveV2SavePanel extends LitElement {
     return responsiveV2SaveTranslate(this.language, key);
   }
 
-  private validationMatchesCandidate(): boolean {
-    const candidateRevision = this.preview?.candidate.revision;
-    return !!candidateRevision && this.serverValidatedRevision === candidateRevision;
+  private receipt() {
+    return responsiveV2ServerValidationReceipt(
+      this.preview?.candidate.revision ?? '',
+      this.serverValidatedRevision,
+    );
   }
 
   private requestSave(): void {
-    if (!this.preview?.wouldWrite || !this.validationMatchesCandidate()) return;
+    if (!this.preview?.wouldWrite || !this.receipt().valid) return;
     this.dispatchEvent(new CustomEvent('frakon-responsive-v2-save-request', {
       detail: { candidate: this.preview.candidate },
       bubbles: true,
@@ -49,8 +52,8 @@ export class FrakonResponsiveV2SavePanel extends LitElement {
   render() {
     const preview = this.preview;
     if (!preview) return nothing;
-    const validationMatches = this.validationMatchesCandidate();
-    const saveAllowed = preview.wouldWrite && validationMatches;
+    const receipt = this.receipt();
+    const saveAllowed = preview.wouldWrite && receipt.valid;
     const status = !preview.hasLocalChanges
       ? { className: 'clean', label: this.t('clean') }
       : saveAllowed
@@ -65,15 +68,15 @@ export class FrakonResponsiveV2SavePanel extends LitElement {
       <div class="meta">
         <span>${this.t('dirtyBreakpoints')}: ${preview.dirtyBreakpoints.length ? preview.dirtyBreakpoints.join(' · ') : this.t('noDirtyBreakpoints')}</span>
         <span>${this.t('baseRevision')}: ${preview.baseRevision ?? '—'}</span>
-        <span>${this.t('candidateRevision')}: ${preview.candidate.revision}</span>
+        <span>${this.t('candidateRevision')}: ${receipt.candidateRevision}</span>
         <span class="receipt">
-          <span>${this.t('serverValidatedRevision')}: ${this.serverValidatedRevision ?? '—'}</span>
-          <span class="receipt-state ${validationMatches ? 'valid' : ''}">${this.t(validationMatches ? 'validated' : 'notValidated')}</span>
+          <span>${this.t('serverValidatedRevision')}: ${receipt.validatedRevision ?? '—'}</span>
+          <span class="receipt-state ${receipt.valid ? 'valid' : ''}">${this.t(receipt.valid ? 'validated' : 'notValidated')}</span>
         </span>
       </div>
-      ${preview.readiness.blockers.length || (preview.wouldWrite && !validationMatches) ? html`<div class="blockers">
+      ${preview.readiness.blockers.length || (preview.wouldWrite && !receipt.valid) ? html`<div class="blockers">
         ${preview.readiness.blockers.map((blocker) => html`<div class="blocker">${this.t(blocker)}</div>`)}
-        ${preview.wouldWrite && !validationMatches ? html`<div class="blocker">${this.t('validationRequired')}</div>` : nothing}
+        ${preview.wouldWrite && !receipt.valid ? html`<div class="blocker">${this.t('validationRequired')}</div>` : nothing}
       </div>` : nothing}
       <button ?disabled=${!saveAllowed} @click=${this.requestSave}>${this.t('save')}</button>
     </section>`;
