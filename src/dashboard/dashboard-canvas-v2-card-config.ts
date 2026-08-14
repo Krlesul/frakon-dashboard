@@ -10,7 +10,7 @@ export type DashboardCanvasV2CardConfigField =
   | { key: 'entity' | 'temperature_entity' | 'humidity_entity' | 'range_entity' | 'charging_power_entity' | 'charging_switch_entity' | 'energy_entity' | 'price_entity'; kind: 'entity'; required?: boolean; domains?: readonly string[]; deviceClasses?: readonly string[] }
   | { key: 'name' | 'title' | 'unit'; kind: 'text' }
   | { key: 'light_entities'; kind: 'entity-list'; domains?: readonly string[] }
-  | { key: 'show_brightness' | 'show_color_temperature' | 'show_position' | 'show_state' | 'show_volume' | 'compact'; kind: 'boolean' }
+  | { key: 'show_brightness' | 'show_color_temperature' | 'show_position' | 'show_state' | 'show_volume' | 'show_percentage' | 'compact'; kind: 'boolean' }
   | { key: 'step' | 'precision'; kind: 'number'; min: number; max: number; integer?: boolean }
   | { key: 'aspect_ratio'; kind: 'select'; options: readonly string[] };
 
@@ -49,6 +49,7 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
   'custom:frakon-lock-card': [{ key: 'show_state', kind: 'boolean' }],
   'custom:frakon-binary-sensor-card': [{ key: 'show_state', kind: 'boolean' }],
   'custom:frakon-action-card': [{ key: 'show_state', kind: 'boolean' }],
+  'custom:frakon-fan-card': [{ key: 'show_percentage', kind: 'boolean' }],
   'custom:frakon-camera-card': [
     { key: 'show_state', kind: 'boolean' },
     { key: 'aspect_ratio', kind: 'select', options: ['16 / 9', '4 / 3', '1 / 1'] },
