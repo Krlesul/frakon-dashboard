@@ -1,6 +1,7 @@
 import { LitElement, css, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { filterCardCatalog, type FrakonCardCategory, type FrakonCardTemplate } from './card-catalog';
+import { cardCatalogLabel } from './card-catalog-i18n';
 import { editorTranslate, resolveEditorLanguage } from './editor-i18n';
 
 export interface FrakonCardTemplateSelectedDetail {
@@ -48,7 +49,12 @@ export class FrakonCardPalette extends LitElement {
 
   render() {
     const lang = resolveEditorLanguage(this.language);
-    const templates = filterCardCatalog(this.query, this.category);
+    const normalized = this.query.trim().toLocaleLowerCase();
+    const templates = filterCardCatalog('', this.category).filter((template) => {
+      if (!normalized) return true;
+      const label = cardCatalogLabel(lang, template.type);
+      return `${label.name} ${label.description} ${template.type} ${template.category}`.toLocaleLowerCase().includes(normalized);
+    });
     return html`
       <section class="palette">
         <header><h3>${editorTranslate(lang,'addCard')}</h3><span>${templates.length} ${editorTranslate(lang,'available')}</span></header>
@@ -59,11 +65,14 @@ export class FrakonCardPalette extends LitElement {
           </select>
         </div>
         <div class="cards">
-          ${templates.map((template) => html`<button @click=${() => this.selectTemplate(template)}>
-            <strong>${template.name}</strong>
-            <span class="description">${template.description}</span>
-            <span class="meta">${editorTranslate(lang,template.category)} · ${template.defaultWidth} × ${template.defaultHeight}</span>
-          </button>`)}
+          ${templates.map((template) => {
+            const label = cardCatalogLabel(lang, template.type);
+            return html`<button @click=${() => this.selectTemplate(template)}>
+              <strong>${label.name}</strong>
+              <span class="description">${label.description}</span>
+              <span class="meta">${editorTranslate(lang,template.category)} · ${template.defaultWidth} × ${template.defaultHeight}</span>
+            </button>`;
+          })}
         </div>
         ${templates.length === 0 ? html`<div class="empty">${editorTranslate(lang,'noMatchingCards')}</div>` : ''}
       </section>`;
