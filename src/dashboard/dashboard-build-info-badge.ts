@@ -3,11 +3,13 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from '../home-assistant/types';
 import { loadFrakonDashboardBuildInfo, type FrakonDashboardBuildInfo } from './dashboard-build-info';
 import { FRAKON_FRONTEND_BUILD, frakonBuildIdentityMatches } from './dashboard-frontend-build';
+import { verifyFrakonFrontendIntegrity, type FrakonFrontendIntegrityResult } from './dashboard-frontend-integrity';
 
 @customElement('frakon-dashboard-build-info-badge')
 export class FrakonDashboardBuildInfoBadge extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private info?: FrakonDashboardBuildInfo;
+  @state() private integrity?: FrakonFrontendIntegrityResult;
   @state() private error?: string;
   private requestToken = 0;
 
@@ -18,6 +20,8 @@ export class FrakonDashboardBuildInfoBadge extends LitElement {
     .commit { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; opacity:.78; }
     .error { color:var(--error-color,#ff4d67); }
     .mismatch-text { font-weight:700; color:var(--error-color,#ff4d67); }
+    .verified { font-weight:700; color:var(--success-color,#4bbf73); }
+    .integrity-error { opacity:.72; }
   `;
 
   protected updated(changed: PropertyValues<this>): void {
@@ -30,6 +34,7 @@ export class FrakonDashboardBuildInfoBadge extends LitElement {
     const token = ++this.requestToken;
     if (!hass?.callWS) {
       this.info = undefined;
+      this.integrity = undefined;
       this.error = undefined;
       return;
     }
@@ -37,12 +42,18 @@ export class FrakonDashboardBuildInfoBadge extends LitElement {
       const info = await loadFrakonDashboardBuildInfo({
         request: <T>(command: string, payload: Record<string, unknown>) => hass.callWS!<T>({ type: command, ...payload }),
       });
+      const integrity = await verifyFrakonFrontendIntegrity({
+        version: info.version,
+        expectedSha256: info.frontendSha256,
+      });
       if (token !== this.requestToken) return;
       this.info = info;
+      this.integrity = integrity;
       this.error = undefined;
     } catch (error) {
       if (token !== this.requestToken) return;
       this.info = undefined;
+      this.integrity = undefined;
       this.error = error instanceof Error ? error.message : String(error);
     }
   }
@@ -56,15 +67,17 @@ export class FrakonDashboardBuildInfoBadge extends LitElement {
     const frontendCommit = FRAKON_FRONTEND_BUILD.sourceCommit === 'development'
       ? 'development'
       : FRAKON_FRONTEND_BUILD.sourceCommit.slice(0, 12);
-    const matches = frakonBuildIdentityMatches(FRAKON_FRONTEND_BUILD, this.info);
+    const identityMatches = frakonBuildIdentityMatches(FRAKON_FRONTEND_BUILD, this.info);
+    const integrityMismatch = this.integrity?.status === 'mismatch';
 
-    if (!matches) {
+    if (!identityMatches || integrityMismatch) {
       return html`<div class="badge mismatch">
         <span class="mismatch-text">FRAKON build mismatch</span>
         <span>frontend ${FRAKON_FRONTEND_BUILD.version}</span>
         <span class="commit">${frontendCommit}</span>
         <span>backend ${this.info.version}</span>
         <span class="commit">${backendCommit}</span>
+        ${integrityMismatch ? html`<span class="mismatch-text">frontend SHA-256 mismatch</span>` : nothing}
       </div>`;
     }
 
@@ -72,6 +85,8 @@ export class FrakonDashboardBuildInfoBadge extends LitElement {
       <strong>FRAKON ${this.info.version}</strong>
       <span class="commit">${backendCommit}</span>
       <span>contract ${this.info.responsiveContractVersion || '—'}</span>
+      ${this.integrity?.status === 'verified' ? html`<span class="verified">bundle hash verified</span>` : nothing}
+      ${this.integrity?.status === 'error' ? html`<span class="integrity-error">hash check unavailable: ${this.integrity.error}</span>` : nothing}
     </div>`;
   }
 }
