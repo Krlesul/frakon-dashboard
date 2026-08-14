@@ -2,6 +2,8 @@ import { LitElement, css, html, nothing, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { baseStyles } from '../../design-system/tokens';
 import type { HomeAssistant, LovelaceCardConfig } from '../../home-assistant/types';
+import { resolveLanguage, translate } from '../../i18n';
+import { frakonBinarySensorStateLabel } from './binary-sensor-card-i18n';
 import { frakonBinarySensorPresentation } from './binary-sensor-card-state';
 
 export interface FrakonBinarySensorCardConfig extends LovelaceCardConfig {
@@ -34,21 +36,23 @@ export class FrakonBinarySensorCard extends LitElement {
 
   render() {
     if (!this.hass || !this.config) return nothing;
+    const language = resolveLanguage(this.config.language, this.hass.locale?.language, this.hass.language, navigator.language);
     const entity = this.hass.states[this.config.entity];
-    if (!entity) return html`<article class="card">Entity not found</article>`;
+    if (!entity) return html`<article class="card">${translate(language, 'entityMissing')}</article>`;
     const name = this.config.name ?? String(entity.attributes.friendly_name ?? this.config.entity);
     const deviceClass = typeof entity.attributes.device_class === 'string' ? entity.attributes.device_class : undefined;
     const presentation = frakonBinarySensorPresentation(entity.state, deviceClass);
+    const stateLabel = frakonBinarySensorStateLabel(language, entity.state, deviceClass);
     return html`<article class="card">
       <div class="head">
         <div>
           <div class="name">${name}</div>
           <div class="meta">
-            ${this.config.show_state ? html`<span class="state">${presentation.label}</span>` : nothing}
+            ${this.config.show_state ? html`<span class="state">${stateLabel}</span>` : nothing}
             ${deviceClass ? html`<span class="device">${deviceClass.replaceAll('_', ' ')}</span>` : nothing}
           </div>
         </div>
-        <span class="indicator ${presentation.tone}" aria-label=${presentation.label}></span>
+        <span class="indicator ${presentation.tone}" aria-label=${stateLabel}></span>
       </div>
     </article>`;
   }
