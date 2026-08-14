@@ -9,4 +9,12 @@ describe('responsive v2 alpha report i18n', () => {
     expect(responsiveV2AlphaReportTranslate('sk', 'copyReport')).toContain('Kopírovať');
     expect(responsiveV2AlphaReportTranslate('pl', 'copyReport')).toContain('Kopiuj');
   });
+
+  it('localizes dry-run storage proof status', () => {
+    expect(responsiveV2AlphaReportTranslate('en', 'storageProofUnchanged')).toContain('unchanged');
+    expect(responsiveV2AlphaReportTranslate('cs', 'storageProofUnchanged')).toContain('beze změny');
+    expect(responsiveV2AlphaReportTranslate('de', 'storageProofChanged')).toContain('Speicher');
+    expect(responsiveV2AlphaReportTranslate('sk', 'storageProofUnverifiable')).toContain('dostupný');
+    expect(responsiveV2AlphaReportTranslate('pl', 'storageProofChanged')).toContain('Pamięć');
+  });
 });
