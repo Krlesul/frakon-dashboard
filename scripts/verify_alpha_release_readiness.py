@@ -57,10 +57,21 @@ if "entry: 'src/index.ts'" not in VITE and 'entry: "src/index.ts"' not in VITE:
 
 required_card_imports = [
     "./cards/frakon-card",
-    "./cards/energy/energy-card",
-    "./cards/binary-sensor/binary-sensor-card",
+    "./cards/sensor/sensor-card",
+    "./cards/room/room-card",
+    "./cards/switch/switch-card",
     "./cards/action/action-card",
+    "./cards/light/light-card",
+    "./cards/climate/climate-card",
     "./cards/fan/fan-card",
+    "./cards/binary-sensor/binary-sensor-card",
+    "./cards/cover/cover-card",
+    "./cards/lock/lock-card",
+    "./cards/camera/camera-card",
+    "./cards/media/media-player-card",
+    "./cards/energy/energy-card",
+    "./cards/vehicle/vehicle-card",
+    "./dashboard/dashboard-card",
     "./dashboard/canvas-dashboard-card",
 ]
 for import_path in required_card_imports:
