@@ -1,56 +1,73 @@
 # FRAKON Dashboard
 
-A premium, multilingual and highly customizable dashboard system for Home Assistant, designed so its UI core can later be reused in FRAKON OS.
+FRAKON Dashboard is a premium, multilingual and highly customizable dashboard system for Home Assistant. The UI and editor core are being built so they can later be reused by FRAKON OS instead of remaining coupled to Home Assistant.
 
-> Status: active alpha development. Do not yet use this as the only control surface for safety-critical devices.
+> Status: active alpha development. Do not use this alpha as the only control surface for gates, locks, heating protection or other safety-critical devices.
 
 ## Current alpha
 
-The project currently includes:
+The current Home Assistant alpha includes:
 
 - English source language with Czech, German, Slovak and Polish localization
 - automatic Home Assistant language detection with English fallback
-- responsive mobile, tablet, desktop and wide layouts
-- editable collision-safe dashboard grid
-- live nested FRAKON cards
-- card palette with search and categories
-- production pointer move and resize handles with live previews
-- multi-selection with Shift and Ctrl/Cmd selection semantics
-- marquee selection from empty dashboard space
-- atomic group movement with locked-card protection
-- collision feedback and rollback before persistence
-- live smart alignment guidelines during pointer movement
-- keyboard nudging of selected cards with arrow keys and larger Shift+arrow steps
-- width and height controls
-- locked items
-- undo and redo history
-- asynchronous storage controller with ordered writes and error reporting
-- local browser storage adapter
-- Home Assistant server-side dashboard storage integration
-- revision-aware multi-device synchronization with optimistic concurrency
-- JSON import and export
-- visual dashboard configuration editor
-- visual per-card form editor with an advanced JSON mode
-- intelligent automatic layout previews with priority-first, balanced, compact and focus strategies
-- preview, next-proposal, apply and restore workflow for automatic layout
-- explainable card priority scoring with manual overrides
-- initial `apps/*` and `packages/*` monorepo boundaries for Dashboard Studio
-- platform-neutral Studio viewport engine with zoom, pan, coordinate transforms, fit-to-content and persistence
-- multi-selection, move, resize, smart guidelines and layout constraints in the Studio engine
-- Emergency Intelligence with occurrence-aware execution, durable idempotency, execution journal, restart recovery, evidence consistency checks and verify-before-retry safety
+- stable responsive grid dashboards
+- experimental native Canvas v2 with free-pixel move and resize
+- multi-selection and marquee selection
+- collision-safe atomic commits
+- live smart alignment guidelines
+- align, distribute and equal-gap actions
+- layers / z-order
+- layout constraints with diagnostics and overlays
+- keyboard nudging
+- Copy / Cut / Paste including `Ctrl/Cmd+C/X/V`
+- Undo / Redo
+- zoom, pan, wheel zoom and pinch-to-zoom
+- per-device viewport memory
+- Mobile / Tablet / Desktop / Wide breakpoint layouts
+- Auto / Manual breakpoint mode
+- per-breakpoint draft histories
+- copy-layout and reset-layout actions
+- schema-driven native card configuration
+- searchable single-entity selectors
+- searchable multi-entity checklists
+- Dashboard / Card defaults / Selection surface styling
+- responsive persistence diagnostics and Alpha Readiness status
+- server build identity and frontend/backend mismatch detection
+- revision-aware multi-device synchronization and optimistic concurrency
+- isolated responsive bundle storage
+- breakpoint-aware Local / Remote conflict resolution
+- non-mutating server-side Dry Run validation before writes
+- exact-candidate validation receipts before responsive persistence
+- real-server proof that Dry Run left responsive storage unchanged
+- HACS-style integration ZIP packaging with bundled frontend
+- simulated Home Assistant installation verification in CI
+- Emergency Intelligence with occurrence-aware execution, durable idempotency, execution journal, restart recovery, evidence consistency and verify-before-retry safety
 
-### Included cards
+Responsive Canvas v2 **reads are enabled**. Responsive Canvas v2 **writes remain deliberately locked** until real Home Assistant round-trip, restart-recovery and multi-device conflict tests are completed.
+
+## Included cards
+
+The current catalog contains:
 
 - `custom:frakon-card`
-- `custom:frakon-light-card`
 - `custom:frakon-sensor-card`
-- `custom:frakon-cover-card`
-- `custom:frakon-climate-card`
 - `custom:frakon-room-card`
+- `custom:frakon-switch-card`
+- `custom:frakon-action-card`
+- `custom:frakon-light-card`
+- `custom:frakon-climate-card`
+- `custom:frakon-fan-card`
+- `custom:frakon-binary-sensor-card`
+- `custom:frakon-cover-card`
+- `custom:frakon-lock-card`
 - `custom:frakon-camera-card`
 - `custom:frakon-media-player-card`
+- `custom:frakon-energy-card`
 - `custom:frakon-vehicle-card`
 - `custom:frakon-dashboard-card`
+- `custom:frakon-canvas-dashboard-card`
+
+The native-v2 inspector explicitly covers every card in the FRAKON card catalog and validates domain-specific entity requirements before committing configuration changes.
 
 ## Development
 
@@ -58,7 +75,7 @@ Requirements:
 
 - Node.js 20.19 or newer
 - npm
-- Python 3.13 for validating the Home Assistant custom integration
+- Python 3.13 for Home Assistant integration checks
 
 ```bash
 npm install
@@ -68,40 +85,92 @@ npm run build
 python -m compileall -q custom_components/frakon_dashboard
 ```
 
-Run all checks:
+Run the frontend checks together with:
 
 ```bash
 npm run check
 ```
 
-The production bundle is generated as:
+The production frontend bundle is generated as:
 
 ```text
 dist/frakon-dashboard.js
 ```
 
-## Manual installation in Home Assistant
+The verified Home Assistant integration package is generated as:
 
-The current development build can be tested from a successful GitHub Actions artifact. Follow the complete checklist:
+```text
+dist/frakon_dashboard.zip
+```
+
+The ZIP contains `custom_components/frakon_dashboard/` together with the exact frontend bundle built from the same source revision.
+
+## Alpha installation in Home Assistant
+
+Use the package from a successful GitHub Actions CI artifact. The complete procedure and test matrix are documented in:
 
 ```text
 docs/home-assistant-alpha-test.md
 ```
 
-The short frontend installation path is:
+Short version:
 
-1. Download the `frakon-dashboard` artifact from the latest successful CI run.
-2. Copy `frakon-dashboard.js` to `/config/www/frakon-dashboard/frakon-dashboard.js`.
-3. Register `/local/frakon-dashboard/frakon-dashboard.js?v=alpha-1` as a JavaScript module resource.
-4. Add the Manual card configuration below.
+1. Download the `frakon-dashboard` workflow artifact from a successful CI run.
+2. Extract `frakon_dashboard.zip` into the Home Assistant config directory so the installed path is `/config/custom_components/frakon_dashboard`.
+3. Restart Home Assistant.
+4. Add **FRAKON Dashboard** from **Settings → Devices & services → Add integration**.
+5. In Lovelace storage mode the integration registers or repairs its bundled JavaScript module resource automatically.
 
-For shared Home Assistant storage, also copy `custom_components/frakon_dashboard` to `/config/custom_components/frakon_dashboard`, restart Home Assistant and add **FRAKON Dashboard** from **Settings → Devices & services → Add integration**.
+Do **not** separately copy the current bundled frontend into `/config/www`. The integration serves its own versioned frontend resource from:
 
-After changing the bundle, change the query suffix to avoid browser and service-worker cache confusion.
+```text
+/frakon-dashboard/frakon-dashboard.js?v=0.16.0-alpha.1
+```
+
+In YAML resource mode, add that versioned URL manually as a JavaScript module.
+
+The repository also contains `scripts/verify_home_assistant_install.py` for checking an extracted/installed integration package.
+
+## Native Canvas v2 persistence safety
+
+The current responsive transport uses contract version `1` and a dedicated Home Assistant Store namespace:
+
+```text
+frakon_dashboard.responsive_dashboards
+```
+
+Current endpoints include:
+
+```text
+frakon/dashboard/load_responsive_bundle_revision
+frakon/dashboard/dry_run_responsive_revision
+frakon/dashboard/save_responsive_revision
+frakon/dashboard/remove_responsive_revision
+```
+
+The server currently advertises responsive read support but **does not advertise responsive write support**. The writable responsive kind allowlist remains empty.
+
+The Dry Run endpoint is admin-only and goes through the same responsive bundle, frame, constraint, quota and revision-envelope validation as Save, but it contains no storage mutation call. The editor additionally reads persisted responsive data before and after Dry Run and reports whether the store remained unchanged.
+
+Before an eventual write unlock, CI also verifies:
+
+- responsive contract version remains the expected alpha version
+- the responsive write allowlist remains empty
+- Save / Remove stay admin guarded
+- Dry Run stays admin-only and non-mutating
+- exact-candidate server validation is required before Save
+- resolved conflicts are dry-run validated before persistence
+- successful Save projects the clean revision state back into the parent Canvas card
+
+## Build identity
+
+The release package contains build information tying backend and frontend to the same source commit. Runtime diagnostics expose version, source commit, responsive contract version and frontend SHA-256 so a stale Lovelace/browser resource can be distinguished from a backend problem.
+
+If the Canvas diagnostics show **FRAKON build mismatch**, stop persistence testing and correct the installed/browser resource before continuing.
 
 ## First dashboard
 
-Add a Manual card with:
+A stable grid dashboard can be started with:
 
 ```yaml
 type: custom:frakon-dashboard-card
@@ -113,7 +182,7 @@ columns: 12
 row_height: 48
 gap: 12
 edit_mode: true
-storage: local
+storage: home-assistant
 responsive_columns:
   mobile: 4
   tablet: 8
@@ -122,26 +191,24 @@ responsive_columns:
 items: []
 ```
 
-In edit mode you can:
+The experimental native Canvas v2 uses:
 
-1. open the FRAKON card palette,
-2. select a card template,
-3. choose a real Home Assistant entity,
-4. change its name, icon and advanced configuration,
-5. select one or multiple cards,
-6. move cards with pointer handles or arrow keys,
-7. resize cards with the pointer resize handle or width/height controls,
-8. use marquee selection and live alignment guides,
-9. lock, remove, undo and redo layout changes,
-10. preview several automatic layout proposals,
-11. apply a proposal or restore the original layout,
-12. export the dashboard as a backup JSON file.
+```yaml
+type: custom:frakon-canvas-dashboard-card
+entity: sensor.placeholder
+dashboard_id: frakon-canvas-alpha-test
+title: FRAKON Canvas Alpha Test
+language: cs
+edit_mode: true
+storage: home-assistant
+items: []
+```
 
-Set `edit_mode: false` when the layout is ready for normal use.
+Set `edit_mode: false` when a layout is ready for normal viewing.
 
 ## Automatic layout
 
-Automatic layout can resize and reposition unlocked cards according to their explainable priority metadata. It supports multiple deterministic proposals and preserves the original dashboard until a proposal is applied.
+The stable editor can generate deterministic layout proposals using explainable priority metadata. It supports preview, multiple proposal strategies, apply and restore without changing the stored dashboard until the user commits a proposal.
 
 See:
 
@@ -149,120 +216,51 @@ See:
 docs/auto-layout.md
 ```
 
-A manual priority can be set in a card configuration:
+A manual priority can be set in card configuration:
 
 ```yaml
 priority: 92
 ```
 
-## Card examples
-
-### General entity
-
-```yaml
-type: custom:frakon-card
-entity: switch.example
-language: cs
-tap_action: toggle
-```
-
-### Light
-
-```yaml
-type: custom:frakon-light-card
-entity: light.living_room
-name: Living room
-show_brightness: true
-show_color_temperature: true
-compact: false
-```
-
-### Camera
-
-```yaml
-type: custom:frakon-camera-card
-entity: camera.front_door
-name: Front door
-aspect_ratio: 16 / 9
-show_state: true
-priority: 90
-```
-
-### Vehicle
-
-```yaml
-type: custom:frakon-vehicle-card
-entity: sensor.vehicle_battery
-name: Vehicle
-range_entity: sensor.vehicle_range
-charging_power_entity: sensor.charging_power
-charging_switch_entity: switch.vehicle_charging
-```
-
-## Persistence and backups
-
-The dashboard runtime talks to an asynchronous storage controller. `storage: local` stores documents in the browser's `localStorage` and remains useful as a zero-backend fallback.
-
-`storage: home-assistant` uses the included `custom_components/frakon_dashboard` backend and Home Assistant's authenticated WebSocket API. The backend persists dashboard revision envelopes through Home Assistant's `Store` helper and supports:
-
-```text
-frakon/dashboard/load
-frakon/dashboard/save
-frakon/dashboard/remove
-frakon/dashboard/load_revision
-frakon/dashboard/save_revision
-frakon/dashboard/remove_revision
-```
-
-Dashboard identifiers are sent as `dashboard_id` because Home Assistant reserves the WebSocket `id` field for numeric message correlation. Revision-aware saves use `expectedRevision`; a stale client receives a conflict instead of silently overwriting a newer dashboard.
-
-Loading is available to authenticated Home Assistant users. Server-side mutations require an administrator account.
-
-Use Export after important changes. Import validates the document version and normalizes the layout before saving it.
-
-See `docs/storage.md` for the complete storage and synchronization model.
-
 ## Architecture
 
-- `apps/home-assistant` — Home Assistant application boundary retained while the custom integration backend lives in `custom_components/frakon_dashboard`
+- `apps/home-assistant` — Home Assistant application boundary
 - `apps/studio` — standalone FRAKON Dashboard Studio boundary
-- `packages/studio-engine` — platform-neutral viewport, selection, movement, resize, guidelines, constraints and automatic layout engine
-- `packages/dashboard-engine` — planned platform-neutral dashboard document operations
+- `packages/studio-engine` — platform-neutral viewport, selection, movement, resize, guidelines and constraints
+- `packages/dashboard-engine` — dashboard-engine package boundary
 - `packages/design-system` — reusable FRAKON surface styling and design primitives
-- `packages/widget-sdk` — planned widget authoring contracts
-- `packages/localization` — planned shared localization package
-- `packages/ha-adapter` — Home Assistant-only adapter package boundary
-- `custom_components/frakon_dashboard` — Home Assistant server persistence and WebSocket backend
-- `src` — current production Home Assistant runtime retained during incremental migration
+- `packages/widget-sdk` — widget authoring package boundary
+- `packages/localization` — localization package boundary
+- `packages/ha-adapter` — Home Assistant adapter boundary
+- `custom_components/frakon_dashboard` — Home Assistant backend, storage, build identity and WebSocket API
+- `src` — current production Home Assistant frontend/runtime during incremental migration
 
-Home Assistant is treated as the first adapter, not as the permanent owner of the FRAKON UI architecture.
+Home Assistant is the first FRAKON adapter, not the permanent owner of the FRAKON UI architecture.
 
 ## Validation
 
-GitHub Actions validates every push and pull request with:
+The repository CI is designed to run:
 
-- Python syntax validation for the Home Assistant integration
+- Python syntax validation
+- integration relative-import verification
+- build-info provider verification
+- responsive write-lock and Dry Run invariants
+- alpha release-readiness verification
 - ESLint
 - Vitest
 - TypeScript production build
 - Vite bundle generation
-- build artifact upload
+- HACS release ZIP generation and verification
+- simulated Home Assistant installation self-check
+- artifact upload
 
-## Known alpha limitations
+A separate Hassfest workflow validates Home Assistant integration metadata and translations.
 
-- the default persistence mode is still browser-local unless `storage: home-assistant` is selected
-- Home Assistant backend packaging is currently manual; unified HACS distribution is not finished
-- production editing is still grid-based; fully unconstrained floating/free-canvas placement remains a Studio milestone
-- not every specialized card has its own full visual editor yet
-- automatic importance scoring is currently based on card type and optional manual priority, not full live AI context
-- camera behavior depends on the entity image exposed by Home Assistant
-- real-device testing across multiple Home Assistant installations is still required
+## Current alpha limitations
 
-## Planned next milestones
-
-- perform the first real Home Assistant alpha installation test with server-side persistence
-- finish production/Studio interaction parity for advanced constraints and free-canvas placement
-- broader visual editors for specialized cards
-- Energy, Alarm, Graph, Weather and Floorplan cards
-- screenshot and browser interaction tests
-- unified/signed alpha packaging and public HACS distribution
+- Responsive Canvas v2 server writes are deliberately disabled pending real-device tests.
+- Real-device testing across multiple Home Assistant browsers/devices is still required before the responsive write gate is opened.
+- The repository is currently private, so this is not yet a public HACS distribution flow.
+- A final FRAKON brand asset is still required before public HACS publication.
+- The experimental Canvas should not yet be the sole production control surface for safety-critical functions.
+- Automatic importance scoring does not yet provide the complete planned live contextual AI model.
