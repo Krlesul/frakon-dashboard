@@ -1,4 +1,5 @@
 import type { FrakonDashboardBuildInfo } from './dashboard-build-info';
+import type { ResponsiveV2DryRunStorageInvariant } from './responsive-v2-dry-run-storage-proof';
 import type { ResponsiveCanvasV2HealthReport } from './responsive-v2-health-report';
 
 export type ResponsiveV2DryRunObservationStatus =
@@ -16,6 +17,11 @@ export interface ResponsiveV2DryRunObservation {
   remoteRevision?: string;
   reason?: string;
   checkedAt?: number;
+  storageInvariant?: ResponsiveV2DryRunStorageInvariant;
+  storageBeforeStatus?: string;
+  storageAfterStatus?: string;
+  storageBeforeRevision?: string;
+  storageAfterRevision?: string;
 }
 
 export interface ResponsiveV2AlphaValidationReport {
