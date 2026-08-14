@@ -26,6 +26,25 @@ REQUIRED_FILES = (
     "websocket.py",
     "frontend/frakon-dashboard.js",
 )
+FRONTEND_REGISTRATION_MARKERS = (
+    "frakon-card",
+    "frakon-sensor-card",
+    "frakon-room-card",
+    "frakon-switch-card",
+    "frakon-action-card",
+    "frakon-light-card",
+    "frakon-climate-card",
+    "frakon-fan-card",
+    "frakon-binary-sensor-card",
+    "frakon-cover-card",
+    "frakon-lock-card",
+    "frakon-camera-card",
+    "frakon-media-player-card",
+    "frakon-energy-card",
+    "frakon-vehicle-card",
+    "frakon-dashboard-card",
+    "frakon-canvas-dashboard-card",
+)
 
 
 def fail(message: str) -> None:
@@ -88,11 +107,7 @@ def main() -> int:
     if size < 10_000:
         fail(f"frontend bundle looks unexpectedly small: {size} bytes")
     source = frontend.read_text(encoding="utf-8", errors="ignore")
-    for marker in (
-        "frakon-canvas-dashboard-card",
-        "frakon-dashboard-card",
-        "frakon-energy-card",
-    ):
+    for marker in FRONTEND_REGISTRATION_MARKERS:
         if marker not in source:
             fail(f"frontend bundle is missing registration marker {marker!r}")
 
@@ -103,6 +118,7 @@ def main() -> int:
     print(f"version: {EXPECTED_VERSION}")
     print(f"source commit: {source_commit}")
     print(f"frontend bytes: {size}")
+    print(f"verified frontend registrations: {len(FRONTEND_REGISTRATION_MARKERS)}")
     print(f"resource URL: {resource_url}")
     return 0
 
