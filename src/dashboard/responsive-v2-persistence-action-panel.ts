@@ -7,7 +7,9 @@ import type { ResponsiveV2DryRunObservation } from './responsive-v2-alpha-report
 import './responsive-v2-conflict-panel';
 import type { ResponsiveCanvasV2ConflictSelections } from './responsive-v2-conflict-resolution';
 import type { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
+import { responsiveV2DryRunStorageProof, type ResponsiveV2DryRunStorageProof } from './responsive-v2-dry-run-storage-proof';
 import { dryRunResponsiveV2EditorCandidate, resolveResponsiveV2EditorConflict, saveResponsiveV2EditorCandidate } from './responsive-v2-editor-save-coordinator';
+import { loadResponsiveCanvasV2ReadOnly, type ResponsiveCanvasV2ReadResult } from './responsive-v2-read-loader';
 import type { ResponsiveCanvasV2RevisionEnvelope } from './responsive-v2-revision';
 import { responsiveV2SavedState } from './responsive-v2-saved-state';
 import { responsiveV2SaveTranslate } from './responsive-v2-save-i18n';
@@ -18,6 +20,17 @@ import type { ResponsiveCanvasV2ConflictSession } from './responsive-v2-sync-con
 function clientId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return `editor-${crypto.randomUUID()}`;
   return `editor-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function proofObservation(proof: ResponsiveV2DryRunStorageProof | undefined): Partial<ResponsiveV2DryRunObservation> {
+  if (!proof) return { storageInvariant: 'unverifiable' };
+  return {
+    storageInvariant: proof.invariant,
+    storageBeforeStatus: proof.beforeStatus,
+    storageAfterStatus: proof.afterStatus,
+    storageBeforeRevision: proof.beforeRevision,
+    storageAfterRevision: proof.afterRevision,
+  };
 }
 
 @customElement('frakon-responsive-v2-persistence-action-panel')
@@ -84,6 +97,16 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
     }));
   }
 
+  private async readPersisted(dashboardId: string): Promise<ResponsiveCanvasV2ReadResult | undefined> {
+    const transport = this.transport;
+    if (!transport) return undefined;
+    try {
+      return await loadResponsiveCanvasV2ReadOnly(transport, dashboardId);
+    } catch {
+      return undefined;
+    }
+  }
+
   private async dryRun(): Promise<void> {
     const transport = this.transport;
     const capabilities = this.capabilities;
@@ -93,6 +116,7 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
     this.saving = true;
     this.serverValidatedRevision = undefined;
     this.message = undefined;
+    const before = await this.readPersisted(preview.candidate.bundle.id);
     try {
       const result = await dryRunResponsiveV2EditorCandidate({
         transport,
@@ -101,11 +125,14 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
         baseRevision: this.baseRevision,
         candidate: preview.candidate,
       });
+      const after = await this.readPersisted(preview.candidate.bundle.id);
+      const proof = before && after ? responsiveV2DryRunStorageProof(before, after) : undefined;
       const checkedAt = Date.now();
+      const storage = proofObservation(proof);
       if (result.status === 'valid') {
         this.serverValidatedRevision = preview.candidate.revision;
         this.message = this.t('validationValid');
-        this.emitDryRunObservation({ status: 'valid', candidateRevision: preview.candidate.revision, checkedAt });
+        this.emitDryRunObservation({ status: 'valid', candidateRevision: preview.candidate.revision, checkedAt, ...storage });
       } else if (result.status === 'conflict') {
         this.conflict = result.conflict;
         this.message = this.t('validationConflict');
@@ -114,13 +141,14 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
           candidateRevision: preview.candidate.revision,
           remoteRevision: result.conflict.remote.revision,
           checkedAt,
+          ...storage,
         });
       } else if (result.status === 'remote-removed') {
         this.message = this.t('validationConflict');
-        this.emitDryRunObservation({ status: 'remote-removed', candidateRevision: preview.candidate.revision, checkedAt });
+        this.emitDryRunObservation({ status: 'remote-removed', candidateRevision: preview.candidate.revision, checkedAt, ...storage });
       } else if (result.status === 'clean') {
         this.message = this.t('clean');
-        this.emitDryRunObservation({ status: 'clean', checkedAt });
+        this.emitDryRunObservation({ status: 'clean', checkedAt, ...storage });
       } else {
         this.message = `${this.t('validationBlocked')}: ${result.reason}`;
         this.emitDryRunObservation({
@@ -128,12 +156,15 @@ export class FrakonResponsiveV2PersistenceActionPanel extends LitElement {
           candidateRevision: preview.candidate.revision,
           reason: result.reason,
           checkedAt,
+          ...storage,
         });
       }
     } catch (error) {
+      const after = await this.readPersisted(preview.candidate.bundle.id);
+      const proof = before && after ? responsiveV2DryRunStorageProof(before, after) : undefined;
       const reason = error instanceof Error ? error.message : String(error);
       this.message = reason;
-      this.emitDryRunObservation({ status: 'error', reason, checkedAt: Date.now() });
+      this.emitDryRunObservation({ status: 'error', reason, checkedAt: Date.now(), ...proofObservation(proof) });
     } finally {
       this.saving = false;
     }
