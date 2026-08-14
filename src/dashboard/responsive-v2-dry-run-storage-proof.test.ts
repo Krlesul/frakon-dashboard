@@ -48,6 +48,22 @@ describe('responsive v2 dry-run storage proof', () => {
     });
   });
 
+  it('treats object key order as irrelevant to the persisted envelope proof', () => {
+    const before = loaded('r1');
+    const after = loaded('r1');
+    before.envelope.bundle.variants.desktop.items[0].card = {
+      type: 'custom:a',
+      entity: 'light.kitchen',
+      name: 'Kitchen',
+    };
+    after.envelope.bundle.variants.desktop.items[0].card = {
+      name: 'Kitchen',
+      entity: 'light.kitchen',
+      type: 'custom:a',
+    };
+    expect(responsiveV2DryRunStorageProof(before, after).invariant).toBe('unchanged');
+  });
+
   it('proves an absent store stayed absent', () => {
     expect(responsiveV2DryRunStorageProof(absent(), absent()).invariant).toBe('unchanged');
   });
