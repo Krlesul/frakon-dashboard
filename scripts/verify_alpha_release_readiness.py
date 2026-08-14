@@ -10,7 +10,9 @@ HACS = json.loads((ROOT / "hacs.json").read_text())
 HA_MANIFEST = json.loads((ROOT / "custom_components/frakon_dashboard/manifest.json").read_text())
 VITE = (ROOT / "vite.config.ts").read_text()
 INDEX = (ROOT / "src/index.ts").read_text()
+CONST_SOURCE = (ROOT / "custom_components/frakon_dashboard/const.py").read_text()
 FRONTEND_HELPER = ROOT / "custom_components/frakon_dashboard/frontend.py"
+FRONTEND_HELPER_SOURCE = FRONTEND_HELPER.read_text() if FRONTEND_HELPER.is_file() else ""
 RELEASE_PACKAGER = ROOT / "scripts/build_hacs_release.py"
 INSTALL_SELF_CHECK = ROOT / "scripts/verify_home_assistant_install.py"
 
@@ -20,6 +22,11 @@ package_version = str(PACKAGE.get("version", ""))
 manifest_version = str(HA_MANIFEST.get("version", ""))
 if package_version != manifest_version:
     errors.append(f"version mismatch: package.json={package_version!r}, HA manifest={manifest_version!r}")
+
+runtime_version_match = re.search(r'^INTEGRATION_VERSION\s*=\s*["\']([^"\']+)["\']', CONST_SOURCE, re.MULTILINE)
+runtime_version = runtime_version_match.group(1) if runtime_version_match else ""
+if runtime_version != package_version:
+    errors.append(f"runtime integration version mismatch: const.py={runtime_version!r}, package.json={package_version!r}")
 
 if HA_MANIFEST.get("domain") != "frakon_dashboard":
     errors.append("HA manifest domain must be frakon_dashboard")
@@ -55,6 +62,8 @@ for import_path in required_card_imports:
 
 if not FRONTEND_HELPER.is_file():
     errors.append("bundled frontend runtime helper is missing")
+elif "?v={INTEGRATION_VERSION}" not in FRONTEND_HELPER_SOURCE:
+    errors.append("bundled frontend resource URL must be cache-busted with INTEGRATION_VERSION")
 if not RELEASE_PACKAGER.is_file():
     errors.append("HACS release packager is missing")
 if not INSTALL_SELF_CHECK.is_file():
