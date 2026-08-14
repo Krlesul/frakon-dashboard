@@ -52,6 +52,19 @@ function conflictSession(
   };
 }
 
+function conflictSessionFromRemoteBase(
+  base: ResponsiveCanvasV2RevisionEnvelope,
+  local: ResponsiveCanvasV2RevisionEnvelope,
+  remote: ResponsiveCanvasV2RevisionEnvelope,
+): ResponsiveCanvasV2ConflictSession {
+  return {
+    base,
+    local,
+    remote,
+    merge: mergeResponsiveCanvasV2Bundles(base.bundle, local.bundle, remote.bundle),
+  };
+}
+
 function candidateState(
   controller: ResponsiveV2DraftController,
   baseRevision: string | undefined,
@@ -125,6 +138,23 @@ export async function resolveResponsiveV2EditorConflict(input: {
     conflict.remote.revision,
     (input.now ?? Date.now)(),
   );
+
+  const validation = await dryRunResponsiveCanvasV2Revision(
+    transport,
+    capabilities,
+    resolved,
+    conflict.remote.revision,
+    namespace,
+  );
+  if (validation.status === 'blocked') return { status: 'blocked', reason: validation.reason };
+  if (validation.status === 'conflict') {
+    if (!validation.remote) return { status: 'blocked', reason: 'remote-removed' };
+    return {
+      status: 'conflict',
+      conflict: conflictSessionFromRemoteBase(conflict.remote, resolved, validation.remote),
+    };
+  }
+
   const result = await persistResponsiveCanvasV2Revision(
     transport,
     capabilities,
@@ -136,11 +166,6 @@ export async function resolveResponsiveV2EditorConflict(input: {
   if (result.status === 'saved') return { status: 'saved', envelope: result.envelope };
   return {
     status: 'conflict',
-    conflict: {
-      base: conflict.remote,
-      local: resolved,
-      remote: result.remote,
-      merge: mergeResponsiveCanvasV2Bundles(conflict.remote.bundle, resolved.bundle, result.remote.bundle),
-    },
+    conflict: conflictSessionFromRemoteBase(conflict.remote, resolved, result.remote),
   };
 }
