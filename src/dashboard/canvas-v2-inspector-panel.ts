@@ -102,7 +102,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     if (field.key === 'name') return this.te('name');
     if (field.key === 'title') return this.te('title');
     const labels: Record<Exclude<DashboardCanvasV2CardConfigField['key'], 'entity' | 'name' | 'title'>, CanvasV2CardConfigTranslationKey> = {
-      temperature_entity: 'temperatureEntity', humidity_entity: 'humidityEntity', range_entity: 'rangeEntity', charging_power_entity: 'chargingPowerEntity', charging_switch_entity: 'chargingSwitchEntity', energy_entity: 'energyEntity', price_entity: 'priceEntity', unit: 'unit', light_entities: 'lightEntities', show_brightness: 'showBrightness', show_color_temperature: 'showColorTemperature', show_position: 'showPosition', show_state: 'showState', show_volume: 'showVolume', show_percentage: 'showPercentage', compact: 'compact', step: 'temperatureStep', precision: 'precision', aspect_ratio: 'aspectRatio',
+      temperature_entity: 'temperatureEntity', humidity_entity: 'humidityEntity', range_entity: 'rangeEntity', charging_power_entity: 'chargingPowerEntity', charging_switch_entity: 'chargingSwitchEntity', energy_entity: 'energyEntity', price_entity: 'priceEntity', unit: 'unit', light_entities: 'lightEntities', show_brightness: 'showBrightness', show_color_temperature: 'showColorTemperature', show_position: 'showPosition', show_state: 'showState', show_volume: 'showVolume', show_percentage: 'showPercentage', confirm_unlock: 'confirmUnlock', compact: 'compact', step: 'temperatureStep', precision: 'precision', aspect_ratio: 'aspectRatio',
     };
     return this.tcc(labels[field.key as keyof typeof labels]);
   }
@@ -111,7 +111,8 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     const value = item.card[field.key];
     const label = this.cardFieldLabel(field);
     if (field.kind === 'boolean') {
-      return html`<label class="toggle option"><input type="checkbox" .checked=${value === true} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).checked)}>${label}</label>`;
+      const checked = value === true || (value === undefined && field.defaultValue === true);
+      return html`<label class="toggle option"><input type="checkbox" .checked=${checked} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).checked)}>${label}</label>`;
     }
     if (field.kind === 'number') {
       return html`<label class="field"><span class="label">${label}</span><input type="number" min=${String(field.min)} max=${String(field.max)} step=${field.integer ? '1' : '0.1'} .value=${typeof value === 'number' ? String(value) : ''} @change=${(event: Event) => { const next = Number((event.currentTarget as HTMLInputElement).value); if (Number.isFinite(next)) this.patchCardConfig(item.id, field.key, next); }}></label>`;
