@@ -95,9 +95,13 @@ describe('patchDashboardCanvasV2CardConfig', () => {
     expect(patchDashboardCanvasV2CardConfig(source, 'light', { precision: 7 }).status).toBe('invalid');
   });
 
-  it('validates room light entity lists and removes duplicates', () => {
+  it('validates room sensor and light entity domains', () => {
     const source = doc();
     source.items[0].card = { type: 'custom:frakon-room-card', entity: 'sensor.room' };
+    const fields = dashboardCanvasV2CardConfigFields(source.items[0].card);
+    expect(fields.find((field) => field.key === 'temperature_entity')).toMatchObject({ kind: 'entity', domains: ['sensor'] });
+    expect(fields.find((field) => field.key === 'humidity_entity')).toMatchObject({ kind: 'entity', domains: ['sensor'] });
+
     const result = patchDashboardCanvasV2CardConfig(source, 'light', {
       temperature_entity: 'sensor.room_temperature',
       humidity_entity: 'sensor.room_humidity',
@@ -105,12 +109,19 @@ describe('patchDashboardCanvasV2CardConfig', () => {
     });
     expect(result.status).toBe('committed');
     expect(result.document.items[0].card.light_entities).toEqual(['light.ceiling', 'light.lamp']);
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { temperature_entity: 'switch.not_temperature' }).status).toBe('invalid');
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { humidity_entity: 'light.not_humidity' }).status).toBe('invalid');
     expect(patchDashboardCanvasV2CardConfig(source, 'light', { light_entities: ['switch.not_light'] }).status).toBe('invalid');
   });
 
-  it('supports vehicle related entity references', () => {
+  it('supports vehicle references with sensor and switch domain guards', () => {
     const source = doc();
     source.items[0].card = { type: 'custom:frakon-vehicle-card', entity: 'sensor.car_battery' };
+    const fields = dashboardCanvasV2CardConfigFields(source.items[0].card);
+    expect(fields.find((field) => field.key === 'range_entity')).toMatchObject({ domains: ['sensor'] });
+    expect(fields.find((field) => field.key === 'charging_power_entity')).toMatchObject({ domains: ['sensor'] });
+    expect(fields.find((field) => field.key === 'charging_switch_entity')).toMatchObject({ domains: ['switch'] });
+
     const result = patchDashboardCanvasV2CardConfig(source, 'light', {
       range_entity: 'sensor.car_range',
       charging_power_entity: 'sensor.car_power',
@@ -122,6 +133,20 @@ describe('patchDashboardCanvasV2CardConfig', () => {
       charging_power_entity: 'sensor.car_power',
       charging_switch_entity: 'switch.car_charging',
     });
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { range_entity: 'device_tracker.car' }).status).toBe('invalid');
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { charging_power_entity: 'number.car_power' }).status).toBe('invalid');
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { charging_switch_entity: 'sensor.car_charging' }).status).toBe('invalid');
+  });
+
+  it('constrains Energy secondary references to sensors', () => {
+    const source = doc();
+    source.items[0].card = { type: 'custom:frakon-energy-card', entity: 'sensor.grid_power' };
+    const fields = dashboardCanvasV2CardConfigFields(source.items[0].card);
+    expect(fields.find((field) => field.key === 'energy_entity')).toMatchObject({ domains: ['sensor'] });
+    expect(fields.find((field) => field.key === 'price_entity')).toMatchObject({ domains: ['sensor'] });
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { energy_entity: 'sensor.daily_energy', price_entity: 'sensor.energy_price' }).status).toBe('committed');
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { energy_entity: 'switch.daily_energy' }).status).toBe('invalid');
+    expect(patchDashboardCanvasV2CardConfig(source, 'light', { price_entity: 'input_number.price' }).status).toBe('invalid');
   });
 
   it('rejects unsafe arbitrary config keys', () => {
