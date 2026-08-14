@@ -9,6 +9,8 @@ import './cards/camera/camera-card';
 import './cards/media/media-player-card';
 import './cards/vehicle/vehicle-card';
 import './cards/energy/energy-card';
+import './cards/switch/switch-card';
+import './cards/lock/lock-card';
 import './dashboard/dashboard-card';
 import './dashboard/dashboard-card-editor';
 import './dashboard/canvas-dashboard-card';
@@ -40,6 +42,8 @@ window.customCards.push(
   { type: 'frakon-media-player-card', name: 'FRAKON Media Player Card', description: 'Media playback and volume controls.', preview: true },
   { type: 'frakon-vehicle-card', name: 'FRAKON Vehicle Card', description: 'Vehicle battery, range and charging overview.', preview: true },
   { type: 'frakon-energy-card', name: 'FRAKON Energy Card', description: 'Power, energy and price overview for Home Assistant.', preview: true },
+  { type: 'frakon-switch-card', name: 'FRAKON Switch Card', description: 'Direct Home Assistant switch control.', preview: true },
+  { type: 'frakon-lock-card', name: 'FRAKON Lock Card', description: 'Lock and unlock control with state feedback.', preview: true },
   { type: 'frakon-dashboard-card', name: 'FRAKON Dashboard Card', description: 'Responsive visual editor with palette, forms, history and configurable persistence.', preview: true },
   { type: 'frakon-canvas-dashboard-card', name: 'FRAKON Canvas Dashboard (Experimental)', description: 'Experimental free-pixel canvas editor with collision-safe v1-compatible commits.', preview: true },
 );
