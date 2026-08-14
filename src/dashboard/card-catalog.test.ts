@@ -18,12 +18,14 @@ describe('FRAKON card catalog', () => {
       expect(filterCardCatalog('', category).length).toBeGreaterThan(0);
     }
     expect(filterCardCatalog('', 'energy').map((template) => template.type)).toContain('custom:frakon-energy-card');
+    expect(filterCardCatalog('', 'security').map((template) => template.type)).toContain('custom:frakon-binary-sensor-card');
   });
 
   it('searches names, descriptions and types', () => {
     expect(filterCardCatalog('camera').map((template) => template.type)).toContain('custom:frakon-camera-card');
     expect(filterCardCatalog('brightness').map((template) => template.type)).toContain('custom:frakon-light-card');
     expect(filterCardCatalog('energy').map((template) => template.type)).toContain('custom:frakon-energy-card');
+    expect(filterCardCatalog('smoke').map((template) => template.type)).toContain('custom:frakon-binary-sensor-card');
   });
 
   it('creates valid default configurations', () => {
