@@ -30,6 +30,7 @@ function capabilities(write: boolean): DashboardServerCapabilities {
       write,
       atomicRevision: true,
       breakpoints: new Set(['mobile', 'tablet', 'desktop', 'wide']),
+      dryRunEndpoint: 'frakon/dashboard/dry_run_responsive_revision',
       saveEndpoint: 'frakon/dashboard/save_responsive_revision',
     },
   };
@@ -43,27 +44,41 @@ function dirtyController(): ResponsiveV2DraftController {
   return controller;
 }
 
+type Mode = 'saved' | 'conflict' | 'conflict-once' | 'dry-run-conflict-after-first-save-conflict';
+
 class Transport implements DashboardStorageTransport {
   requests: Array<{ command: string; payload: Record<string, unknown> }> = [];
-  private conflictCount = 0;
-  constructor(private readonly mode: 'saved' | 'conflict' | 'conflict-once' = 'saved') {}
+  private saveConflicts = 0;
+  constructor(private readonly mode: Mode = 'saved') {}
+
+  private remote(envelope: Record<string, unknown>, revision = 'remote-r2', parentRevision = 'r1') {
+    const remoteBundle = structuredClone(envelope.document) as ReturnType<ResponsiveV2DraftController['toBundle']>;
+    remoteBundle.documents.desktop!.items[0].frame.x = revision === 'remote-r3' ? 160 : 120;
+    return {
+      document: remoteBundle,
+      revision,
+      parentRevision,
+      updatedAt: revision === 'remote-r3' ? 5 : 3,
+      clientId: 'remote',
+    };
+  }
+
   async request<T>(command: string, payload: Record<string, unknown>): Promise<T> {
     this.requests.push({ command, payload });
     const envelope = payload.envelope as Record<string, unknown>;
-    const shouldConflict = this.mode === 'conflict' || (this.mode === 'conflict-once' && this.conflictCount++ === 0);
+
+    if (command.endsWith('/dry_run_responsive_revision')) {
+      if (this.mode === 'dry-run-conflict-after-first-save-conflict') {
+        return { status: 'conflict', remote: this.remote(envelope, 'remote-r3', 'remote-r2') } as T;
+      }
+      return { status: 'valid', currentRevision: payload.expectedRevision ?? null, writeEnabled: true } as T;
+    }
+
+    const shouldConflict = this.mode === 'conflict'
+      || this.mode === 'dry-run-conflict-after-first-save-conflict'
+      || (this.mode === 'conflict-once' && this.saveConflicts++ === 0);
     if (!shouldConflict) return { status: 'saved', envelope } as T;
-    const remoteBundle = structuredClone(envelope.document) as ReturnType<ResponsiveV2DraftController['toBundle']>;
-    remoteBundle.documents.desktop!.items[0].frame.x = 120;
-    return {
-      status: 'conflict',
-      remote: {
-        document: remoteBundle,
-        revision: 'remote-r2',
-        parentRevision: 'r1',
-        updatedAt: 3,
-        clientId: 'remote',
-      },
-    } as T;
+    return { status: 'conflict', remote: this.remote(envelope) } as T;
   }
 }
 
@@ -102,7 +117,7 @@ describe('responsive v2 editor save coordinator', () => {
     expect(result.conflict.merge.conflicts.map((item) => item.breakpoint)).toContain('desktop');
   });
 
-  it('resolves selected breakpoint against the remote revision', async () => {
+  it('dry-runs a resolved conflict before child save', async () => {
     const controller = dirtyController();
     const candidate = createResponsiveCanvasV2RevisionFromParent(controller.toBundle(), 'client', 'r1', 2);
     const transport = new Transport('conflict-once');
@@ -119,6 +134,35 @@ describe('responsive v2 editor save coordinator', () => {
     if (resolved.status !== 'saved') throw new Error('Expected saved resolution');
     expect(resolved.envelope.parentRevision).toBe('remote-r2');
     expect(resolved.envelope.bundle.documents.desktop?.items[0].frame.x).toBe(80);
-    expect(transport.requests).toHaveLength(2);
+    expect(transport.requests.map((request) => request.command)).toEqual([
+      'frakon/dashboard/save_responsive_revision',
+      'frakon/dashboard/dry_run_responsive_revision',
+      'frakon/dashboard/save_responsive_revision',
+    ]);
+  });
+
+  it('returns a new conflict when remote changes during resolution dry-run', async () => {
+    const controller = dirtyController();
+    const candidate = createResponsiveCanvasV2RevisionFromParent(controller.toBundle(), 'client', 'r1', 2);
+    const transport = new Transport('dry-run-conflict-after-first-save-conflict');
+    const first = await saveResponsiveV2EditorCandidate({ transport, capabilities: capabilities(true), controller, baseRevision: 'r1', candidate });
+    if (first.status !== 'conflict') throw new Error('Expected initial conflict');
+
+    const resolved = await resolveResponsiveV2EditorConflict({
+      transport,
+      capabilities: capabilities(true),
+      conflict: first.conflict,
+      selections: { desktop: 'local' },
+      now: () => 4,
+    });
+
+    expect(resolved.status).toBe('conflict');
+    if (resolved.status !== 'conflict') throw new Error('Expected refreshed conflict');
+    expect(resolved.conflict.base.revision).toBe('remote-r2');
+    expect(resolved.conflict.remote.revision).toBe('remote-r3');
+    expect(transport.requests.map((request) => request.command)).toEqual([
+      'frakon/dashboard/save_responsive_revision',
+      'frakon/dashboard/dry_run_responsive_revision',
+    ]);
   });
 });
