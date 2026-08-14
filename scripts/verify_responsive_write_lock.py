@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONST_PATH = ROOT / "custom_components/frakon_dashboard/const.py"
 WS_PATH = ROOT / "custom_components/frakon_dashboard/responsive_websocket.py"
 ACTION_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-persistence-action-panel.ts"
+DRY_RUN_PROOF_PATH = ROOT / "src/dashboard/responsive-v2-dry-run-storage-proof.ts"
 SAVE_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-save-panel.ts"
 RECEIPT_PATH = ROOT / "src/dashboard/responsive-v2-server-validation-receipt.ts"
 SAVE_COORDINATOR_PATH = ROOT / "src/dashboard/responsive-v2-editor-save-coordinator.ts"
@@ -102,8 +103,23 @@ def main() -> None:
             "this.serverValidatedRevision !== event.detail.candidate.revision",
             "validationRequired",
             ".serverValidatedRevision=${this.serverValidatedRevision}",
+            "const before = await this.readPersisted(preview.candidate.bundle.id)",
+            "const after = await this.readPersisted(preview.candidate.bundle.id)",
+            "responsiveV2DryRunStorageProof(before, after)",
+            "storageInvariant",
         ),
-        "Responsive editor dry-run receipt gate",
+        "Responsive editor dry-run receipt and storage-proof gate",
+    )
+    require_snippets(
+        DRY_RUN_PROOF_PATH,
+        (
+            "responsiveV2DryRunStorageProof",
+            "'unchanged'",
+            "'changed-during-check'",
+            "'unverifiable'",
+            "beforeFingerprint === afterFingerprint",
+        ),
+        "Responsive dry-run persisted-state proof model",
     )
     require_snippets(
         RECEIPT_PATH,
@@ -155,7 +171,8 @@ def main() -> None:
 
     print(
         "Responsive alpha write lock verified: contract v1, empty write allowlist, admin guarded handlers, "
-        "non-mutating dry-run, exact-candidate validation receipt, conflict dry-run, post-save state bridge."
+        "non-mutating dry-run, before/after storage proof, exact-candidate validation receipt, conflict dry-run, "
+        "post-save state bridge."
     )
 
 
