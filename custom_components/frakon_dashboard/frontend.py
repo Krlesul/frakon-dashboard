@@ -12,7 +12,7 @@ from homeassistant.components.lovelace.const import (
 from homeassistant.const import CONF_ID, CONF_TYPE, CONF_URL
 from homeassistant.core import HomeAssistant
 
-from .const import FRONTEND_FILENAME, FRONTEND_URL_PATH
+from .const import FRONTEND_FILENAME, FRONTEND_URL_PATH, INTEGRATION_VERSION
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def frontend_file_path() -> Path:
 
 
 def frontend_resource_url() -> str:
-    return f"{FRONTEND_URL_PATH}/{FRONTEND_FILENAME}"
+    return f"{FRONTEND_URL_PATH}/{FRONTEND_FILENAME}?v={INTEGRATION_VERSION}"
 
 
 async def async_register_frontend(hass: HomeAssistant) -> bool:
@@ -54,10 +54,11 @@ async def async_register_frontend(hass: HomeAssistant) -> bool:
     collection = lovelace.resources
     await collection.async_get_info()
     target_url = frontend_resource_url()
+    resource_prefix = f"{FRONTEND_URL_PATH}/{FRONTEND_FILENAME}"
 
     for item in collection.async_items() or []:
         existing_url = item.get(CONF_URL)
-        if not isinstance(existing_url, str) or not existing_url.startswith(target_url):
+        if not isinstance(existing_url, str) or not existing_url.startswith(resource_prefix):
             continue
         item_id = item.get(CONF_ID)
         if item_id is None:
