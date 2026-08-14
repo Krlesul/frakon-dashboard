@@ -58,6 +58,8 @@ if "entry: 'src/index.ts'" not in VITE and 'entry: "src/index.ts"' not in VITE:
 required_card_imports = [
     "./cards/frakon-card",
     "./cards/energy/energy-card",
+    "./cards/binary-sensor/binary-sensor-card",
+    "./cards/action/action-card",
     "./dashboard/canvas-dashboard-card",
 ]
 for import_path in required_card_imports:
