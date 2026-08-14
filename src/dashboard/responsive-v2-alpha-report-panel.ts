@@ -25,11 +25,21 @@ export class FrakonResponsiveV2AlphaReportPanel extends LitElement {
     .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     button { border:0; border-radius:9px; padding:7px 10px; color:inherit; background:color-mix(in srgb, var(--primary-color) 16%, transparent); cursor:pointer; font:inherit; font-size:11px; }
     button:disabled { opacity:.38; cursor:not-allowed; }
-    .message { font-size:11px; opacity:.72; }
+    .message,.proof { font-size:11px; opacity:.72; }
+    .proof.ok { color:color-mix(in srgb, #4bbf73 84%, var(--primary-text-color)); opacity:1; }
+    .proof.warning { color:color-mix(in srgb, #f0a85a 86%, var(--primary-text-color)); opacity:1; }
   `;
 
   private t(key: Parameters<typeof responsiveV2AlphaReportTranslate>[1]): string {
     return responsiveV2AlphaReportTranslate(this.language, key);
+  }
+
+  private storageProof() {
+    const invariant = this.dryRun?.storageInvariant;
+    if (!invariant) return nothing;
+    if (invariant === 'unchanged') return html`<span class="proof ok">${this.t('storageProofUnchanged')}</span>`;
+    if (invariant === 'changed-during-check') return html`<span class="proof warning">${this.t('storageProofChanged')}</span>`;
+    return html`<span class="proof">${this.t('storageProofUnverifiable')}</span>`;
   }
 
   private async copyText(text: string): Promise<void> {
@@ -79,6 +89,7 @@ export class FrakonResponsiveV2AlphaReportPanel extends LitElement {
     if (!this.health) return nothing;
     return html`<div class="row">
       <button ?disabled=${this.copying} @click=${this.copyReport}>${this.t('copyReport')}</button>
+      ${this.storageProof()}
       ${this.message ? html`<span class="message">${this.message}</span>` : nothing}
     </div>`;
   }
