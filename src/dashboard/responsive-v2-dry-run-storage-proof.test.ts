@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { ResponsiveCanvasV2ReadResult } from './responsive-v2-read-loader';
-import { responsiveV2DryRunStorageProof } from './responsive-v2-dry-run-storage-proof';
+import type { DashboardServerCapabilities } from './dashboard-server-capabilities';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { createResponsiveCanvasV2Bundle } from './responsive-v2-bundle';
+import { responsiveV2DryRunStorageProof } from './responsive-v2-dry-run-storage-proof';
+import type { ResponsiveCanvasV2ReadResult } from './responsive-v2-read-loader';
+
+const capabilities = {} as DashboardServerCapabilities;
 
 function loaded(revision: string, x = 0): ResponsiveCanvasV2ReadResult {
   const document: FrakonDashboardDocumentV2 = {
@@ -15,18 +18,18 @@ function loaded(revision: string, x = 0): ResponsiveCanvasV2ReadResult {
   };
   return {
     status: 'loaded',
-    capabilities: {} as ResponsiveCanvasV2ReadResult extends { capabilities: infer T } ? T : never,
+    capabilities,
     envelope: {
       bundle: createResponsiveCanvasV2Bundle({ desktop: document }, 'desktop'),
       revision,
       updatedAt: 1,
       clientId: 'server',
     },
-  } as ResponsiveCanvasV2ReadResult;
+  };
 }
 
 function absent(): ResponsiveCanvasV2ReadResult {
-  return { status: 'absent', capabilities: {} as never } as ResponsiveCanvasV2ReadResult;
+  return { status: 'absent', capabilities };
 }
 
 describe('responsive v2 dry-run storage proof', () => {
@@ -53,7 +56,11 @@ describe('responsive v2 dry-run storage proof', () => {
   });
 
   it('is unverifiable when either read path is invalid or blocked', () => {
-    const invalid = { status: 'invalid', reason: 'invalid-envelope', capabilities: {} as never } as ResponsiveCanvasV2ReadResult;
+    const invalid: ResponsiveCanvasV2ReadResult = {
+      status: 'invalid',
+      reason: 'invalid-envelope',
+      capabilities,
+    };
     expect(responsiveV2DryRunStorageProof(invalid, loaded('r1')).invariant).toBe('unverifiable');
   });
 });
