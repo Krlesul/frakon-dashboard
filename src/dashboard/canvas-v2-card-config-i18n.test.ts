@@ -13,5 +13,7 @@ describe('canvas v2 card config i18n', () => {
     expect(canvasV2CardConfigTranslate('de', 'noMatchingEntities')).toContain('Keine');
     expect(canvasV2CardConfigTranslate('sk', 'searchEntity')).toContain('Hľadať');
     expect(canvasV2CardConfigTranslate('pl', 'noMatchingEntities')).toContain('Brak');
+    expect(canvasV2CardConfigTranslate('cs', 'showPercentage')).toContain('rychlosti');
+    expect(canvasV2CardConfigTranslate('de', 'showPercentage')).toContain('Prozent');
   });
 });
