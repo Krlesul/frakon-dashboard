@@ -7,6 +7,26 @@ interface HostedCardElement extends HTMLElement {
   setConfig?: (config: Record<string, unknown>) => void;
 }
 
+type VisibilityCallback = (visible: boolean) => void;
+
+const visibilityCallbacks = new WeakMap<Element, VisibilityCallback>();
+let sharedVisibilityObserver: IntersectionObserver | undefined;
+
+function visibilityObserver(): IntersectionObserver | undefined {
+  if (typeof IntersectionObserver === 'undefined') return undefined;
+  if (!sharedVisibilityObserver) {
+    sharedVisibilityObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          visibilityCallbacks.get(entry.target)?.(entry.isIntersecting || entry.intersectionRatio > 0);
+        }
+      },
+      { root: null, rootMargin: '240px' },
+    );
+  }
+  return sharedVisibilityObserver;
+}
+
 export function resolveCardTag(type: unknown): string | undefined {
   if (typeof type !== 'string') return undefined;
   return type.startsWith('custom:') ? type.slice('custom:'.length) : undefined;
@@ -23,7 +43,7 @@ export class FrakonCardHost extends LitElement {
   @query('.host') private host?: HTMLDivElement;
 
   private mountedElement?: HostedCardElement;
-  private intersectionObserver?: IntersectionObserver;
+  private observed = false;
   private active = true;
   private deferInitialMountToUpdated = false;
 
@@ -34,26 +54,22 @@ export class FrakonCardHost extends LitElement {
   `;
 
   protected firstUpdated(): void {
-    if (typeof IntersectionObserver === 'undefined') {
+    const observer = visibilityObserver();
+    if (!observer) {
       this.active = true;
       this.deferInitialMountToUpdated = true;
       return;
     }
 
     this.active = false;
-    this.intersectionObserver = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (!entry) return;
-        const nextActive = entry.isIntersecting || entry.intersectionRatio > 0;
-        if (nextActive === this.active) return;
-        this.active = nextActive;
-        if (nextActive) this.mountCard();
-        else this.unmountCard();
-      },
-      { root: null, rootMargin: '240px' },
-    );
-    this.intersectionObserver.observe(this);
+    visibilityCallbacks.set(this, (visible) => {
+      if (visible === this.active) return;
+      this.active = visible;
+      if (visible) this.mountCard();
+      else this.unmountCard();
+    });
+    observer.observe(this);
+    this.observed = true;
   }
 
   protected updated(changed: Map<PropertyKey, unknown>): void {
@@ -67,19 +83,39 @@ export class FrakonCardHost extends LitElement {
       this.mountCard();
       return;
     }
-    if (changed.has('hass') && this.mountedElement) this.mountedElement.hass = this.hass;
+    if (changed.has('hass') && this.mountedElement) this.updateMountedHass();
   }
 
   disconnectedCallback(): void {
-    this.intersectionObserver?.disconnect();
-    this.intersectionObserver = undefined;
+    if (this.observed) sharedVisibilityObserver?.unobserve(this);
+    visibilityCallbacks.delete(this);
+    this.observed = false;
     this.unmountCard();
     super.disconnectedCallback();
+  }
+
+  private updateMountedHass(): void {
+    if (!this.mountedElement) return;
+    try {
+      this.mountedElement.hass = this.hass;
+    } catch (error) {
+      this.showError(error instanceof Error ? error.message : 'Unable to update card state.');
+    }
   }
 
   private unmountCard(): void {
     this.mountedElement = undefined;
     this.host?.replaceChildren();
+  }
+
+  private showError(message: string): void {
+    if (!this.host) return;
+    this.mountedElement = undefined;
+    this.host.replaceChildren();
+    const error = document.createElement('div');
+    error.className = 'error';
+    error.textContent = message;
+    this.host.append(error);
   }
 
   private mountCard(): void {
@@ -88,10 +124,7 @@ export class FrakonCardHost extends LitElement {
     this.mountedElement = undefined;
     this.host.replaceChildren();
     if (!tag || !customElements.get(tag)) {
-      const error = document.createElement('div');
-      error.className = 'error';
-      error.textContent = tag ? `Card ${tag} is not registered.` : 'Unsupported card type.';
-      this.host.append(error);
+      this.showError(tag ? `Card ${tag} is not registered.` : 'Unsupported card type.');
       return;
     }
     const element = document.createElement(tag) as HostedCardElement;
@@ -101,10 +134,7 @@ export class FrakonCardHost extends LitElement {
       this.host.append(element);
       this.mountedElement = element;
     } catch (error) {
-      const message = document.createElement('div');
-      message.className = 'error';
-      message.textContent = error instanceof Error ? error.message : 'Unable to render card.';
-      this.host.append(message);
+      this.showError(error instanceof Error ? error.message : 'Unable to render card.');
     }
   }
 
