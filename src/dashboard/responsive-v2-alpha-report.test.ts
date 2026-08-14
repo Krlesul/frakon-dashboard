@@ -27,7 +27,7 @@ function health(): ResponsiveCanvasV2HealthReport {
 }
 
 describe('responsive v2 alpha validation report', () => {
-  it('exports build and transport diagnostics without dashboard payload or base revision', () => {
+  it('exports build, transport and dry-run storage proof without dashboard payload or base revision', () => {
     const report = responsiveV2AlphaValidationReport({
       health: health(),
       build: {
@@ -36,7 +36,16 @@ describe('responsive v2 alpha validation report', () => {
         responsiveContractVersion: 1,
         frontendSha256: 'a'.repeat(64),
       },
-      dryRun: { status: 'valid', candidateRevision: 'candidate-r2', checkedAt: 123 },
+      dryRun: {
+        status: 'valid',
+        candidateRevision: 'candidate-r2',
+        checkedAt: 123,
+        storageInvariant: 'unchanged',
+        storageBeforeStatus: 'loaded',
+        storageAfterStatus: 'loaded',
+        storageBeforeRevision: 'r1',
+        storageAfterRevision: 'r1',
+      },
       now: () => 456,
     });
 
@@ -49,7 +58,14 @@ describe('responsive v2 alpha validation report', () => {
         dryRunEndpoint: 'dry-run',
         dirtyBreakpoints: ['mobile'],
       },
-      dryRun: { status: 'valid', candidateRevision: 'candidate-r2', checkedAt: 123 },
+      dryRun: {
+        status: 'valid',
+        candidateRevision: 'candidate-r2',
+        checkedAt: 123,
+        storageInvariant: 'unchanged',
+        storageBeforeRevision: 'r1',
+        storageAfterRevision: 'r1',
+      },
     });
     const serialized = JSON.stringify(report);
     expect(serialized).not.toContain('private-revision-not-exported');
