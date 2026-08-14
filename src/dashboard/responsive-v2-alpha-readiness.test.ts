@@ -3,9 +3,16 @@ import {
   RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
   RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
   RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
+  RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
+  RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
   RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
   type DashboardServerCapabilities,
 } from './dashboard-server-capabilities';
+import {
+  RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+  RESPONSIVE_CANVAS_V2_MAX_ITEMS,
+  RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
+} from './responsive-v2-bundle';
 import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import { ResponsiveV2DraftController } from './responsive-v2-draft-controller';
 import { responsiveV2AlphaReadiness } from './responsive-v2-alpha-readiness';
@@ -34,9 +41,14 @@ function capabilities(write = false): DashboardServerCapabilities {
       write,
       atomicRevision: true,
       breakpoints: new Set(['mobile', 'tablet', 'desktop', 'wide']),
+      maxItems: RESPONSIVE_CANVAS_V2_MAX_ITEMS,
+      maxConstraints: RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+      maxSerializedBytes: RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
       storageNamespace: RESPONSIVE_CANVAS_V2_STORAGE_NAMESPACE,
       loadEndpoint: RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
       dryRunEndpoint: RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
+      saveEndpoint: RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
+      removeEndpoint: RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
     },
   };
 }
@@ -76,6 +88,24 @@ describe('responsive v2 alpha readiness', () => {
     expect(result.status).toBe('install-mismatch');
     expect(result.installReady).toBe(false);
     expect(result.blockers).toContain('transport-metadata-mismatch');
+  });
+
+  it('fails closed when server safety limits differ from the tested alpha contract', () => {
+    const caps = capabilities(false);
+    caps.responsiveCanvasV2.maxSerializedBytes = RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES + 1;
+    const result = responsiveV2AlphaReadiness(caps, new ResponsiveV2DraftController(document()));
+    expect(result.status).toBe('install-mismatch');
+    expect(result.installReady).toBe(false);
+    expect(result.blockers).toContain('validation-limits-mismatch');
+  });
+
+  it('fails closed when the exact breakpoint contract differs', () => {
+    const caps = capabilities(false);
+    caps.responsiveCanvasV2.breakpoints = new Set(['mobile', 'tablet', 'desktop']);
+    const result = responsiveV2AlphaReadiness(caps, new ResponsiveV2DraftController(document()));
+    expect(result.status).toBe('install-mismatch');
+    expect(result.installReady).toBe(false);
+    expect(result.blockers).toContain('breakpoint-contract-mismatch');
   });
 
   it('reports an explicitly unlocked server separately from the alpha locked state', () => {
