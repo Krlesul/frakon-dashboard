@@ -1,4 +1,5 @@
 DOMAIN = "frakon_dashboard"
+INTEGRATION_VERSION = "0.16.0-alpha.1"
 STORAGE_KEY = "frakon_dashboard.dashboards"
 STORAGE_VERSION = 1
 DATA_BACKEND = "backend"
