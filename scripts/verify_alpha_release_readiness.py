@@ -60,6 +60,7 @@ required_card_imports = [
     "./cards/energy/energy-card",
     "./cards/binary-sensor/binary-sensor-card",
     "./cards/action/action-card",
+    "./cards/fan/fan-card",
     "./dashboard/canvas-dashboard-card",
 ]
 for import_path in required_card_imports:
