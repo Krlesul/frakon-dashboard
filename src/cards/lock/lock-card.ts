@@ -2,17 +2,12 @@ import { LitElement, css, html, nothing, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { baseStyles } from '../../design-system/tokens';
 import type { HomeAssistant, LovelaceCardConfig } from '../../home-assistant/types';
+import { frakonLockActionForState } from './lock-card-state';
 
 export interface FrakonLockCardConfig extends LovelaceCardConfig {
   type: 'custom:frakon-lock-card';
   entity: string;
   show_state?: boolean;
-}
-
-export function frakonLockActionForState(state: string): 'lock' | 'unlock' | undefined {
-  if (state === 'locked') return 'unlock';
-  if (state === 'unlocked') return 'lock';
-  return undefined;
 }
 
 @customElement('frakon-lock-card')
