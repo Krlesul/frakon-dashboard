@@ -25,6 +25,7 @@ export class FrakonCardHost extends LitElement {
   private mountedElement?: HostedCardElement;
   private intersectionObserver?: IntersectionObserver;
   private active = true;
+  private deferInitialMountToUpdated = false;
 
   static styles = css`
     :host, .host { display:block; width:100%; height:100%; min-width:0; }
@@ -35,7 +36,7 @@ export class FrakonCardHost extends LitElement {
   protected firstUpdated(): void {
     if (typeof IntersectionObserver === 'undefined') {
       this.active = true;
-      this.mountCard();
+      this.deferInitialMountToUpdated = true;
       return;
     }
 
@@ -57,6 +58,11 @@ export class FrakonCardHost extends LitElement {
 
   protected updated(changed: Map<PropertyKey, unknown>): void {
     if (!this.active) return;
+    if (this.deferInitialMountToUpdated) {
+      this.deferInitialMountToUpdated = false;
+      this.mountCard();
+      return;
+    }
     if (shouldRemountHostedCard(new Set(changed.keys()))) {
       this.mountCard();
       return;
