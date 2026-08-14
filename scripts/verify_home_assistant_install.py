@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 import sys
 
 EXPECTED_VERSION = "0.16.0-alpha.1"
@@ -56,6 +57,16 @@ def main() -> int:
     if manifest.get("config_flow") is not True:
         fail("manifest config_flow must be true")
 
+    const_source = (integration / "const.py").read_text(encoding="utf-8")
+    version_match = re.search(r'^INTEGRATION_VERSION\s*=\s*["\']([^"\']+)["\']', const_source, re.MULTILINE)
+    runtime_version = version_match.group(1) if version_match else None
+    if runtime_version != EXPECTED_VERSION:
+        fail(f"runtime integration version is {runtime_version!r}, expected {EXPECTED_VERSION!r}")
+
+    frontend_helper = (integration / "frontend.py").read_text(encoding="utf-8")
+    if "?v={INTEGRATION_VERSION}" not in frontend_helper:
+        fail("frontend resource URL is not cache-busted with INTEGRATION_VERSION")
+
     dependencies = set(manifest.get("dependencies") or [])
     for dependency in ("http", "lovelace"):
         if dependency not in dependencies:
@@ -74,12 +85,13 @@ def main() -> int:
         if marker not in source:
             fail(f"frontend bundle is missing registration marker {marker!r}")
 
+    resource_url = f"/frakon-dashboard/frakon-dashboard.js?v={EXPECTED_VERSION}"
     print("FRAKON Dashboard install self-check: OK")
     print(f"config: {root}")
     print(f"integration: {integration}")
     print(f"version: {EXPECTED_VERSION}")
     print(f"frontend bytes: {size}")
-    print("resource URL: /frakon-dashboard/frakon-dashboard.js")
+    print(f"resource URL: {resource_url}")
     return 0
 
 
