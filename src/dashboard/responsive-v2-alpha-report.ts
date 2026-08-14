@@ -6,6 +6,7 @@ export type ResponsiveV2DryRunObservationStatus =
   | 'valid'
   | 'conflict'
   | 'remote-removed'
+  | 'clean'
   | 'blocked'
   | 'error';
 
