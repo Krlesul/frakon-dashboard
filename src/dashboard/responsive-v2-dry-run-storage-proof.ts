@@ -13,16 +13,28 @@ export interface ResponsiveV2DryRunStorageProof {
   afterRevision?: string;
 }
 
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalJson(nested)]),
+    );
+  }
+  return value;
+}
+
 function persistedFingerprint(result: ResponsiveCanvasV2ReadResult): string | undefined {
   if (result.status === 'absent') return 'absent';
   if (result.status !== 'loaded') return undefined;
-  return JSON.stringify({
+  return JSON.stringify(canonicalJson({
     revision: result.envelope.revision,
     parentRevision: result.envelope.parentRevision ?? null,
     updatedAt: result.envelope.updatedAt,
     clientId: result.envelope.clientId,
     bundle: result.envelope.bundle,
-  });
+  }));
 }
 
 function revision(result: ResponsiveCanvasV2ReadResult): string | undefined {
