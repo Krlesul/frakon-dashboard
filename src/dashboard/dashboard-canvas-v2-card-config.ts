@@ -22,6 +22,7 @@ const STRICT_PRIMARY_DOMAINS: Record<string, readonly string[]> = {
   'custom:frakon-media-player-card': ['media_player'],
   'custom:frakon-switch-card': ['switch'],
   'custom:frakon-lock-card': ['lock'],
+  'custom:frakon-binary-sensor-card': ['binary_sensor'],
 };
 
 const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> = {
@@ -44,6 +45,7 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
   'custom:frakon-cover-card': [{ key: 'show_position', kind: 'boolean' }],
   'custom:frakon-switch-card': [{ key: 'show_state', kind: 'boolean' }],
   'custom:frakon-lock-card': [{ key: 'show_state', kind: 'boolean' }],
+  'custom:frakon-binary-sensor-card': [{ key: 'show_state', kind: 'boolean' }],
   'custom:frakon-camera-card': [
     { key: 'show_state', kind: 'boolean' },
     { key: 'aspect_ratio', kind: 'select', options: ['16 / 9', '4 / 3', '1 / 1'] },
