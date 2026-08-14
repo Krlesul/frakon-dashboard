@@ -30,6 +30,26 @@ required = {
     f"{PREFIX}translations/pl.json",
 }
 
+required_frontend_markers = {
+    b"frakon-card",
+    b"frakon-sensor-card",
+    b"frakon-room-card",
+    b"frakon-switch-card",
+    b"frakon-action-card",
+    b"frakon-light-card",
+    b"frakon-climate-card",
+    b"frakon-fan-card",
+    b"frakon-binary-sensor-card",
+    b"frakon-cover-card",
+    b"frakon-lock-card",
+    b"frakon-camera-card",
+    b"frakon-media-player-card",
+    b"frakon-energy-card",
+    b"frakon-vehicle-card",
+    b"frakon-dashboard-card",
+    b"frakon-canvas-dashboard-card",
+}
+
 if not ZIP_PATH.is_file():
     raise SystemExit(f"Missing HACS release archive: {ZIP_PATH}")
 
@@ -60,8 +80,9 @@ with ZipFile(ZIP_PATH) as archive:
     frontend = archive.read(f"{PREFIX}frontend/frakon-dashboard.js")
     if len(frontend) < 10_000:
         raise SystemExit(f"Packaged frontend bundle is unexpectedly small: {len(frontend)} bytes")
-    if b"frakon-canvas-dashboard-card" not in frontend:
-        raise SystemExit("Packaged frontend does not register the FRAKON canvas dashboard card")
+    missing_markers = sorted(marker.decode() for marker in required_frontend_markers if marker not in frontend)
+    if missing_markers:
+        raise SystemExit("Packaged frontend is missing FRAKON card registrations:\n- " + "\n- ".join(missing_markers))
     if isinstance(package_version, str) and package_version.encode() not in frontend:
         raise SystemExit("Packaged frontend does not contain the embedded FRAKON version")
     if source_commit != "development" and source_commit.encode() not in frontend:
