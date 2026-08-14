@@ -102,7 +102,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     if (field.key === 'name') return this.te('name');
     if (field.key === 'title') return this.te('title');
     const labels: Record<Exclude<DashboardCanvasV2CardConfigField['key'], 'entity' | 'name' | 'title'>, CanvasV2CardConfigTranslationKey> = {
-      temperature_entity: 'temperatureEntity', humidity_entity: 'humidityEntity', range_entity: 'rangeEntity', charging_power_entity: 'chargingPowerEntity', charging_switch_entity: 'chargingSwitchEntity', unit: 'unit', light_entities: 'lightEntities', show_brightness: 'showBrightness', show_color_temperature: 'showColorTemperature', show_position: 'showPosition', show_state: 'showState', show_volume: 'showVolume', compact: 'compact', step: 'temperatureStep', precision: 'precision', aspect_ratio: 'aspectRatio',
+      temperature_entity: 'temperatureEntity', humidity_entity: 'humidityEntity', range_entity: 'rangeEntity', charging_power_entity: 'chargingPowerEntity', charging_switch_entity: 'chargingSwitchEntity', energy_entity: 'energyEntity', price_entity: 'priceEntity', unit: 'unit', light_entities: 'lightEntities', show_brightness: 'showBrightness', show_color_temperature: 'showColorTemperature', show_position: 'showPosition', show_state: 'showState', show_volume: 'showVolume', compact: 'compact', step: 'temperatureStep', precision: 'precision', aspect_ratio: 'aspectRatio',
     };
     return this.tcc(labels[field.key as keyof typeof labels]);
   }
