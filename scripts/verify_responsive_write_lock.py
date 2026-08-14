@@ -6,6 +6,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONST_PATH = ROOT / "custom_components/frakon_dashboard/const.py"
 WS_PATH = ROOT / "custom_components/frakon_dashboard/responsive_websocket.py"
+ACTION_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-persistence-action-panel.ts"
+SAVE_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-save-panel.ts"
+SAVE_COORDINATOR_PATH = ROOT / "src/dashboard/responsive-v2-editor-save-coordinator.ts"
+PARENT_BRIDGE_PATH = ROOT / "src/dashboard/responsive-v2-parent-state-bridge.ts"
+HEALTH_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-health-panel.ts"
 
 
 def assignments(path: Path) -> dict[str, ast.AST]:
@@ -45,6 +50,14 @@ def mutation_calls(node: ast.AsyncFunctionDef) -> list[str]:
     return mutations
 
 
+def require_snippets(path: Path, snippets: tuple[str, ...], label: str) -> str:
+    source = path.read_text(encoding="utf-8")
+    missing = [snippet for snippet in snippets if snippet not in source]
+    if missing:
+        raise SystemExit(f"{label} missing required invariant(s): {missing!r}")
+    return source
+
+
 def main() -> None:
     values = assignments(CONST_PATH)
     contract = literal(values["RESPONSIVE_CANVAS_V2_CONTRACT_VERSION"])
@@ -59,18 +72,18 @@ def main() -> None:
     if dry_run_endpoint != "frakon/dashboard/dry_run_responsive_revision":
         raise SystemExit(f"Unexpected responsive dry-run endpoint: {dry_run_endpoint!r}")
 
-    source = WS_PATH.read_text(encoding="utf-8")
-    required = (
-        "async def handle_dry_run_responsive_revision",
-        "async def handle_save_responsive_revision",
-        "async def handle_remove_responsive_revision",
-        "@websocket_api.require_admin",
-        '"unsupported_responsive_write"',
-        "if RESPONSIVE_CANVAS_V2_KIND not in WRITABLE_RESPONSIVE_BUNDLE_KINDS",
+    source = require_snippets(
+        WS_PATH,
+        (
+            "async def handle_dry_run_responsive_revision",
+            "async def handle_save_responsive_revision",
+            "async def handle_remove_responsive_revision",
+            "@websocket_api.require_admin",
+            '"unsupported_responsive_write"',
+            "if RESPONSIVE_CANVAS_V2_KIND not in WRITABLE_RESPONSIVE_BUNDLE_KINDS",
+        ),
+        "Responsive backend write-lock guard",
     )
-    missing = [snippet for snippet in required if snippet not in source]
-    if missing:
-        raise SystemExit(f"Responsive alpha write-lock guard missing required invariant(s): {missing!r}")
 
     tree = ast.parse(source, filename=str(WS_PATH))
     dry_run = function(tree, "handle_dry_run_responsive_revision")
@@ -80,9 +93,58 @@ def main() -> None:
     if mutations:
         raise SystemExit(f"Responsive dry-run must remain non-mutating, found storage mutation call(s): {mutations!r}")
 
+    require_snippets(
+        ACTION_PANEL_PATH,
+        (
+            "serverValidatedRevision",
+            "this.serverValidatedRevision = preview.candidate.revision",
+            "this.serverValidatedRevision !== event.detail.candidate.revision",
+            "validationRequired",
+            ".serverValidatedRevision=${this.serverValidatedRevision}",
+        ),
+        "Responsive editor dry-run receipt gate",
+    )
+    require_snippets(
+        SAVE_PANEL_PATH,
+        (
+            "serverValidatedRevision",
+            "validationMatchesCandidate",
+            "!this.preview?.wouldWrite || !this.validationMatchesCandidate()",
+            "validationRequired",
+        ),
+        "Responsive Save panel validation gate",
+    )
+    coordinator = require_snippets(
+        SAVE_COORDINATOR_PATH,
+        (
+            "resolveResponsiveV2EditorConflict",
+            "dryRunResponsiveCanvasV2Revision(",
+            "persistResponsiveCanvasV2Revision(",
+            "remote-removed",
+        ),
+        "Responsive conflict resolution validation gate",
+    )
+    resolve_start = coordinator.index("export async function resolveResponsiveV2EditorConflict")
+    resolve_source = coordinator[resolve_start:]
+    dry_run_pos = resolve_source.index("dryRunResponsiveCanvasV2Revision(")
+    persist_pos = resolve_source.index("persistResponsiveCanvasV2Revision(")
+    if dry_run_pos > persist_pos:
+        raise SystemExit("Responsive conflict resolution must dry-run the resolved candidate before persistence.")
+
+    require_snippets(
+        PARENT_BRIDGE_PATH,
+        ("applyResponsiveV2SavedStateToParent", "host.nativeV2Revision = revision", "host.applyNativeV2Snapshot(snapshot)"),
+        "Responsive post-save parent state bridge",
+    )
+    require_snippets(
+        HEALTH_PANEL_PATH,
+        ("@frakon-responsive-v2-saved=${this.onSaved}", "applyResponsiveV2SavedStateToParent"),
+        "Responsive post-save event wiring",
+    )
+
     print(
-        "Responsive alpha write lock verified: contract v1, empty write allowlist, "
-        "admin guarded handlers, non-mutating dry-run."
+        "Responsive alpha write lock verified: contract v1, empty write allowlist, admin guarded handlers, "
+        "non-mutating dry-run, exact-candidate validation gate, conflict dry-run, post-save state bridge."
     )
 
 
