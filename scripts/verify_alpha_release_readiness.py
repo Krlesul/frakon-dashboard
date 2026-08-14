@@ -11,8 +11,11 @@ HA_MANIFEST = json.loads((ROOT / "custom_components/frakon_dashboard/manifest.js
 VITE = (ROOT / "vite.config.ts").read_text()
 INDEX = (ROOT / "src/index.ts").read_text()
 CONST_SOURCE = (ROOT / "custom_components/frakon_dashboard/const.py").read_text()
-FRONTEND_HELPER = ROOT / "custom_components/frakon_dashboard/frontend.py"
+INTEGRATION_ROOT = ROOT / "custom_components/frakon_dashboard"
+FRONTEND_HELPER = INTEGRATION_ROOT / "frontend.py"
 FRONTEND_HELPER_SOURCE = FRONTEND_HELPER.read_text() if FRONTEND_HELPER.is_file() else ""
+BUILD_INFO_PROVIDER = INTEGRATION_ROOT / "build_info.py"
+BUILD_INFO_WEBSOCKET = INTEGRATION_ROOT / "build_websocket.py"
 RELEASE_PACKAGER = ROOT / "scripts/build_hacs_release.py"
 INSTALL_SELF_CHECK = ROOT / "scripts/verify_home_assistant_install.py"
 
@@ -64,6 +67,10 @@ if not FRONTEND_HELPER.is_file():
     errors.append("bundled frontend runtime helper is missing")
 elif "?v={INTEGRATION_VERSION}" not in FRONTEND_HELPER_SOURCE:
     errors.append("bundled frontend resource URL must be cache-busted with INTEGRATION_VERSION")
+if not BUILD_INFO_PROVIDER.is_file():
+    errors.append("runtime build-info provider is missing")
+if not BUILD_INFO_WEBSOCKET.is_file():
+    errors.append("runtime build-info WebSocket endpoint is missing")
 if not RELEASE_PACKAGER.is_file():
     errors.append("HACS release packager is missing")
 if not INSTALL_SELF_CHECK.is_file():
