@@ -20,6 +20,7 @@ describe('FRAKON card catalog', () => {
     expect(filterCardCatalog('', 'energy').map((template) => template.type)).toContain('custom:frakon-energy-card');
     expect(filterCardCatalog('', 'security').map((template) => template.type)).toContain('custom:frakon-binary-sensor-card');
     expect(filterCardCatalog('', 'general').map((template) => template.type)).toContain('custom:frakon-action-card');
+    expect(filterCardCatalog('', 'climate').map((template) => template.type)).toContain('custom:frakon-fan-card');
   });
 
   it('searches names, descriptions and types', () => {
@@ -28,6 +29,7 @@ describe('FRAKON card catalog', () => {
     expect(filterCardCatalog('energy').map((template) => template.type)).toContain('custom:frakon-energy-card');
     expect(filterCardCatalog('smoke').map((template) => template.type)).toContain('custom:frakon-binary-sensor-card');
     expect(filterCardCatalog('script').map((template) => template.type)).toContain('custom:frakon-action-card');
+    expect(filterCardCatalog('percentage').map((template) => template.type)).toContain('custom:frakon-fan-card');
   });
 
   it('creates valid default configurations', () => {
