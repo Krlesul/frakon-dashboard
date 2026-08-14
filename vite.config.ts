@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import process from 'node:process';
 import { defineConfig } from 'vitest/config';
 
 const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version?: unknown };
