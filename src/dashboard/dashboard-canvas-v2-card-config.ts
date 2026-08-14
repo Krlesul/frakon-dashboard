@@ -7,7 +7,7 @@ export interface DashboardCanvasV2CardConfigPatchResult {
 }
 
 export type DashboardCanvasV2CardConfigField =
-  | { key: 'entity' | 'temperature_entity' | 'humidity_entity' | 'range_entity' | 'charging_power_entity' | 'charging_switch_entity' | 'energy_entity' | 'price_entity'; kind: 'entity'; required?: boolean; domains?: readonly string[] }
+  | { key: 'entity' | 'temperature_entity' | 'humidity_entity' | 'range_entity' | 'charging_power_entity' | 'charging_switch_entity' | 'energy_entity' | 'price_entity'; kind: 'entity'; required?: boolean; domains?: readonly string[]; deviceClasses?: readonly string[] }
   | { key: 'name' | 'title' | 'unit'; kind: 'text' }
   | { key: 'light_entities'; kind: 'entity-list'; domains?: readonly string[] }
   | { key: 'show_brightness' | 'show_color_temperature' | 'show_position' | 'show_state' | 'show_volume' | 'compact'; kind: 'boolean' }
@@ -29,8 +29,8 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
     { key: 'compact', kind: 'boolean' },
   ],
   'custom:frakon-room-card': [
-    { key: 'temperature_entity', kind: 'entity', domains: ['sensor'] },
-    { key: 'humidity_entity', kind: 'entity', domains: ['sensor'] },
+    { key: 'temperature_entity', kind: 'entity', domains: ['sensor'], deviceClasses: ['temperature'] },
+    { key: 'humidity_entity', kind: 'entity', domains: ['sensor'], deviceClasses: ['humidity'] },
     { key: 'light_entities', kind: 'entity-list', domains: ['light'] },
   ],
   'custom:frakon-light-card': [
@@ -46,13 +46,13 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
   ],
   'custom:frakon-media-player-card': [{ key: 'show_volume', kind: 'boolean' }],
   'custom:frakon-vehicle-card': [
-    { key: 'range_entity', kind: 'entity', domains: ['sensor'] },
-    { key: 'charging_power_entity', kind: 'entity', domains: ['sensor'] },
+    { key: 'range_entity', kind: 'entity', domains: ['sensor'], deviceClasses: ['distance'] },
+    { key: 'charging_power_entity', kind: 'entity', domains: ['sensor'], deviceClasses: ['power'] },
     { key: 'charging_switch_entity', kind: 'entity', domains: ['switch'] },
   ],
   'custom:frakon-energy-card': [
-    { key: 'energy_entity', kind: 'entity', domains: ['sensor'] },
-    { key: 'price_entity', kind: 'entity', domains: ['sensor'] },
+    { key: 'energy_entity', kind: 'entity', domains: ['sensor'], deviceClasses: ['energy'] },
+    { key: 'price_entity', kind: 'entity', domains: ['sensor'], deviceClasses: ['monetary'] },
     { key: 'compact', kind: 'boolean' },
   ],
 };
