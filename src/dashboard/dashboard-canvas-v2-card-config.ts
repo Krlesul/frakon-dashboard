@@ -29,8 +29,8 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
     { key: 'compact', kind: 'boolean' },
   ],
   'custom:frakon-room-card': [
-    { key: 'temperature_entity', kind: 'entity' },
-    { key: 'humidity_entity', kind: 'entity' },
+    { key: 'temperature_entity', kind: 'entity', domains: ['sensor'] },
+    { key: 'humidity_entity', kind: 'entity', domains: ['sensor'] },
     { key: 'light_entities', kind: 'entity-list', domains: ['light'] },
   ],
   'custom:frakon-light-card': [
@@ -46,13 +46,13 @@ const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> =
   ],
   'custom:frakon-media-player-card': [{ key: 'show_volume', kind: 'boolean' }],
   'custom:frakon-vehicle-card': [
-    { key: 'range_entity', kind: 'entity' },
-    { key: 'charging_power_entity', kind: 'entity' },
-    { key: 'charging_switch_entity', kind: 'entity' },
+    { key: 'range_entity', kind: 'entity', domains: ['sensor'] },
+    { key: 'charging_power_entity', kind: 'entity', domains: ['sensor'] },
+    { key: 'charging_switch_entity', kind: 'entity', domains: ['switch'] },
   ],
   'custom:frakon-energy-card': [
-    { key: 'energy_entity', kind: 'entity' },
-    { key: 'price_entity', kind: 'entity' },
+    { key: 'energy_entity', kind: 'entity', domains: ['sensor'] },
+    { key: 'price_entity', kind: 'entity', domains: ['sensor'] },
     { key: 'compact', kind: 'boolean' },
   ],
 };
