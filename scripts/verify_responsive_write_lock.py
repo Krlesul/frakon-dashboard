@@ -8,6 +8,7 @@ CONST_PATH = ROOT / "custom_components/frakon_dashboard/const.py"
 WS_PATH = ROOT / "custom_components/frakon_dashboard/responsive_websocket.py"
 ACTION_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-persistence-action-panel.ts"
 SAVE_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-save-panel.ts"
+RECEIPT_PATH = ROOT / "src/dashboard/responsive-v2-server-validation-receipt.ts"
 SAVE_COORDINATOR_PATH = ROOT / "src/dashboard/responsive-v2-editor-save-coordinator.ts"
 PARENT_BRIDGE_PATH = ROOT / "src/dashboard/responsive-v2-parent-state-bridge.ts"
 HEALTH_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-health-panel.ts"
@@ -105,12 +106,22 @@ def main() -> None:
         "Responsive editor dry-run receipt gate",
     )
     require_snippets(
+        RECEIPT_PATH,
+        (
+            "responsiveV2ServerValidationReceipt",
+            "validatedRevision === candidateRevision",
+            "candidateRevision.length > 0",
+        ),
+        "Responsive exact-candidate receipt model",
+    )
+    require_snippets(
         SAVE_PANEL_PATH,
         (
-            "serverValidatedRevision",
-            "validationMatchesCandidate",
-            "!this.preview?.wouldWrite || !this.validationMatchesCandidate()",
+            "responsiveV2ServerValidationReceipt",
+            "this.receipt().valid",
+            "preview.wouldWrite && receipt.valid",
             "validationRequired",
+            "serverValidatedRevision",
         ),
         "Responsive Save panel validation gate",
     )
@@ -144,7 +155,7 @@ def main() -> None:
 
     print(
         "Responsive alpha write lock verified: contract v1, empty write allowlist, admin guarded handlers, "
-        "non-mutating dry-run, exact-candidate validation gate, conflict dry-run, post-save state bridge."
+        "non-mutating dry-run, exact-candidate validation receipt, conflict dry-run, post-save state bridge."
     )
 
 
