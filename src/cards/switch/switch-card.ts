@@ -2,17 +2,12 @@ import { LitElement, css, html, nothing, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { baseStyles } from '../../design-system/tokens';
 import type { HomeAssistant, LovelaceCardConfig } from '../../home-assistant/types';
+import { frakonSwitchActionForState } from './switch-card-state';
 
 export interface FrakonSwitchCardConfig extends LovelaceCardConfig {
   type: 'custom:frakon-switch-card';
   entity: string;
   show_state?: boolean;
-}
-
-export function frakonSwitchActionForState(state: string): 'turn_on' | 'turn_off' | undefined {
-  if (state === 'on') return 'turn_off';
-  if (state === 'off') return 'turn_on';
-  return undefined;
 }
 
 @customElement('frakon-switch-card')
