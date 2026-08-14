@@ -4,6 +4,7 @@ import type { HomeAssistant } from '../home-assistant/types';
 import type { SupportedLanguage } from '../i18n';
 import './dashboard-build-info-badge';
 import type { DashboardStorageTransport } from './dashboard-storage';
+import { responsiveV2AlphaReadiness, type ResponsiveV2AlphaReadinessStatus } from './responsive-v2-alpha-readiness';
 import { applyResponsiveV2SavedStateToParent, type ResponsiveV2ParentStateHost } from './responsive-v2-parent-state-bridge';
 import './responsive-v2-persistence-action-panel';
 import type { ResponsiveCanvasV2HealthReport } from './responsive-v2-health-report';
@@ -36,6 +37,18 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
   private yn(value: boolean): string { return this.t(value ? 'yes' : 'no'); }
   private list(values: string[]): string { return values.length ? values.join(', ') : this.t('none'); }
 
+  private alphaStatus(status: ResponsiveV2AlphaReadinessStatus): string {
+    const keys: Record<ResponsiveV2AlphaReadinessStatus, ResponsiveV2HealthTranslationKey> = {
+      unavailable: 'alphaUnavailable',
+      'contract-mismatch': 'alphaContractMismatch',
+      'install-mismatch': 'alphaInstallMismatch',
+      'read-ready': 'alphaReadReady',
+      'dry-run-ready': 'alphaDryRunReady',
+      'write-enabled': 'alphaWriteEnabled',
+    };
+    return this.t(keys[status]);
+  }
+
   private inheritedHost(): ResponsiveV2ParentStateHost | undefined {
     const root = this.getRootNode();
     if (!(root instanceof ShadowRoot)) return undefined;
@@ -65,6 +78,7 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
     const report = this.report;
     if (!report) return nothing;
     const context = report.editorContext;
+    const readiness = responsiveV2AlphaReadiness(context?.capabilities, context?.controller);
     const hass = this.inheritedHass();
     const transport = this.transport();
 
@@ -73,6 +87,7 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
       <section class="panel" aria-label=${this.t('title')}>
         <div class="head"><span>${this.t('title')}</span><span class="status ${report.status}">${this.t(report.status)}</span></div>
         <div class="grid">
+          <div class="row wide"><span class="key">${this.t('alphaReadiness')}</span><span class="value">${this.alphaStatus(readiness.status)}</span></div>
           <div class="row"><span class="key">${this.t('contract')}</span><span class="value">${report.contractVersion ?? '—'}</span></div>
           <div class="row"><span class="key">${this.t('compatible')}</span><span class="value">${this.yn(report.contractCompatible)}</span></div>
           <div class="row"><span class="key">${this.t('read')}</span><span class="value">${this.yn(report.readEnabled)}</span></div>
