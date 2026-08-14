@@ -125,7 +125,7 @@ export class FrakonCanvasV2InspectorPanel extends LitElement {
     }
     if (field.kind === 'entity') {
       const serialized = typeof value === 'string' ? value : '';
-      return html`<frakon-canvas-v2-entity-field .hass=${this.inheritedHass()} .domains=${field.domains} .value=${serialized} .label=${label} .required=${field.required === true} @frakon-canvas-v2-entity-changed=${(event: CustomEvent<FrakonCanvasV2EntityChangedDetail>) => this.patchCardConfig(item.id, field.key, event.detail.value)}></frakon-canvas-v2-entity-field>`;
+      return html`<frakon-canvas-v2-entity-field .hass=${this.inheritedHass()} .domains=${field.domains} .deviceClasses=${field.deviceClasses} .value=${serialized} .label=${label} .required=${field.required === true} @frakon-canvas-v2-entity-changed=${(event: CustomEvent<FrakonCanvasV2EntityChangedDetail>) => this.patchCardConfig(item.id, field.key, event.detail.value)}></frakon-canvas-v2-entity-field>`;
     }
     const serialized = typeof value === 'string' ? value : '';
     return html`<label class="field"><span class="label">${label}</span><input type="text" .value=${serialized} @change=${(event: Event) => this.patchCardConfig(item.id, field.key, (event.currentTarget as HTMLInputElement).value)}></label>`;
