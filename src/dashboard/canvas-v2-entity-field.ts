@@ -11,6 +11,7 @@ export interface FrakonCanvasV2EntityChangedDetail { value: string; }
 export class FrakonCanvasV2EntityField extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ attribute: false }) domains?: readonly string[];
+  @property({ attribute: false }) deviceClasses?: readonly string[];
   @property() value = '';
   @property() label = '';
   @property({ attribute: false }) language?: SupportedLanguage;
@@ -44,11 +45,12 @@ export class FrakonCanvasV2EntityField extends LitElement {
     return canvasV2CardConfigTranslate(this.effectiveLanguage(), key);
   }
 
+  private allOptions() {
+    return dashboardCanvasV2EntityOptions(this.hass, this.domains, this.value, this.deviceClasses);
+  }
+
   private options() {
-    return filterDashboardCanvasV2EntityOptions(
-      dashboardCanvasV2EntityOptions(this.hass, this.domains, this.value),
-      this.query,
-    );
+    return filterDashboardCanvasV2EntityOptions(this.allOptions(), this.query);
   }
 
   private select(value: string): void {
@@ -63,7 +65,7 @@ export class FrakonCanvasV2EntityField extends LitElement {
 
   render() {
     const options = this.options();
-    const selected = dashboardCanvasV2EntityOptions(this.hass, this.domains, this.value).find((option) => option.entityId === this.value);
+    const selected = this.allOptions().find((option) => option.entityId === this.value);
     const display = this.open ? this.query : selected?.label ?? this.value;
     return html`<label class="field"><span class="label">${this.label}</span>
       <input type="search" .value=${display} placeholder=${this.t('searchEntity')} @focus=${() => { this.open = true; this.query = ''; }} @input=${(event:Event) => { this.open = true; this.query = (event.currentTarget as HTMLInputElement).value; }} @keydown=${(event:KeyboardEvent) => { if (event.key === 'Escape') { this.open = false; this.query = ''; (event.currentTarget as HTMLInputElement).blur(); } }}>
