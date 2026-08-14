@@ -24,6 +24,7 @@ const STRICT_PRIMARY_DOMAINS: Record<string, readonly string[]> = {
   'custom:frakon-lock-card': ['lock'],
   'custom:frakon-binary-sensor-card': ['binary_sensor'],
   'custom:frakon-action-card': ['button', 'input_button', 'script', 'scene'],
+  'custom:frakon-fan-card': ['fan'],
 };
 
 const TYPE_FIELDS: Record<string, readonly DashboardCanvasV2CardConfigField[]> = {
