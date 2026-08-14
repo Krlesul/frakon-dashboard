@@ -1,9 +1,11 @@
 import { LitElement, css, html, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from '../home-assistant/types';
 import type { SupportedLanguage } from '../i18n';
 import './dashboard-build-info-badge';
 import type { DashboardStorageTransport } from './dashboard-storage';
+import './responsive-v2-alpha-report-panel';
+import type { ResponsiveV2DryRunObservation } from './responsive-v2-alpha-report';
 import { responsiveV2AlphaReadiness, type ResponsiveV2AlphaReadinessStatus } from './responsive-v2-alpha-readiness';
 import { applyResponsiveV2SavedStateToParent, type ResponsiveV2ParentStateHost } from './responsive-v2-parent-state-bridge';
 import './responsive-v2-persistence-action-panel';
@@ -15,6 +17,7 @@ import type { ResponsiveCanvasV2RevisionEnvelope } from './responsive-v2-revisio
 export class FrakonResponsiveV2HealthPanel extends LitElement {
   @property({ attribute: false }) report?: ResponsiveCanvasV2HealthReport;
   @property({ attribute: false }) language: SupportedLanguage = 'en';
+  @state() private lastDryRun?: ResponsiveV2DryRunObservation;
 
   static styles = css`
     :host { display:block; }
@@ -74,6 +77,10 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
     applyResponsiveV2SavedStateToParent(host, event.detail.envelope.revision, controller.snapshot);
   }
 
+  private onDryRun(event: CustomEvent<ResponsiveV2DryRunObservation>): void {
+    this.lastDryRun = { ...event.detail };
+  }
+
   render() {
     const report = this.report;
     if (!report) return nothing;
@@ -108,6 +115,12 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
         </div>
         ${report.error ? html`<div class="error">${report.error}</div>` : nothing}
       </section>
+      <frakon-responsive-v2-alpha-report-panel
+        .health=${report}
+        .transport=${transport}
+        .dryRun=${this.lastDryRun}
+        .language=${this.language}
+      ></frakon-responsive-v2-alpha-report-panel>
       ${context && transport ? html`
         <frakon-responsive-v2-persistence-action-panel
           .transport=${transport}
@@ -117,6 +130,7 @@ export class FrakonResponsiveV2HealthPanel extends LitElement {
           .hasUnresolvedConflict=${context.hasUnresolvedConflict}
           .language=${this.language}
           @frakon-responsive-v2-saved=${this.onSaved}
+          @frakon-responsive-v2-dry-run-result=${this.onDryRun}
         ></frakon-responsive-v2-persistence-action-panel>
       ` : nothing}
     </div>`;
