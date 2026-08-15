@@ -26,4 +26,22 @@ describe('responsive dashboard layout', () => {
     expect(mobile.columns).toBe(4);
     expect(mobile.items[0]).toMatchObject({ x: 2, w: 2 });
   });
+
+  it('removes hidden layers and their runtime-only constraints without mutating the source', () => {
+    const source: FrakonDashboardDocument = {
+      ...base,
+      items: [
+        ...base.items,
+        { id: 'hidden', card: { type: 'custom:hidden' }, x: 0, y: 4, w: 2, h: 2, hidden: true },
+      ],
+      constraints: [
+        { id: 'a-left-hidden', kind: 'left-of', sourceId: 'a', targetId: 'hidden', gap: 1, priority: 50 },
+      ],
+    };
+    const mobile = documentForBreakpoint(source, 'mobile');
+    expect(mobile.items.map((item) => item.id)).toEqual(['a']);
+    expect(mobile.constraints).toEqual([]);
+    expect(source.items[1].hidden).toBe(true);
+    expect(source.constraints).toHaveLength(1);
+  });
 });
