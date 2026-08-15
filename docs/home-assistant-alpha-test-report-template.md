@@ -1,17 +1,34 @@
 # FRAKON Dashboard — Home Assistant alpha test report
 
-Use this report together with `docs/home-assistant-alpha-test.md`. Keep issue #11 open until every required real-device section has been executed and evidence has been recorded.
+Use this report together with `home-assistant-alpha-test.md` from the **same** `frakon-dashboard-alpha-test-kit.zip`. Keep issue #11 open until every required real-device section has been executed and evidence has been recorded.
 
 ## Build identity
 
 - Test date/time:
 - Tester:
-- FRAKON version:
-- Source commit from build badge / `build-info.json`:
+- FRAKON version from `alpha-test-kit.json`:
+- Source commit from `alpha-test-kit.json`:
+- Integration ZIP SHA-256 from `alpha-test-kit.json`:
+- Frontend SHA-256 from `alpha-test-kit.json`:
 - Artifact workflow run:
-- `verify_home_assistant_install.py /config` result:
+- Install self-check result:
+- Source commit printed by install self-check:
+- Frontend SHA-256 printed by install self-check:
+- Runtime build badge source commit:
+- Runtime frontend/build identity (if displayed):
 - Resource URL:
 - Build mismatch shown: yes / no
+
+Identity gate:
+
+- ☐ Kit source commit = installed `build-info.json` source commit
+- ☐ Kit frontend SHA-256 = install self-check frontend SHA-256
+- ☐ Kit version = installed Home Assistant manifest/runtime version
+- ☐ `Dashboard document validator: OK` reported
+- ☐ Runtime build badge identifies the same build
+- ☐ No stale `/local/frakon-dashboard.js` resource is enabled
+
+If any identity item differs, stop functional testing and fix installation/cache/resource state first.
 
 ## Home Assistant environment
 
@@ -33,13 +50,17 @@ Use this report together with `docs/home-assistant-alpha-test.md`. Keep issue #1
 
 ## Installation
 
+- ☐ Alpha Test Kit came from a successful CI run for the tested commit
+- ☐ Kit identity values recorded before installation
 - ☐ `frakon_dashboard.zip` extracted to `/config/custom_components/frakon_dashboard`
 - ☐ Home Assistant restarted successfully
-- ☐ FRAKON Dashboard integration added from Settings → Devices & services
-- ☐ Versioned `/frakon-dashboard/frakon-dashboard.js?v=…` module is registered / loaded
+- ☐ FRAKON Dashboard integration added
+- ☐ Versioned `/frakon-dashboard/frakon-dashboard.js?v=…` module loaded
 - ☐ No legacy duplicate `/local/frakon-dashboard.js` resource remains
 - ☐ Install self-check reports `OK`
-- ☐ Runtime build badge matches package source commit
+- ☐ Self-check frontend SHA-256 matches kit manifest
+- ☐ Dashboard document validator reports `OK`
+- ☐ Runtime build badge matches package identity
 
 Evidence / notes:
 
@@ -47,18 +68,20 @@ Evidence / notes:
 
 - ☐ Card renders with `language: cs`
 - ☐ Czech editor strings render correctly
-- ☐ Add card
-- ☐ Edit card / entity
-- ☐ Pointer move
-- ☐ Pointer resize
-- ☐ Marquee selection
-- ☐ Multi-selection
+- ☐ Add/edit card and entity
+- ☐ Pointer move / resize
+- ☐ Marquee / multi-selection
 - ☐ Lock / unlock
-- ☐ Remove
+- ☐ Hide / Show preserves stored geometry
+- ☐ Duplicate hidden layer creates visible copy
+- ☐ Copy hidden layer → Paste creates visible copy
+- ☐ Cut hidden layer → Paste preserves hidden state
+- ☐ Delete removes attached constraints
 - ☐ Collision rejection
-- ☐ Undo / Redo
-- ☐ Import / Export
-- ☐ Server/local persistence reload
+- ☐ Undo restores exact prior geometry/z-order
+- ☐ Redo restores exact later geometry/z-order
+- ☐ Import / Export preserves hidden state, z-order and constraints
+- ☐ Server/local persistence reload preserves exact geometry
 - ☐ Second client/device loads expected saved layout
 
 Evidence / notes:
@@ -72,9 +95,14 @@ Evidence / notes:
 - ☐ Compact checked
 - ☐ Focus checked
 - ☐ Locked card remains fixed
+- ☐ Hidden card remains fixed/reserved
 - ☐ No collision / out-of-bounds proposal observed
+- ☐ Mobile/Tablet/Desktop/Wide previews checked
+- ☐ Non-canonical preview cannot overwrite canonical layout
+- ☐ Apply commits exactly the previewed geometry
 - ☐ Apply creates one undoable change
-- ☐ Revert preview creates no committed change
+- ☐ Revert creates no committed change
+- ☐ Undo/Redo around Apply are exact
 - ☐ Manual priority override checked
 - ☐ Manual semantic layout group checked
 
@@ -96,38 +124,59 @@ Evidence / notes:
 - ☐ Card palette and entity selectors
 - ☐ Surface styling
 
+Unsupported/unconfirmed Canvas-v2 behavior observed:
+
 Evidence / notes:
 
 ## Responsive layouts
 
 ### Mobile
 - ☐ Geometry retained
+- ☐ Runtime hidden projection correct where applicable
+- ☐ Constraint projection has no dangling endpoint
 - ☐ Undo/Redo timeline retained
-- ☐ Auto mode follows viewport
-- ☐ Manual mode remains selected
+- ☐ Auto / Manual behavior correct
 
 ### Tablet
 - ☐ Geometry retained
+- ☐ Runtime hidden projection correct where applicable
+- ☐ Constraint projection has no dangling endpoint
 - ☐ Undo/Redo timeline retained
-- ☐ Auto mode follows viewport
-- ☐ Manual mode remains selected
+- ☐ Auto / Manual behavior correct
 
 ### Desktop
 - ☐ Geometry retained
+- ☐ Runtime hidden projection correct where applicable
+- ☐ Constraint projection has no dangling endpoint
 - ☐ Undo/Redo timeline retained
-- ☐ Auto mode follows viewport
-- ☐ Manual mode remains selected
+- ☐ Auto / Manual behavior correct
 
 ### Wide
 - ☐ Geometry retained
+- ☐ Runtime hidden projection correct where applicable
+- ☐ Constraint projection has no dangling endpoint
 - ☐ Undo/Redo timeline retained
-- ☐ Auto mode follows viewport
-- ☐ Manual mode remains selected
+- ☐ Auto / Manual behavior correct
 
 - ☐ Copy layout from breakpoint is one undoable draft operation
 - ☐ Reset active breakpoint is one undoable draft operation
 - ☐ Shared card configuration remains synchronized
 - ☐ Viewport memory remains independent per breakpoint/device
+
+Evidence / notes:
+
+## Storage / revisions / conflict handling
+
+- ☐ Save/Load preserves exact accepted geometry instead of compacting
+- ☐ Save/Load preserves serialized z-order
+- ☐ Hidden state and constraints survive storage round-trip
+- ☐ Offline/fallback queue replay preserves exact document
+- ☐ Revision load preserves exact document
+- ☐ One-sided layer reorder survives merge
+- ☐ Concurrent incompatible layer reorders surface `itemOrder` conflict
+- ☐ Local/Remote `itemOrder` selection changes order without changing geometry
+- ☐ Malformed normal remote load is rejected
+- ☐ Malformed revision/conflict envelope is rejected
 
 Evidence / notes:
 
@@ -139,11 +188,11 @@ Evidence / notes:
 - ☐ `atomicRevision = true`
 - ☐ Save Readiness contains `write-disabled`
 - ☐ Save remains disabled
-- ☐ Server dry-run accepts a valid current-revision candidate without storage mutation
+- ☐ Server dry-run accepts valid current-revision candidate without mutation
 - ☐ Stale-base dry-run returns conflict
-- ☐ Direct save is rejected with `unsupported_responsive_write`
-- ☐ Direct remove is rejected with `unsupported_responsive_write`
-- ☐ Responsive storage is unchanged after rejected writes
+- ☐ Direct save rejected with `unsupported_responsive_write`
+- ☐ Direct remove rejected with `unsupported_responsive_write`
+- ☐ Responsive storage unchanged after rejected writes
 - ☐ Home Assistant logs contain sanitized audit metadata only
 
 Evidence / notes:
@@ -154,8 +203,8 @@ Evidence / notes:
 - Custom-element registration errors:
 - Failed frontend module requests:
 - WebSocket errors:
-- Build mismatch errors:
-- Storage / revision errors:
+- Build/version/hash mismatch errors:
+- Storage / revision / validation errors:
 - Other warnings worth triaging:
 
 ## Home Assistant logs
@@ -174,11 +223,12 @@ Relevant log excerpts / timestamps:
 | Automatic Designer | | |
 | Canvas v2 | | |
 | Build badge | | |
+| Install self-check identity | | |
 | Console | | |
 
 ## Defects found
 
-For every defect create a separate GitHub issue with reproduction steps and attach the issue number here.
+For every reproducible defect create a separate GitHub issue with reproduction steps and attach the issue number here.
 
 | Issue | Severity | Area | Reproducible | Status |
 |---|---|---|---|---|
@@ -187,10 +237,12 @@ For every defect create a separate GitHub issue with reproduction steps and atta
 ## Final alpha decision
 
 - ☐ All mandatory #11 checks passed
+- ☐ Alpha Test Kit / installed frontend / runtime identities match
+- ☐ Dashboard validation boundaries passed
 - ☐ No unresolved blocker / critical defect
-- ☐ Browser console reviewed
+- ☐ Browser console and Home Assistant logs reviewed
 - ☐ Required screenshots/evidence attached
-- ☐ Home Assistant/browser/device/build identity recorded
+- ☐ Environment/build identity recorded
 
 Decision: ☐ PASS ☐ PASS WITH KNOWN LIMITATIONS ☐ FAIL
 
