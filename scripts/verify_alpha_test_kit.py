@@ -128,6 +128,12 @@ with zipfile.ZipFile(KIT) as archive:
         raise SystemExit("Embedded brand/icon@2x.png must be exactly 512x512 pixels")
     if ha_manifest.get("domain") != "frakon_dashboard" or ha_manifest.get("version") != VERSION:
         raise SystemExit("Embedded Home Assistant manifest identity does not match the Alpha Test Kit")
+    if ha_manifest.get("integration_type") != "service":
+        raise SystemExit("Embedded Home Assistant manifest must declare integration_type=service")
+    if ha_manifest.get("config_flow") is not True or ha_manifest.get("single_config_entry") is not True:
+        raise SystemExit("Embedded Home Assistant manifest config entry contract is invalid")
+    if set(ha_manifest.get("dependencies", [])) != {"http", "lovelace"}:
+        raise SystemExit("Embedded Home Assistant manifest dependencies are invalid")
     if build_info.get("sourceCommit") != source_commit:
         raise SystemExit("Alpha Test Kit sourceCommit differs from embedded integration build-info.json")
     if build_info.get("frontendSha256") != frontend_digest:
@@ -165,6 +171,7 @@ with zipfile.ZipFile(KIT) as archive:
     checks = [
         ("test guide", test_guide, "/config/custom_components/frakon_dashboard"),
         ("test guide", test_guide, "custom:frakon-dashboard-card"),
+        ("test guide", test_guide, "Home Assistant manifest contract: OK"),
         ("test guide", test_guide, "Dashboard serialized-byte guard: OK"),
         ("test guide", test_guide, "2,000,000"),
         ("test guide", test_guide, "Responsive bundle validator: OK"),
@@ -172,6 +179,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("test guide", test_guide, "updatedAt"),
         ("test guide", test_guide, "requested dashboard ID"),
         ("report template", report, "## Final alpha decision"),
+        ("report template", report, "Home Assistant manifest contract: OK"),
         ("report template", report, "Dashboard serialized-byte guard: OK"),
         ("report template", report, "2,000,000"),
         ("report template", report, "Responsive bundle validator: OK"),
@@ -180,6 +188,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("migration guide", migration, "/local/frakon-dashboard.js"),
         ("migration guide", migration, "## 9. Rollback"),
         ("self-check", self_check, "frontend SHA-256"),
+        ("self-check", self_check, "Home Assistant manifest contract: OK"),
         ("self-check", self_check, "Home Assistant brand assets: OK"),
         ("self-check", self_check, "Dashboard serialized-byte guard: OK"),
         ("self-check", self_check, "Dashboard document validator: OK"),
@@ -188,6 +197,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("self-check", self_check, "validate_responsive_revision_envelope"),
         ("README", readme, "Frontend SHA-256"),
         ("README", readme, "python verify_home_assistant_install.py"),
+        ("README", readme, "Home Assistant manifest contract: OK"),
         ("README", readme, "Home Assistant brand assets: OK"),
         ("README", readme, "Dashboard serialized-byte guard: OK"),
         ("README", readme, "Dashboard document validator: OK"),
