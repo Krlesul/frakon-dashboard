@@ -144,6 +144,7 @@ export function isDashboardDocumentV1(value: unknown): value is FrakonDashboardD
   return validConstraints(value.constraints, itemIds);
 }
 
+/** Explicit editor/migration normalizer. Persistence codecs do not call it. */
 export function normalizeAnyDashboardDocument(document: FrakonDashboardAnyDocument): FrakonDashboardAnyDocument {
   return document.version === 2
     ? normalizeDashboardV2(document)
@@ -159,19 +160,11 @@ export function decodeDashboardDocument(source: string): DashboardDocumentDecode
   }
 
   if (isDashboardDocumentV2(parsed)) {
-    try {
-      return { ok: true, document: normalizeDashboardV2(parsed) };
-    } catch {
-      return { ok: false, reason: 'invalid-document' };
-    }
+    return { ok: true, document: structuredClone(parsed) };
   }
 
   if (isDashboardDocumentV1(parsed)) {
-    try {
-      return { ok: true, document: normalizeDashboard(parsed) };
-    } catch {
-      return { ok: false, reason: 'invalid-document' };
-    }
+    return { ok: true, document: structuredClone(parsed) };
   }
 
   const version = isRecord(parsed) ? parsed.version : undefined;
@@ -182,5 +175,11 @@ export function decodeDashboardDocument(source: string): DashboardDocumentDecode
 }
 
 export function encodeDashboardDocument(document: FrakonDashboardAnyDocument): string {
-  return JSON.stringify(normalizeAnyDashboardDocument(document), null, 2);
+  const valid = document.version === 2
+    ? isDashboardDocumentV2(document)
+    : isDashboardDocumentV1(document);
+  if (!valid) {
+    throw new Error('Invalid or non-canonical FRAKON dashboard document.');
+  }
+  return JSON.stringify(structuredClone(document), null, 2);
 }
