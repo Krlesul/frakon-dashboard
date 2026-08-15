@@ -62,6 +62,29 @@ describe('resolveDashboardConflicts', () => {
     expect(result.document.items.find((item) => item.id === 'light')?.x).toBe(1);
   });
 
+  it('rejects a complete choice combination that would still overlap cards', () => {
+    const base = dashboard('Home', 0, 4);
+    const local = dashboard('Home', 6, 4);
+    const remote = dashboard('Home', 0, 6);
+    const merge = mergeDashboardDocuments(base, local, remote);
+    expect(merge.conflicts.map((conflict) => conflict.path)).toEqual(
+      expect.arrayContaining(['items.light', 'items.camera']),
+    );
+
+    expect(() => resolveDashboardConflicts(merge, {
+      'items.light': 'local',
+      'items.camera': 'remote',
+    })).toThrow(/non-canonical version 1/i);
+
+    const valid = resolveDashboardConflicts(merge, {
+      'items.light': 'local',
+      'items.camera': 'local',
+    });
+    expect(valid.complete).toBe(true);
+    expect(valid.document.items.find((item) => item.id === 'light')?.x).toBe(6);
+    expect(valid.document.items.find((item) => item.id === 'camera')?.x).toBe(4);
+  });
+
   it('does not sort layer order by geometry while resolving an item conflict', () => {
     const base = dashboard('Home', 0, 4);
     base.items = [base.items[1], base.items[0]];
@@ -71,14 +94,14 @@ describe('resolveDashboardConflicts', () => {
     const remoteLight = remote.items.find((item) => item.id === 'light');
     if (!localLight || !remoteLight) throw new Error('Missing light item.');
     localLight.x = 1;
-    remoteLight.x = 3;
+    remoteLight.x = 2;
 
     const merge = mergeDashboardDocuments(base, local, remote);
     const result = resolveDashboardConflicts(merge, { 'items.light': 'remote' });
 
     expect(result.complete).toBe(true);
     expect(result.document.items.map((item) => item.id)).toEqual(['camera', 'light']);
-    expect(result.document.items.find((item) => item.id === 'light')?.x).toBe(3);
+    expect(result.document.items.find((item) => item.id === 'light')?.x).toBe(2);
   });
 
   it('applies a selected itemOrder side without changing item geometry', () => {
@@ -102,7 +125,7 @@ describe('resolveDashboardConflicts', () => {
     const merge = mergeDashboardDocuments(
       dashboard('Home', 0, 4),
       dashboard('Local', 1, 4),
-      dashboard('Remote', 3, 4),
+      dashboard('Remote', 2, 4),
     );
 
     const result = resolveDashboardConflicts(merge, { title: 'local' });
