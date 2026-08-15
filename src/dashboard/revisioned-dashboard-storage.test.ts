@@ -15,7 +15,14 @@ const document: FrakonDashboardDocument = {
   columns: 12,
   rowHeight: 80,
   gap: 12,
-  items: [],
+  items: [
+    { id: 'front', x: 8, y: 6, w: 3, h: 2, card: { type: 'custom:front' } },
+    { id: 'hidden', x: 1, y: 4, w: 2, h: 2, hidden: true, card: { type: 'custom:hidden' } },
+    { id: 'back', x: 0, y: 0, w: 2, h: 2, card: { type: 'custom:back' } },
+  ],
+  constraints: [
+    { id: 'hidden-left-front', kind: 'align-left', sourceId: 'hidden', targetId: 'front', priority: 40 },
+  ],
 };
 
 class Transport implements DashboardStorageTransport {
@@ -29,17 +36,35 @@ class Transport implements DashboardStorageTransport {
 }
 
 describe('RevisionedDashboardStorage', () => {
-  it('loads revision envelopes through the revision endpoint', async () => {
+  it('loads revision envelopes through the revision endpoint without changing exact layout data', async () => {
     const transport = new Transport();
     const envelope = createDashboardRevision(document, 'server', undefined, 10);
     transport.response = envelope;
     const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet' });
 
-    await expect(storage.load('home')).resolves.toEqual(envelope);
+    const loaded = await storage.load('home');
+    expect(loaded).toEqual(envelope);
+    expect(loaded?.document.items).toEqual(document.items);
+    expect(loaded?.document.constraints).toEqual(document.constraints);
     expect(transport.requests[0]).toEqual({
       command: 'frakon/dashboard/load_revision',
       payload: { dashboard_id: 'home' },
     });
+  });
+
+  it('rejects malformed revision envelopes returned by remote storage', async () => {
+    const transport = new Transport();
+    transport.response = {
+      document: {
+        ...document,
+        items: [{ id: 'bad', card: {}, x: 0, y: 0, w: 'bad', h: 2 }],
+      },
+      revision: 'remote-1',
+      updatedAt: 10,
+      clientId: 'server',
+    };
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet' });
+    await expect(storage.load('home')).rejects.toThrow(/invalid dashboard revision envelope/i);
   });
 
   it('sends the expected parent revision when saving', async () => {
@@ -55,7 +80,18 @@ describe('RevisionedDashboardStorage', () => {
     const result = await storage.save(document, previous);
 
     expect(result).toEqual({ status: 'saved', envelope: saved });
+    expect(result.envelope?.document.items).toEqual(document.items);
     expect(transport.requests[0]?.payload.expectedRevision).toBe(previous.revision);
+  });
+
+  it('rejects a saved response with an invalid envelope instead of accepting corrupt remote state', async () => {
+    const transport = new Transport();
+    transport.response = {
+      status: 'saved',
+      envelope: { document, revision: '', updatedAt: 20, clientId: 'server' },
+    };
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet', now: () => 20 });
+    await expect(storage.save(document)).rejects.toThrow(/invalid saved revision envelope/i);
   });
 
   it('returns an explicit comparison when Home Assistant reports a conflict', async () => {
@@ -75,6 +111,24 @@ describe('RevisionedDashboardStorage', () => {
     expect(result.comparison?.relation).toBe('conflict');
     expect(result.comparison?.local.document.title).toBe('Local');
     expect(result.comparison?.remote.document.title).toBe('Remote');
+    expect(result.comparison?.remote.document.items).toEqual(document.items);
+  });
+
+  it('rejects malformed remote conflict envelopes', async () => {
+    const transport = new Transport();
+    const base = createDashboardRevision(document, 'server', undefined, 10);
+    transport.response = {
+      status: 'conflict',
+      remote: {
+        document: { ...document, constraints: [{ id: 'bad', kind: 'align-left', sourceId: 'missing', targetId: 'front' }] },
+        revision: 'remote-2',
+        parentRevision: base.revision,
+        updatedAt: 30,
+        clientId: 'desktop',
+      },
+    };
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet', now: () => 20 });
+    await expect(storage.save(document, base)).rejects.toThrow(/invalid revision conflict response/i);
   });
 
   it('uses dashboard_id for revision removal without colliding with the WebSocket message id', async () => {
