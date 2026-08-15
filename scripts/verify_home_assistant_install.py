@@ -11,8 +11,11 @@ import re
 import sys
 
 DOMAIN = "frakon_dashboard"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 REQUIRED_FILES = (
     "__init__.py",
+    "brand/icon.png",
+    "brand/icon@2x.png",
     "build_info.py",
     "build-info.json",
     "build_websocket.py",
@@ -72,6 +75,19 @@ def nested(mapping: object, *keys: str) -> object | None:
     return current
 
 
+def png_dimensions(path: Path, expected: tuple[int, int]) -> tuple[int, int]:
+    data = path.read_bytes()
+    if len(data) < 24 or data[:8] != PNG_SIGNATURE or data[12:16] != b"IHDR":
+        fail(f"brand asset is not a valid PNG with an IHDR header: {path}")
+    dimensions = (
+        int.from_bytes(data[16:20], "big"),
+        int.from_bytes(data[20:24], "big"),
+    )
+    if dimensions != expected:
+        fail(f"brand asset {path.name} dimensions are {dimensions}, expected {expected}")
+    return dimensions
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=Path, help="Home Assistant config directory, e.g. /config")
@@ -85,6 +101,9 @@ def main() -> int:
     missing = [relative for relative in REQUIRED_FILES if not (integration / relative).is_file()]
     if missing:
         fail("missing required files: " + ", ".join(missing))
+
+    icon_dimensions = png_dimensions(integration / "brand" / "icon.png", (256, 256))
+    icon_2x_dimensions = png_dimensions(integration / "brand" / "icon@2x.png", (512, 512))
 
     manifest_path = integration / "manifest.json"
     manifest = read_json(manifest_path, "manifest.json")
@@ -210,6 +229,9 @@ def main() -> int:
     print(f"frontend bytes: {size}")
     print(f"frontend SHA-256: {actual_frontend_sha}")
     print(f"verified frontend registrations: {len(FRONTEND_REGISTRATION_MARKERS)}")
+    print(f"brand icon: {icon_dimensions[0]}x{icon_dimensions[1]}")
+    print(f"brand icon @2x: {icon_2x_dimensions[0]}x{icon_2x_dimensions[1]}")
+    print("Home Assistant brand assets: OK")
     print("Dashboard document validator: OK")
     print("Responsive bundle validator: OK")
     print("Czech config flow: OK")
