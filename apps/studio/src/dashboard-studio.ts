@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { cssRecordToString, surfaceStyleToCss } from '../../../packages/design-system/src/surface-style';
+import { computeSmartGuidelines, type Guideline } from '../../../packages/studio-engine/src/guidelines';
 import { previewMove, type MoveItem } from '../../../packages/studio-engine/src/move';
 import {
   boundsForItems,
@@ -20,6 +21,7 @@ import type {
 import type { FrakonStudioDocumentChangedDetail } from './surface-inspector';
 import './constraint-inspector';
 import './constraint-preview-bridge';
+import './guideline-overlay';
 import './studio-canvas';
 import './surface-inspector';
 
@@ -47,6 +49,7 @@ interface MoveSession {
 
 const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 const COLUMN_WIDTH = 96;
+const GUIDE_THRESHOLD_SCREEN_PX = 8;
 
 @customElement('frakon-dashboard-studio')
 export class FrakonDashboardStudio extends LitElement {
@@ -56,6 +59,7 @@ export class FrakonDashboardStudio extends LitElement {
   @state() private resizing = false;
   @state() private moving = false;
   @state() private collisionIds: string[] = [];
+  @state() private guidelines: Guideline[] = [];
   @state() private constraintPreviewVisible = true;
 
   private resizeSession?: ResizeSession;
@@ -259,6 +263,7 @@ export class FrakonDashboardStudio extends LitElement {
     };
     this.moving = true;
     this.collisionIds = [];
+    this.guidelines = [];
     window.addEventListener('pointermove', this.windowMove);
     window.addEventListener('pointerup', this.windowMoveEnd);
     window.addEventListener('pointercancel', this.windowMoveEnd);
@@ -271,7 +276,7 @@ export class FrakonDashboardStudio extends LitElement {
 
     const zoom = Math.max(0.01, this.viewportZoom);
     const document = session.sourceDocument;
-    const preview = previewMove(session.sourceItems, session.selectedIds, {
+    const gridPreview = previewMove(session.sourceItems, session.selectedIds, {
       x: (event.clientX - session.startX) / zoom,
       y: (event.clientY - session.startY) / zoom,
     }, {
@@ -280,6 +285,20 @@ export class FrakonDashboardStudio extends LitElement {
       gridX: COLUMN_WIDTH,
       gridY: document.rowHeight,
     });
+
+    const guideSnap = computeSmartGuidelines(
+      gridPreview.items,
+      session.selectedIds,
+      GUIDE_THRESHOLD_SCREEN_PX / zoom,
+    );
+    const preview = guideSnap.deltaX || guideSnap.deltaY
+      ? previewMove(gridPreview.items, session.selectedIds, {
+        x: guideSnap.deltaX,
+        y: guideSnap.deltaY,
+      }, { minX: 0, minY: 0 })
+      : gridPreview;
+
+    this.guidelines = guideSnap.guidelines;
     const byId = new Map(preview.items.map((item) => [item.id, item]));
     this.document = {
       ...document,
@@ -305,6 +324,7 @@ export class FrakonDashboardStudio extends LitElement {
     this.moveSession = undefined;
     this.moving = false;
     this.collisionIds = [];
+    this.guidelines = [];
     this.removeMoveListeners();
     this.emitChanged();
   }
@@ -458,6 +478,7 @@ export class FrakonDashboardStudio extends LitElement {
           >
             ${this.renderItems(document)}
             ${this.renderSelectionBox(document)}
+            <frakon-guideline-overlay .guidelines=${this.guidelines}></frakon-guideline-overlay>
           </frakon-studio-canvas>
           <frakon-constraint-preview-bridge
             .source=${document}
