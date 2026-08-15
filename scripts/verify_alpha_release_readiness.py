@@ -13,13 +13,20 @@ INDEX = (ROOT / "src/index.ts").read_text()
 INTEGRATION_ROOT = ROOT / "custom_components/frakon_dashboard"
 INIT_SOURCE = (INTEGRATION_ROOT / "__init__.py").read_text()
 CONST_SOURCE = (INTEGRATION_ROOT / "const.py").read_text()
+WEBSOCKET_SOURCE = (INTEGRATION_ROOT / "websocket.py").read_text()
 FRONTEND_HELPER = INTEGRATION_ROOT / "frontend.py"
 FRONTEND_HELPER_SOURCE = FRONTEND_HELPER.read_text() if FRONTEND_HELPER.is_file() else ""
 BUILD_INFO_PROVIDER = INTEGRATION_ROOT / "build_info.py"
 BUILD_INFO_WEBSOCKET = INTEGRATION_ROOT / "build_websocket.py"
+DOCUMENT_VALIDATOR = INTEGRATION_ROOT / "document_validation.py"
+DOCUMENT_VALIDATOR_SOURCE = DOCUMENT_VALIDATOR.read_text() if DOCUMENT_VALIDATOR.is_file() else ""
 RELEASE_PACKAGER = ROOT / "scripts/build_hacs_release.py"
 INSTALL_SELF_CHECK = ROOT / "scripts/verify_home_assistant_install.py"
 INSTALL_SELF_CHECK_SOURCE = INSTALL_SELF_CHECK.read_text() if INSTALL_SELF_CHECK.is_file() else ""
+DOCUMENT_VALIDATOR_CHECK = ROOT / "scripts/verify_dashboard_document_validation.py"
+ALPHA_KIT_BUILDER = ROOT / "scripts/build_alpha_test_kit.py"
+ALPHA_KIT_VERIFIER = ROOT / "scripts/verify_alpha_test_kit.py"
+CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 CS_TRANSLATION = INTEGRATION_ROOT / "translations/cs.json"
 ALPHA_TEST_GUIDE = ROOT / "docs/home-assistant-alpha-test.md"
 ALPHA_REPORT_TEMPLATE = ROOT / "docs/home-assistant-alpha-test-report-template.md"
@@ -95,10 +102,32 @@ if "from .build_websocket import register_build_info_command" not in INIT_SOURCE
     errors.append("integration __init__ must import register_build_info_command")
 if "register_build_info_command(hass)" not in INIT_SOURCE:
     errors.append("integration __init__ must register the build-info WebSocket command")
-if not RELEASE_PACKAGER.is_file():
-    errors.append("HACS release packager is missing")
-if not INSTALL_SELF_CHECK.is_file():
-    errors.append("Home Assistant install self-check is missing")
+if not DOCUMENT_VALIDATOR.is_file():
+    errors.append("dashboard document validator is missing")
+else:
+    for marker in (
+        "class DashboardDocumentValidationError",
+        "def validate_dashboard_document",
+        "Duplicate dashboard item id",
+        "references an unknown item",
+    ):
+        if marker not in DOCUMENT_VALIDATOR_SOURCE:
+            errors.append(f"dashboard document validator is missing marker {marker!r}")
+if "from .document_validation import DashboardDocumentValidationError, validate_dashboard_document" not in WEBSOCKET_SOURCE:
+    errors.append("websocket boundary must import the standalone document validator")
+if "validate_dashboard_document(" not in WEBSOCKET_SOURCE:
+    errors.append("websocket boundary must invoke validate_dashboard_document")
+
+for path, label in (
+    (RELEASE_PACKAGER, "HACS release packager"),
+    (INSTALL_SELF_CHECK, "Home Assistant install self-check"),
+    (DOCUMENT_VALIDATOR_CHECK, "dashboard document validator contract check"),
+    (ALPHA_KIT_BUILDER, "Alpha Test Kit builder"),
+    (ALPHA_KIT_VERIFIER, "Alpha Test Kit verifier"),
+    (CI_WORKFLOW, "CI workflow"),
+):
+    if not path.is_file():
+        errors.append(f"{label} is missing")
 
 if not CS_TRANSLATION.is_file():
     errors.append("Czech config-flow translation is missing")
@@ -120,31 +149,44 @@ if not ALPHA_TEST_GUIDE.is_file():
     errors.append("Home Assistant alpha test guide is missing")
 else:
     guide = ALPHA_TEST_GUIDE.read_text()
-    if "/config/custom_components/frakon_dashboard" not in guide:
-        errors.append("alpha test guide must document the bundled integration install path")
-    if "/frakon-dashboard/frakon-dashboard.js?v=" not in guide:
-        errors.append("alpha test guide must document the versioned bundled frontend URL")
+    for marker in (
+        "frakon-dashboard-alpha-test-kit.zip",
+        "integrationSha256",
+        "frontendSha256",
+        "/config/custom_components/frakon_dashboard",
+        "/frakon-dashboard/frakon-dashboard.js?v=",
+        "Dashboard document validator: OK",
+        "commits exactly the previewed geometry",
+        "responsiveCanvasV2.write = false",
+    ):
+        if marker not in guide:
+            errors.append(f"alpha test guide is missing required marker {marker!r}")
 
 if not ALPHA_REPORT_TEMPLATE.is_file():
     errors.append("Home Assistant alpha evidence report template is missing")
 else:
     report = ALPHA_REPORT_TEMPLATE.read_text()
-    for required_heading in (
+    for marker in (
         "## Build identity",
+        "Integration ZIP SHA-256",
+        "Frontend SHA-256",
+        "Identity gate",
+        "Dashboard document validator",
         "## Home Assistant environment",
         "## Client matrix",
         "## Automatic layout",
+        "## Storage / revisions / conflict handling",
         "## Browser console / network",
         "## Defects found",
     ):
-        if required_heading not in report:
-            errors.append(f"alpha report template is missing {required_heading}")
+        if marker not in report:
+            errors.append(f"alpha report template is missing {marker!r}")
 
 if not ALPHA_MIGRATION_GUIDE.is_file():
     errors.append("alpha migration guide is missing")
 else:
     migration = ALPHA_MIGRATION_GUIDE.read_text()
-    for required_marker in (
+    for marker in (
         "/config/custom_components/frakon_dashboard",
         "/frakon-dashboard/frakon-dashboard.js?v=",
         "/local/frakon-dashboard.js",
@@ -154,16 +196,72 @@ else:
         "Responsive Canvas v2",
         "## 9. Rollback",
     ):
-        if required_marker not in migration:
-            errors.append(f"alpha migration guide is missing required marker {required_marker!r}")
+        if marker not in migration:
+            errors.append(f"alpha migration guide is missing required marker {marker!r}")
 
-for required_self_check_marker in (
+for marker in (
+    '"document_validation.py"',
     '"translations/cs.json"',
     "sourceCommit must identify a verified source revision",
+    "frontendSha256",
+    "installed frontend SHA-256 does not match build-info.json",
+    "Dashboard document validator: OK",
+    "runtime integration version does not match manifest",
     "Czech config flow: OK",
 ):
-    if required_self_check_marker not in INSTALL_SELF_CHECK_SOURCE:
-        errors.append(f"install self-check is missing preflight marker {required_self_check_marker!r}")
+    if marker not in INSTALL_SELF_CHECK_SOURCE:
+        errors.append(f"install self-check is missing preflight marker {marker!r}")
+
+if DOCUMENT_VALIDATOR_CHECK.is_file():
+    validator_check_source = DOCUMENT_VALIDATOR_CHECK.read_text()
+    for marker in (
+        "Dashboard document validation contract: OK",
+        "duplicate v1 item id",
+        "dangling v1 constraint",
+        "v2 frame outside canvas",
+    ):
+        if marker not in validator_check_source:
+            errors.append(f"document validator contract check is missing marker {marker!r}")
+
+if ALPHA_KIT_BUILDER.is_file():
+    builder_source = ALPHA_KIT_BUILDER.read_text()
+    for marker in (
+        "frakon-dashboard-alpha-test-kit.zip",
+        "integrationSha256",
+        "frontendSha256",
+        "verify_home_assistant_install.py",
+        "home-assistant-alpha-test-report-template.md",
+        "alpha-migration.md",
+    ):
+        if marker not in builder_source:
+            errors.append(f"Alpha Test Kit builder is missing marker {marker!r}")
+
+if ALPHA_KIT_VERIFIER.is_file():
+    verifier_source = ALPHA_KIT_VERIFIER.read_text()
+    for marker in (
+        "integrationSha256",
+        "frontendSha256",
+        "build-info.json",
+        "manifest.json",
+        "document_validation.py",
+        "bundled_frontend",
+    ):
+        if marker not in verifier_source:
+            errors.append(f"Alpha Test Kit verifier is missing marker {marker!r}")
+
+if CI_WORKFLOW.is_file():
+    ci_source = CI_WORKFLOW.read_text()
+    for marker in (
+        "python scripts/verify_dashboard_document_validation.py",
+        "python scripts/build_alpha_test_kit.py",
+        "python scripts/verify_alpha_test_kit.py",
+        "Simulate Home Assistant install from alpha test kit",
+        "CI identity tamper probe",
+        "dist/frakon-dashboard-alpha-test-kit.zip",
+        "verify_home_assistant_install.py /tmp/frakon-ha-config",
+    ):
+        if marker not in ci_source:
+            errors.append(f"CI workflow is missing required Alpha safeguard {marker!r}")
 
 if not package_version or "alpha" not in package_version:
     errors.append("current release readiness policy requires an explicit alpha package version")
