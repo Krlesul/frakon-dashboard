@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 from typing import Any, Collection
 
@@ -16,6 +17,7 @@ CONSTRAINT_KINDS = {
     "match-width",
     "match-height",
 }
+DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000
 
 
 class DashboardDocumentValidationError(ValueError):
@@ -52,6 +54,20 @@ def _optional_positive_integer(mapping: dict[str, Any], field: str) -> bool:
 
 def _optional_bool(mapping: dict[str, Any], field: str) -> bool:
     return field not in mapping or isinstance(mapping[field], bool)
+
+
+def dashboard_serialized_bytes(value: Any) -> int | None:
+    """Return compact UTF-8 JSON byte size, or None for unsafe JSON values."""
+    try:
+        serialized = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+        return len(serialized.encode("utf-8"))
+    except (TypeError, ValueError, UnicodeEncodeError):
+        return None
 
 
 def _require_identifier(value: Any, label: str, max_length: int = 128) -> str:
@@ -303,6 +319,7 @@ def validate_dashboard_document(
     *,
     max_items: int = 2000,
     max_constraints: int = 4000,
+    max_serialized_bytes: int = DASHBOARD_MAX_SERIALIZED_BYTES,
 ) -> dict[str, Any]:
     """Return document unchanged when valid, otherwise raise a validation error."""
     if not isinstance(document, dict):
@@ -314,6 +331,13 @@ def validate_dashboard_document(
     if "constraints" in document and document["constraints"] is None:
         raise DashboardDocumentValidationError(
             "constraints must be omitted or provided as a list; explicit null is not valid."
+        )
+    serialized_bytes = dashboard_serialized_bytes(document)
+    if serialized_bytes is None:
+        raise DashboardDocumentValidationError("Dashboard document is not safely JSON serializable.")
+    if serialized_bytes > max_serialized_bytes:
+        raise DashboardDocumentValidationError(
+            f"Dashboard document exceeds the {max_serialized_bytes}-byte persistence limit."
         )
     if version == 1:
         _validate_v1(document, max_items, max_constraints)
