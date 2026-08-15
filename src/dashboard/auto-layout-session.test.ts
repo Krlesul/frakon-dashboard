@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { findCollisions, type FrakonDashboardDocument } from './layout-model';
+import { findCollisions, type FrakonBreakpoint, type FrakonDashboardDocument } from './layout-model';
+import { scoreDashboardItemPriority } from './auto-layout-priority';
 import { DashboardAutoLayoutSession } from './auto-layout-session';
 
 const document: FrakonDashboardDocument = {
@@ -12,10 +13,16 @@ const document: FrakonDashboardDocument = {
   gap: 12,
   items: [
     { id: 'camera', card: { type: 'custom:frakon-camera-card' }, x: 0, y: 0, w: 4, h: 3 },
-    { id: 'alarm', card: { type: 'custom:frakon-card' }, x: 4, y: 0, w: 3, h: 2 },
+    { id: 'alarm', card: { type: 'custom:frakon-card', priority: 80 }, x: 4, y: 0, w: 3, h: 2 },
+    { id: 'energy', card: { type: 'custom:frakon-energy-card' }, x: 0, y: 3, w: 4, h: 3 },
+    { id: 'room', card: { type: 'custom:frakon-room-card' }, x: 4, y: 3, w: 4, h: 3 },
     { id: 'locked', card: { type: 'custom:frakon-sensor-card' }, x: 9, y: 0, w: 3, h: 2, locked: true },
   ],
 };
+
+function signature(proposal: FrakonDashboardDocument): string {
+  return proposal.items.map((item) => `${item.id}:${item.x},${item.y},${item.w},${item.h}`).join('|');
+}
 
 describe('DashboardAutoLayoutSession', () => {
   it('cycles through deterministic layout proposals', () => {
@@ -58,5 +65,31 @@ describe('DashboardAutoLayoutSession', () => {
     expect(focus.strategy).toBe('focus');
     expect(focus.proposal.items.find((item) => item.id === 'camera'))
       .toMatchObject({ w: 8, h: 5 });
+  });
+
+  it('generates at least three distinct collision-free proposals for every supported breakpoint', () => {
+    const session = new DashboardAutoLayoutSession(document, scoreDashboardItemPriority);
+    const sets = session.responsiveProposalSet(3);
+    const breakpoints: FrakonBreakpoint[] = ['mobile', 'tablet', 'desktop', 'wide'];
+
+    for (const breakpoint of breakpoints) {
+      const previews = sets[breakpoint];
+      expect(previews).toHaveLength(3);
+      expect(new Set(previews.map((preview) => signature(preview.proposal))).size).toBe(3);
+      for (const preview of previews) {
+        expect(preview.breakpoint).toBe(breakpoint);
+        expect(findCollisions(preview.proposal.items)).toHaveLength(0);
+        for (const item of preview.proposal.items) {
+          expect(item.x).toBeGreaterThanOrEqual(0);
+          expect(item.x + item.w).toBeLessThanOrEqual(preview.proposal.columns);
+        }
+      }
+    }
+  });
+
+  it('keeps responsive proposal generation deterministic', () => {
+    const first = new DashboardAutoLayoutSession(document, scoreDashboardItemPriority).responsiveProposalSet(3);
+    const second = new DashboardAutoLayoutSession(document, scoreDashboardItemPriority).responsiveProposalSet(3);
+    expect(first).toEqual(second);
   });
 });
