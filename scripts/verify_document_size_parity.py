@@ -79,6 +79,11 @@ require(
     "multibyte UTF-8 dashboard above serialized limit",
 )
 require(
+    "scripts/verify_responsive_bundle_validation.py",
+    "MAX_SERIALIZED_BYTES = const.RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES",
+    "responsive bundle above serialized byte limit",
+)
+require(
     "scripts/verify_hacs_release.py",
     "DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
     "dashboard_serialized_bytes",
@@ -118,6 +123,7 @@ require(
     ".github/workflows/ci.yml",
     "python scripts/verify_dashboard_document_validation.py",
     "python scripts/verify_document_size_parity.py",
+    "python scripts/verify_responsive_bundle_validation.py",
 )
 
 print("Dashboard serialized-byte parity: OK")
