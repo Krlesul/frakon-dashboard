@@ -23,6 +23,7 @@ INSTALL_SELF_CHECK_SOURCE = INSTALL_SELF_CHECK.read_text() if INSTALL_SELF_CHECK
 CS_TRANSLATION = INTEGRATION_ROOT / "translations/cs.json"
 ALPHA_TEST_GUIDE = ROOT / "docs/home-assistant-alpha-test.md"
 ALPHA_REPORT_TEMPLATE = ROOT / "docs/home-assistant-alpha-test-report-template.md"
+ALPHA_MIGRATION_GUIDE = ROOT / "docs/alpha-migration.md"
 
 errors: list[str] = []
 
@@ -138,6 +139,23 @@ else:
     ):
         if required_heading not in report:
             errors.append(f"alpha report template is missing {required_heading}")
+
+if not ALPHA_MIGRATION_GUIDE.is_file():
+    errors.append("alpha migration guide is missing")
+else:
+    migration = ALPHA_MIGRATION_GUIDE.read_text()
+    for required_marker in (
+        "/config/custom_components/frakon_dashboard",
+        "/frakon-dashboard/frakon-dashboard.js?v=",
+        "/local/frakon-dashboard.js",
+        "storage: home-assistant",
+        "hidden: true",
+        "layout_group: security",
+        "Responsive Canvas v2",
+        "## 9. Rollback",
+    ):
+        if required_marker not in migration:
+            errors.append(f"alpha migration guide is missing required marker {required_marker!r}")
 
 for required_self_check_marker in (
     '"translations/cs.json"',
