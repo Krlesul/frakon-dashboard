@@ -16,6 +16,7 @@ EXPECTED_COMMIT = os.environ.get("GITHUB_SHA", "").strip()
 KIT = DIST / "frakon-dashboard-alpha-test-kit.zip"
 INTEGRATION = DIST / "frakon_dashboard.zip"
 FRONTEND = DIST / "frakon-dashboard.js"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 REQUIRED = {
     "README.txt",
@@ -27,6 +28,13 @@ REQUIRED = {
     "home-assistant-alpha-test-report-template.md",
     "alpha-migration.md",
 }
+
+
+def png_dimensions(data: bytes, label: str) -> tuple[int, int]:
+    if len(data) < 24 or data[:8] != PNG_SIGNATURE or data[12:16] != b"IHDR":
+        raise SystemExit(f"{label} is not a valid PNG with an IHDR header")
+    return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+
 
 if not KIT.is_file():
     raise SystemExit(f"Missing alpha test kit: {KIT}")
@@ -79,6 +87,8 @@ with zipfile.ZipFile(KIT) as archive:
 
     with zipfile.ZipFile(BytesIO(integration_bytes)) as integration_archive:
         prefix = "custom_components/frakon_dashboard/"
+        brand_icon_path = f"{prefix}brand/icon.png"
+        brand_icon_2x_path = f"{prefix}brand/icon@2x.png"
         build_info_path = f"{prefix}build-info.json"
         manifest_path = f"{prefix}manifest.json"
         validator_path = f"{prefix}document_validation.py"
@@ -89,6 +99,8 @@ with zipfile.ZipFile(KIT) as archive:
         bundled_frontend_path = f"{prefix}frontend/frakon-dashboard.js"
         integration_names = set(integration_archive.namelist())
         for required_path in (
+            brand_icon_path,
+            brand_icon_2x_path,
             build_info_path,
             manifest_path,
             validator_path,
@@ -100,6 +112,8 @@ with zipfile.ZipFile(KIT) as archive:
         ):
             if required_path not in integration_names:
                 raise SystemExit(f"Embedded integration archive is missing {required_path}")
+        brand_icon = integration_archive.read(brand_icon_path)
+        brand_icon_2x = integration_archive.read(brand_icon_2x_path)
         build_info = json.loads(integration_archive.read(build_info_path))
         ha_manifest = json.loads(integration_archive.read(manifest_path))
         validator_source = integration_archive.read(validator_path)
@@ -108,6 +122,10 @@ with zipfile.ZipFile(KIT) as archive:
         responsive_websocket_source = integration_archive.read(responsive_websocket_path)
         bundled_frontend = integration_archive.read(bundled_frontend_path)
 
+    if png_dimensions(brand_icon, "Embedded brand/icon.png") != (256, 256):
+        raise SystemExit("Embedded brand/icon.png must be exactly 256x256 pixels")
+    if png_dimensions(brand_icon_2x, "Embedded brand/icon@2x.png") != (512, 512):
+        raise SystemExit("Embedded brand/icon@2x.png must be exactly 512x512 pixels")
     if ha_manifest.get("domain") != "frakon_dashboard" or ha_manifest.get("version") != VERSION:
         raise SystemExit("Embedded Home Assistant manifest identity does not match the Alpha Test Kit")
     if build_info.get("sourceCommit") != source_commit:
@@ -147,6 +165,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("migration guide", migration, "/local/frakon-dashboard.js"),
         ("migration guide", migration, "## 9. Rollback"),
         ("self-check", self_check, "frontend SHA-256"),
+        ("self-check", self_check, "Home Assistant brand assets: OK"),
         ("self-check", self_check, "Dashboard document validator: OK"),
         ("self-check", self_check, "Responsive bundle validator: OK"),
         ("self-check", self_check, "validate_responsive_bundle"),
