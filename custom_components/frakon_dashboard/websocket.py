@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from typing import Any
 
 import voluptuous as vol
@@ -24,132 +23,25 @@ from .const import (
     WRITABLE_DOCUMENT_VERSIONS,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
+from .document_validation import DashboardDocumentValidationError, validate_dashboard_document
 from .storage import FrakonDashboardStorage
 
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
 REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
 CLIENT_ID = vol.All(str, vol.Length(min=1, max=128))
 BREAKPOINTS = ("mobile", "tablet", "desktop", "wide")
-V1_CONSTRAINT_KINDS = {
-    "align-left",
-    "align-center-x",
-    "align-right",
-    "align-top",
-    "align-center-y",
-    "align-bottom",
-    "below",
-    "right-of",
-    "match-width",
-    "match-height",
-}
-
-
-def _finite_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
-
-
-def _optional_finite_number(value: Any) -> bool:
-    return value is None or _finite_number(value)
-
-
-def _validate_v1_item(item: Any) -> str:
-    if not isinstance(item, dict):
-        raise vol.Invalid("Dashboard version 1 items must be objects.")
-    item_id = item.get("id")
-    if not isinstance(item_id, str) or not item_id or len(item_id) > 128:
-        raise vol.Invalid("Dashboard version 1 item.id must be a non-empty string up to 128 characters.")
-    card = item.get("card")
-    if not isinstance(card, dict) or not isinstance(card.get("type"), str) or not card["type"]:
-        raise vol.Invalid(f"Dashboard item {item_id} requires card.type.")
-    for field in ("x", "y", "w", "h"):
-        if not _finite_number(item.get(field)):
-            raise vol.Invalid(f"Dashboard item {item_id} requires finite numeric {field}.")
-    for field in ("minW", "minH", "maxW", "maxH"):
-        if field in item and not _optional_finite_number(item.get(field)):
-            raise vol.Invalid(f"Dashboard item {item_id} has invalid {field}.")
-    for field in ("locked", "hidden"):
-        if field in item and not isinstance(item.get(field), bool):
-            raise vol.Invalid(f"Dashboard item {item_id} has invalid {field} flag.")
-    return item_id
-
-
-def _validate_v1_constraints(document: dict[str, Any], item_ids: set[str]) -> None:
-    constraints = document.get("constraints")
-    if constraints is None:
-        return
-    if not isinstance(constraints, list) or len(constraints) > RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS:
-        raise vol.Invalid(
-            f"Dashboard version 1 constraints must be a list with at most {RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS} entries."
-        )
-
-    constraint_ids: set[str] = set()
-    for constraint in constraints:
-        if not isinstance(constraint, dict):
-            raise vol.Invalid("Dashboard version 1 constraints must be objects.")
-        constraint_id = constraint.get("id")
-        if not isinstance(constraint_id, str) or not constraint_id or constraint_id in constraint_ids:
-            raise vol.Invalid("Dashboard version 1 constraint ids must be non-empty and unique.")
-        kind = constraint.get("kind")
-        if kind not in V1_CONSTRAINT_KINDS:
-            raise vol.Invalid(f"Dashboard constraint {constraint_id} has unsupported kind {kind!r}.")
-        source_id = constraint.get("sourceId")
-        target_id = constraint.get("targetId")
-        if not isinstance(source_id, str) or not isinstance(target_id, str):
-            raise vol.Invalid(f"Dashboard constraint {constraint_id} requires sourceId and targetId.")
-        if source_id == target_id:
-            raise vol.Invalid(f"Dashboard constraint {constraint_id} cannot reference the same item twice.")
-        if source_id not in item_ids or target_id not in item_ids:
-            raise vol.Invalid(f"Dashboard constraint {constraint_id} references an unknown item.")
-        for field in ("gap", "priority"):
-            if field in constraint and not _optional_finite_number(constraint.get(field)):
-                raise vol.Invalid(f"Dashboard constraint {constraint_id} has invalid {field}.")
-        if "enabled" in constraint and not isinstance(constraint.get("enabled"), bool):
-            raise vol.Invalid(f"Dashboard constraint {constraint_id} has invalid enabled flag.")
-        constraint_ids.add(constraint_id)
-
-
-def _validate_v1_document(document: dict[str, Any]) -> None:
-    title = document.get("title")
-    if not isinstance(title, str):
-        raise vol.Invalid("Dashboard version 1 requires title.")
-    if document.get("breakpoint") not in BREAKPOINTS:
-        raise vol.Invalid("Dashboard version 1 requires a supported breakpoint.")
-    columns = document.get("columns")
-    row_height = document.get("rowHeight")
-    gap = document.get("gap")
-    if not _finite_number(columns) or columns <= 0:
-        raise vol.Invalid("Dashboard version 1 requires positive finite columns.")
-    if not _finite_number(row_height) or row_height <= 0:
-        raise vol.Invalid("Dashboard version 1 requires positive finite rowHeight.")
-    if not _finite_number(gap) or gap < 0:
-        raise vol.Invalid("Dashboard version 1 requires non-negative finite gap.")
-
-    item_ids: set[str] = set()
-    for item in document.get("items", []):
-        item_id = _validate_v1_item(item)
-        if item_id in item_ids:
-            raise vol.Invalid(f"Duplicate dashboard item id: {item_id}.")
-        item_ids.add(item_id)
-    _validate_v1_constraints(document, item_ids)
 
 
 def _validate_document_shape(document: dict[str, Any]) -> dict[str, Any]:
-    version = document.get("version")
-    if version not in READABLE_DOCUMENT_VERSIONS:
-        raise vol.Invalid(f"Unsupported dashboard document version: {version}.")
-
-    if version == 1:
-        _validate_v1_document(document)
-    elif version == 2:
-        layout = document.get("layout")
-        if not isinstance(layout, dict) or layout.get("mode") != "canvas":
-            raise vol.Invalid("Dashboard document version 2 requires layout.mode=canvas.")
-        if not isinstance(layout.get("width"), (int, float)) or layout["width"] <= 0:
-            raise vol.Invalid("Dashboard document version 2 requires a positive layout.width.")
-        if not isinstance(layout.get("minHeight"), (int, float)) or layout["minHeight"] <= 0:
-            raise vol.Invalid("Dashboard document version 2 requires a positive layout.minHeight.")
-
-    return document
+    try:
+        return validate_dashboard_document(
+            document,
+            READABLE_DOCUMENT_VERSIONS,
+            max_items=RESPONSIVE_CANVAS_V2_MAX_ITEMS,
+            max_constraints=RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+        )
+    except DashboardDocumentValidationError as err:
+        raise vol.Invalid(str(err)) from err
 
 
 DASHBOARD_DOCUMENT = vol.All(
@@ -157,7 +49,7 @@ DASHBOARD_DOCUMENT = vol.All(
         {
             vol.Required("id"): DASHBOARD_ID,
             vol.Required("version"): vol.Coerce(int),
-            vol.Required("items"): vol.All(list, vol.Length(max=2000)),
+            vol.Required("items"): vol.All(list, vol.Length(max=RESPONSIVE_CANVAS_V2_MAX_ITEMS)),
         },
         extra=vol.ALLOW_EXTRA,
     ),
@@ -211,7 +103,7 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
                 "readableDocumentVersions": sorted(READABLE_DOCUMENT_VERSIONS),
                 "writableDocumentVersions": sorted(WRITABLE_DOCUMENT_VERSIONS),
                 "revisionSync": True,
-                "maxItems": 2000,
+                "maxItems": RESPONSIVE_CANVAS_V2_MAX_ITEMS,
                 "responsiveCanvasV2": {
                     "contractVersion": RESPONSIVE_CANVAS_V2_CONTRACT_VERSION,
                     "read": RESPONSIVE_CANVAS_V2_KIND in READABLE_RESPONSIVE_BUNDLE_KINDS,
