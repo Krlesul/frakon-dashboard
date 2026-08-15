@@ -34,23 +34,11 @@ REQUIRED_FILES = (
     "frontend/frakon-dashboard.js",
 )
 FRONTEND_REGISTRATION_MARKERS = (
-    "frakon-card",
-    "frakon-sensor-card",
-    "frakon-room-card",
-    "frakon-switch-card",
-    "frakon-action-card",
-    "frakon-light-card",
-    "frakon-climate-card",
-    "frakon-fan-card",
-    "frakon-binary-sensor-card",
-    "frakon-cover-card",
-    "frakon-lock-card",
-    "frakon-camera-card",
-    "frakon-media-player-card",
-    "frakon-energy-card",
-    "frakon-vehicle-card",
-    "frakon-dashboard-card",
-    "frakon-canvas-dashboard-card",
+    "frakon-card", "frakon-sensor-card", "frakon-room-card", "frakon-switch-card",
+    "frakon-action-card", "frakon-light-card", "frakon-climate-card", "frakon-fan-card",
+    "frakon-binary-sensor-card", "frakon-cover-card", "frakon-lock-card", "frakon-camera-card",
+    "frakon-media-player-card", "frakon-energy-card", "frakon-vehicle-card",
+    "frakon-dashboard-card", "frakon-canvas-dashboard-card",
 )
 
 
@@ -105,11 +93,9 @@ def main() -> int:
     icon_dimensions = png_dimensions(integration / "brand" / "icon.png", (256, 256))
     icon_2x_dimensions = png_dimensions(integration / "brand" / "icon@2x.png", (512, 512))
 
-    manifest_path = integration / "manifest.json"
-    manifest = read_json(manifest_path, "manifest.json")
+    manifest = read_json(integration / "manifest.json", "manifest.json")
     if not isinstance(manifest, dict):
         fail("manifest.json must contain an object")
-
     if manifest.get("domain") != DOMAIN:
         fail(f"manifest domain is {manifest.get('domain')!r}, expected {DOMAIN!r}")
     installed_version = manifest.get("version")
@@ -118,6 +104,8 @@ def main() -> int:
     installed_version = installed_version.strip()
     if manifest.get("integration_type") != "service":
         fail("manifest integration_type must be 'service'")
+    if manifest.get("iot_class") != "calculated":
+        fail("manifest iot_class must be 'calculated'")
     if manifest.get("config_flow") is not True:
         fail("manifest config_flow must be true")
     if manifest.get("single_config_entry") is not True:
@@ -135,10 +123,7 @@ def main() -> int:
     version_match = re.search(r'^INTEGRATION_VERSION\s*=\s*["\']([^"\']+)["\']', const_source, re.MULTILINE)
     runtime_version = version_match.group(1) if version_match else None
     if runtime_version != installed_version:
-        fail(
-            "runtime integration version does not match manifest: "
-            f"{runtime_version!r} != {installed_version!r}"
-        )
+        fail(f"runtime integration version does not match manifest: {runtime_version!r} != {installed_version!r}")
 
     build_info = read_json(integration / "build-info.json", "build-info.json")
     if not isinstance(build_info, dict):
@@ -167,24 +152,17 @@ def main() -> int:
 
     validator_source = (integration / "document_validation.py").read_text(encoding="utf-8")
     for marker in (
-        "validate_dashboard_document",
-        "Duplicate dashboard item id",
-        "references an unknown item",
-        "outside its canonical min/max bounds",
-        "DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
-        "def dashboard_serialized_bytes",
-        "max_serialized_bytes: int = DASHBOARD_MAX_SERIALIZED_BYTES",
+        "validate_dashboard_document", "Duplicate dashboard item id", "references an unknown item",
+        "outside its canonical min/max bounds", "DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
+        "def dashboard_serialized_bytes", "max_serialized_bytes: int = DASHBOARD_MAX_SERIALIZED_BYTES",
     ):
         if marker not in validator_source:
             fail(f"dashboard document validator is missing marker {marker!r}")
 
     responsive_validator_source = (integration / "responsive_bundle_validation.py").read_text(encoding="utf-8")
     for marker in (
-        "validate_responsive_bundle",
-        "validate_responsive_revision_envelope",
-        "validate_dashboard_document",
-        "enabled constraint dependency cycle",
-        "dashboard_serialized_bytes",
+        "validate_responsive_bundle", "validate_responsive_revision_envelope", "validate_dashboard_document",
+        "enabled constraint dependency cycle", "dashboard_serialized_bytes",
         "max_serialized_bytes=RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES",
     ):
         if marker not in responsive_validator_source:
@@ -197,12 +175,7 @@ def main() -> int:
         fail("websocket persistence schema must not coerce integer values")
 
     responsive_websocket_source = (integration / "responsive_websocket.py").read_text(encoding="utf-8")
-    for marker in (
-        "_strict_contract_version",
-        "_strict_updated_at",
-        "validate_responsive_bundle",
-        "validate_responsive_revision_envelope",
-    ):
+    for marker in ("_strict_contract_version", "_strict_updated_at", "validate_responsive_bundle", "validate_responsive_revision_envelope"):
         if marker not in responsive_websocket_source:
             fail(f"responsive WebSocket validation is missing marker {marker!r}")
     if "vol.Coerce(int)" in responsive_websocket_source:
@@ -215,6 +188,11 @@ def main() -> int:
     frontend_helper = (integration / "frontend.py").read_text(encoding="utf-8")
     if "?v={INTEGRATION_VERSION}" not in frontend_helper:
         fail("frontend resource URL is not cache-busted with INTEGRATION_VERSION")
+    if "LOVELACE_DATA" in frontend_helper:
+        fail("frontend helper uses a Lovelace symbol unavailable on the declared HA 2025.1 minimum")
+    for marker in ("DOMAIN as LOVELACE_DOMAIN", "def _lovelace_resource_state", 'lovelace.get("resource_mode", lovelace.get("mode"))'):
+        if marker not in frontend_helper:
+            fail(f"frontend helper is missing HA 2025.1+ compatibility marker {marker!r}")
 
     frontend = integration / "frontend" / "frakon-dashboard.js"
     size = frontend.stat().st_size
@@ -222,10 +200,7 @@ def main() -> int:
         fail(f"frontend bundle looks unexpectedly small: {size} bytes")
     actual_frontend_sha = sha256(frontend.read_bytes()).hexdigest()
     if actual_frontend_sha != expected_frontend_sha:
-        fail(
-            "installed frontend SHA-256 does not match build-info.json: "
-            f"{actual_frontend_sha} != {expected_frontend_sha}"
-        )
+        fail(f"installed frontend SHA-256 does not match build-info.json: {actual_frontend_sha} != {expected_frontend_sha}")
 
     source = frontend.read_text(encoding="utf-8", errors="ignore")
     for marker in FRONTEND_REGISTRATION_MARKERS:
@@ -244,6 +219,7 @@ def main() -> int:
     print(f"brand icon: {icon_dimensions[0]}x{icon_dimensions[1]}")
     print(f"brand icon @2x: {icon_2x_dimensions[0]}x{icon_2x_dimensions[1]}")
     print("Home Assistant manifest contract: OK")
+    print("Home Assistant minimum compatibility: OK (2025.1.0+)")
     print("Home Assistant brand assets: OK")
     print("Dashboard serialized-byte guard: OK")
     print("Dashboard document validator: OK")
