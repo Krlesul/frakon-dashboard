@@ -1,4 +1,5 @@
 import './cards/frakon-card';
+import './cards/frakon-card-editor';
 import './cards/light/light-card';
 import './cards/light/light-card-editor';
 import './cards/sensor/sensor-card';
@@ -48,7 +49,7 @@ declare global {
 
 window.customCards = window.customCards ?? [];
 window.customCards.push(
-  { type: 'frakon-card', name: 'FRAKON Card', description: 'Premium multilingual entity card by FRAKON.', preview: true },
+  { type: 'frakon-card', name: 'FRAKON Card', description: 'Premium multilingual entity card with visual editor and Home Assistant actions.', preview: true },
   { type: 'frakon-light-card', name: 'FRAKON Light Card', description: 'Premium light control with brightness and visual editor.', preview: true },
   { type: 'frakon-sensor-card', name: 'FRAKON Sensor Card', description: 'Premium multilingual measurement and status card with visual editor.', preview: true },
   { type: 'frakon-binary-sensor-card', name: 'FRAKON Binary Sensor Card', description: 'Door, window, motion, smoke, moisture and safety state card with visual editor.', preview: true },
