@@ -85,6 +85,7 @@ with zipfile.ZipFile(KIT) as archive:
         responsive_validator_path = f"{prefix}responsive_bundle_validation.py"
         responsive_constraint_validator_path = f"{prefix}responsive_constraint_validation.py"
         responsive_storage_path = f"{prefix}responsive_storage.py"
+        responsive_websocket_path = f"{prefix}responsive_websocket.py"
         bundled_frontend_path = f"{prefix}frontend/frakon-dashboard.js"
         integration_names = set(integration_archive.namelist())
         for required_path in (
@@ -94,6 +95,7 @@ with zipfile.ZipFile(KIT) as archive:
             responsive_validator_path,
             responsive_constraint_validator_path,
             responsive_storage_path,
+            responsive_websocket_path,
             bundled_frontend_path,
         ):
             if required_path not in integration_names:
@@ -103,6 +105,7 @@ with zipfile.ZipFile(KIT) as archive:
         validator_source = integration_archive.read(validator_path)
         responsive_validator_source = integration_archive.read(responsive_validator_path)
         responsive_storage_source = integration_archive.read(responsive_storage_path)
+        responsive_websocket_source = integration_archive.read(responsive_websocket_path)
         bundled_frontend = integration_archive.read(bundled_frontend_path)
 
     if ha_manifest.get("domain") != "frakon_dashboard" or ha_manifest.get("version") != VERSION:
@@ -119,6 +122,10 @@ with zipfile.ZipFile(KIT) as archive:
         raise SystemExit("Embedded integration responsive bundle validator is invalid")
     if b"validate_responsive_revision_envelope" not in responsive_storage_source:
         raise SystemExit("Embedded integration responsive Store is not wired to the shared validator")
+    if b"validate_responsive_bundle" not in responsive_websocket_source or b"validate_responsive_revision_envelope" not in responsive_websocket_source:
+        raise SystemExit("Embedded integration responsive WebSocket is not wired to the shared validator")
+    if b"vol.Coerce(int)" in responsive_websocket_source:
+        raise SystemExit("Embedded responsive WebSocket still coerces integer persistence metadata")
 
     test_guide = archive.read("home-assistant-alpha-test.md").decode("utf-8")
     report = archive.read("home-assistant-alpha-test-report-template.md").decode("utf-8")
@@ -129,12 +136,21 @@ with zipfile.ZipFile(KIT) as archive:
     checks = [
         ("test guide", test_guide, "/config/custom_components/frakon_dashboard"),
         ("test guide", test_guide, "custom:frakon-dashboard-card"),
+        ("test guide", test_guide, "Responsive bundle validator: OK"),
+        ("test guide", test_guide, "contractVersion"),
+        ("test guide", test_guide, "updatedAt"),
+        ("test guide", test_guide, "requested dashboard ID"),
         ("report template", report, "## Final alpha decision"),
+        ("report template", report, "Responsive bundle validator: OK"),
+        ("report template", report, "Fractional `contractVersion`"),
+        ("report template", report, "Stored responsive envelope with wrong dashboard ID"),
         ("migration guide", migration, "/local/frakon-dashboard.js"),
         ("migration guide", migration, "## 9. Rollback"),
         ("self-check", self_check, "frontend SHA-256"),
         ("self-check", self_check, "Dashboard document validator: OK"),
         ("self-check", self_check, "Responsive bundle validator: OK"),
+        ("self-check", self_check, "validate_responsive_bundle"),
+        ("self-check", self_check, "validate_responsive_revision_envelope"),
         ("README", readme, "Frontend SHA-256"),
         ("README", readme, "python verify_home_assistant_install.py"),
     ]
