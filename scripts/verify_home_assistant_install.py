@@ -116,8 +116,20 @@ def main() -> int:
     if not isinstance(installed_version, str) or not installed_version.strip():
         fail(f"manifest version is missing or invalid: {installed_version!r}")
     installed_version = installed_version.strip()
+    if manifest.get("integration_type") != "service":
+        fail("manifest integration_type must be 'service'")
     if manifest.get("config_flow") is not True:
         fail("manifest config_flow must be true")
+    if manifest.get("single_config_entry") is not True:
+        fail("manifest single_config_entry must be true")
+    if set(manifest.get("dependencies") or []) != {"http", "lovelace"}:
+        fail("manifest dependencies must be exactly http + lovelace")
+    if manifest.get("documentation") != "https://github.com/Krlesul/frakon-dashboard":
+        fail("manifest documentation URL is invalid")
+    if manifest.get("issue_tracker") != "https://github.com/Krlesul/frakon-dashboard/issues":
+        fail("manifest issue_tracker URL is invalid")
+    if manifest.get("codeowners") != ["@Krlesul"]:
+        fail("manifest codeowners are invalid")
 
     const_source = (integration / "const.py").read_text(encoding="utf-8")
     version_match = re.search(r'^INTEGRATION_VERSION\s*=\s*["\']([^"\']+)["\']', const_source, re.MULTILINE)
@@ -204,11 +216,6 @@ def main() -> int:
     if "?v={INTEGRATION_VERSION}" not in frontend_helper:
         fail("frontend resource URL is not cache-busted with INTEGRATION_VERSION")
 
-    dependencies = set(manifest.get("dependencies") or [])
-    for dependency in ("http", "lovelace"):
-        if dependency not in dependencies:
-            fail(f"manifest is missing dependency {dependency!r}")
-
     frontend = integration / "frontend" / "frakon-dashboard.js"
     size = frontend.stat().st_size
     if size < 10_000:
@@ -236,6 +243,7 @@ def main() -> int:
     print(f"verified frontend registrations: {len(FRONTEND_REGISTRATION_MARKERS)}")
     print(f"brand icon: {icon_dimensions[0]}x{icon_dimensions[1]}")
     print(f"brand icon @2x: {icon_2x_dimensions[0]}x{icon_2x_dimensions[1]}")
+    print("Home Assistant manifest contract: OK")
     print("Home Assistant brand assets: OK")
     print("Dashboard serialized-byte guard: OK")
     print("Dashboard document validator: OK")
