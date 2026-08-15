@@ -24,6 +24,9 @@ Identity gate:
 - ☐ Kit source commit = installed `build-info.json` source commit
 - ☐ Kit frontend SHA-256 = install self-check frontend SHA-256
 - ☐ Kit version = installed Home Assistant manifest/runtime version
+- ☐ `Home Assistant manifest contract: OK` reported
+- ☐ Installed manifest declares `integration_type: service`
+- ☐ Installed manifest keeps `single_config_entry: true`
 - ☐ `Home Assistant brand assets: OK` reported
 - ☐ Installed `brand/icon.png` verified as 256×256 PNG
 - ☐ Installed `brand/icon@2x.png` verified as 512×512 PNG
@@ -61,6 +64,7 @@ If any identity item differs, stop functional testing and fix installation/cache
 - ☐ `frakon_dashboard.zip` extracted to `/config/custom_components/frakon_dashboard`
 - ☐ Home Assistant restarted successfully
 - ☐ FRAKON Dashboard integration added
+- ☐ Home Assistant manifest contract reports `OK`
 - ☐ FRAKON integration icon displayed where supported
 - ☐ Versioned `/frakon-dashboard/frakon-dashboard.js?v=…` module loaded
 - ☐ No legacy duplicate `/local/frakon-dashboard.js` resource remains
@@ -274,6 +278,7 @@ For every reproducible defect create a separate GitHub issue with reproduction s
 
 - ☐ All mandatory #11 checks passed
 - ☐ Alpha Test Kit / installed frontend / runtime identities match
+- ☐ Home Assistant manifest contract passed (`integration_type=service`, single config entry, expected dependencies/URLs)
 - ☐ Home Assistant brand asset dimensions/self-check passed
 - ☐ FRAKON integration icon visually checked where supported
 - ☐ Dashboard serialized-byte guard identity/exact-boundary/UTF-8 cases passed
