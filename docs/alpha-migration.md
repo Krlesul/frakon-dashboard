@@ -39,13 +39,13 @@ and let the integration serve the versioned frontend resource:
 5. Restart Home Assistant.
 6. Add **FRAKON Dashboard** from **Settings → Devices & services**.
 7. In Lovelace storage mode, allow the integration to register/repair the versioned module resource.
-8. Run:
+8. From a FRAKON Dashboard repository/release workspace that contains `scripts/verify_home_assistant_install.py`, run the self-check against the target Home Assistant config directory:
 
 ```bash
-python /config/custom_components/frakon_dashboard/../../../scripts/verify_home_assistant_install.py /config
+python scripts/verify_home_assistant_install.py /config
 ```
 
-when testing from a repository checkout, or run the repository copy of `scripts/verify_home_assistant_install.py` against the target `/config` directory.
+The self-check script is a repository/release verification tool; it is not installed inside `custom_components/frakon_dashboard`.
 
 Do not keep both the old `/local` resource and the new integration resource enabled at the same time. Duplicate custom-element registration can make a stale frontend appear to be a backend or storage defect.
 
