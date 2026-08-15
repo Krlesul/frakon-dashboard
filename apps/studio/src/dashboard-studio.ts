@@ -15,7 +15,12 @@ import { dashboardGridEditorShortcut } from '../../../src/dashboard/dashboard-gr
 import { applyDashboardGridItemAction } from '../../../src/dashboard/dashboard-grid-item-actions';
 import { applyDashboardGridLayerAction } from '../../../src/dashboard/dashboard-grid-layer-actions';
 import { keyboardNudgeDelta, nudgeDashboardSelection } from '../../../src/dashboard/dashboard-keyboard-nudge';
-import type { FrakonDashboardDocument, FrakonGridItem } from '../../../src/dashboard/layout-model';
+import {
+  clampGridItem,
+  findCollisions,
+  type FrakonDashboardDocument,
+  type FrakonGridItem,
+} from '../../../src/dashboard/layout-model';
 import { resolveDashboardSurfaces, resolveGridItemSurface } from '../../../src/dashboard/surface-style-resolver';
 import type { FrakonConstraintDocumentChangedDetail } from './constraint-inspector';
 import type {
@@ -40,6 +45,7 @@ interface ResizeSession {
   startX: number;
   startY: number;
   source: GroupTransformItem[];
+  sourceDocument: FrakonDashboardDocument;
 }
 
 interface MoveSession {
@@ -406,16 +412,19 @@ export class FrakonDashboardStudio extends LitElement {
       startX: event.clientX,
       startY: event.clientY,
       source,
+      sourceDocument: structuredClone(this.document),
     };
     this.resizing = true;
+    this.collisionIds = [];
+    this.guidelines = [];
   }
 
   private continueResize(event: PointerEvent): void {
     const session = this.resizeSession;
-    const document = this.document;
-    if (!session || !document || session.pointerId !== event.pointerId) return;
+    if (!session || session.pointerId !== event.pointerId) return;
     event.preventDefault();
     event.stopPropagation();
+    const document = session.sourceDocument;
     const zoom = Math.max(0.01, this.viewportZoom);
     const resized = resizeGroup(session.source, session.handle, {
       x: (event.clientX - session.startX) / zoom,
@@ -425,29 +434,40 @@ export class FrakonDashboardStudio extends LitElement {
       minHeight: document.rowHeight,
     });
     const byId = new Map(resized.map((item) => [item.id, item]));
-    this.document = {
+    const candidate: FrakonDashboardDocument = {
       ...document,
       items: document.items.map((item) => {
         const transformed = byId.get(item.id);
-        if (!transformed || item.locked) return item;
-        return {
+        if (!transformed || item.locked) return structuredClone(item);
+        return clampGridItem({
           ...item,
-          x: Math.max(0, Math.round(transformed.x / COLUMN_WIDTH)),
-          y: Math.max(0, Math.round(transformed.y / document.rowHeight)),
+          x: Math.round(transformed.x / COLUMN_WIDTH),
+          y: Math.round(transformed.y / document.rowHeight),
           w: Math.max(1, Math.round((transformed.width + document.gap) / COLUMN_WIDTH)),
           h: Math.max(1, Math.round((transformed.height + document.gap) / document.rowHeight)),
-        };
+        }, document.columns);
       }),
     };
+    const collisionIds = new Set<string>();
+    for (const [first, second] of findCollisions(candidate.items)) {
+      collisionIds.add(first);
+      collisionIds.add(second);
+    }
+    this.document = candidate;
+    this.collisionIds = [...collisionIds];
     this.emitChanged();
   }
 
   private endResize(event: PointerEvent): void {
-    if (!this.resizeSession || this.resizeSession.pointerId !== event.pointerId) return;
+    const session = this.resizeSession;
+    if (!session || session.pointerId !== event.pointerId) return;
     event.preventDefault();
     event.stopPropagation();
+    if (this.collisionIds.length > 0) this.document = session.sourceDocument;
     this.resizeSession = undefined;
     this.resizing = false;
+    this.collisionIds = [];
+    this.guidelines = [];
     this.emitChanged();
   }
 
