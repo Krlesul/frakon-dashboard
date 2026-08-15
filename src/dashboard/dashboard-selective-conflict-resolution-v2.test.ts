@@ -37,6 +37,31 @@ describe('resolveDashboardV2Conflicts', () => {
     expect(resolved.document.layout.minHeight).toBe(900);
   });
 
+  it('rejects a complete layout/item choice that would place a frame outside the chosen canvas', () => {
+    const base = migrateDashboardV1ToV2(v1, 430);
+    const local = structuredClone(base);
+    const remote = structuredClone(base);
+    local.items[0].frame.x = 300;
+    remote.layout.width = 350;
+    const merge = mergeDashboardDocuments(base, local, remote);
+    expect(merge.conflicts.map((entry) => entry.path)).toEqual(
+      expect.arrayContaining(['layout', 'items.a']),
+    );
+
+    expect(() => resolveDashboardV2Conflicts(merge, {
+      layout: 'remote',
+      'items.a': 'local',
+    })).toThrow(/non-canonical version 2/i);
+
+    const valid = resolveDashboardV2Conflicts(merge, {
+      layout: 'local',
+      'items.a': 'local',
+    });
+    expect(valid.complete).toBe(true);
+    expect(valid.document.layout.width).toBe(430);
+    expect(valid.document.items[0].frame.x).toBe(300);
+  });
+
   it('keeps unresolved canvas item conflicts explicit', () => {
     const base = migrateDashboardV1ToV2(v1, 430);
     const local = structuredClone(base);
