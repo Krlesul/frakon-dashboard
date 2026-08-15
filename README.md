@@ -41,7 +41,6 @@ The current Home Assistant alpha includes:
 - real-server proof that Dry Run left responsive storage unchanged
 - HACS-style integration ZIP packaging with bundled frontend
 - simulated Home Assistant installation verification in CI
-- Emergency Intelligence with occurrence-aware execution, durable idempotency, execution journal, restart recovery, evidence consistency and verify-before-retry safety
 
 Responsive Canvas v2 **reads are enabled**. Responsive Canvas v2 **writes remain deliberately locked** until real Home Assistant round-trip, restart-recovery and multi-device conflict tests are completed.
 
