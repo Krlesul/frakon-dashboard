@@ -26,6 +26,7 @@ jobs:
       - run: python scripts/verify_dashboard_document_validation.py
       - run: python scripts/verify_responsive_bundle_validation.py
       - run: python scripts/verify_responsive_write_lock.py
+      - run: python scripts/verify_persistence_integrity_readiness.py
       - run: python scripts/verify_alpha_release_readiness.py
       - run: npm install
       - run: npm run lint
