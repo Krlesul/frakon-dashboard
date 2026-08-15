@@ -1,6 +1,6 @@
 import type { DashboardMergeConflict, DashboardMergeResult } from './dashboard-conflict-resolver';
 import type { DashboardConflictSelections } from './dashboard-selective-conflict-resolution';
-import type { FrakonCanvasItem, FrakonDashboardDocumentV2 } from './layout-model-v2';
+import { isDashboardDocumentV2, type FrakonCanvasItem, type FrakonDashboardDocumentV2 } from './layout-model-v2';
 
 export interface DashboardV2SelectiveResolution {
   document: FrakonDashboardDocumentV2;
@@ -24,7 +24,11 @@ export function resolveDashboardV2Conflicts(
     applyV2ConflictValue(document, conflict.path, structuredClone(conflict[side]));
   }
 
-  return { document, unresolved, complete: unresolved.length === 0 };
+  const complete = unresolved.length === 0;
+  if (complete && !isDashboardDocumentV2(document)) {
+    throw new Error('Completed dashboard conflict selections produce a non-canonical version 2 document.');
+  }
+  return { document, unresolved, complete };
 }
 
 function reorderItems(document: FrakonDashboardDocumentV2, order: string[]): void {
