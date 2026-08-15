@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { exportDashboard, importDashboard } from './layout-store';
+import { exportDashboard, importDashboard, LocalDashboardStore } from './layout-store';
 import type { FrakonDashboardDocument } from './layout-model';
 
 const document: FrakonDashboardDocument = {
@@ -20,12 +20,41 @@ const document: FrakonDashboardDocument = {
   ],
 };
 
+function memoryStorage(): Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() { return values.size; },
+    clear() { values.clear(); },
+    getItem(key: string) { return values.get(key) ?? null; },
+    key(index: number) { return [...values.keys()][index] ?? null; },
+    removeItem(key: string) { values.delete(key); },
+    setItem(key: string, value: string) { values.set(key, value); },
+  };
+}
+
 describe('legacy dashboard import/export', () => {
   it('round-trips exact geometry, serialized z-order, hidden state and constraints', () => {
-    const imported = importDashboard(exportDashboard(document));
-    expect(imported.items).toEqual(document.items);
+    const exported = exportDashboard(document);
+    expect(JSON.parse(exported)).toEqual(document);
+    const imported = importDashboard(exported);
+    expect(imported).toEqual(document);
     expect(imported.items.map((item) => item.id)).toEqual(['front', 'hidden', 'back']);
-    expect(imported.constraints).toEqual(document.constraints);
+  });
+
+  it('stores canonical local documents exactly and returns defensive copies', () => {
+    const store = new LocalDashboardStore(memoryStorage());
+    store.save(document);
+    const loaded = store.load('home');
+    expect(loaded).toEqual(document);
+    expect(loaded).not.toBe(document);
+  });
+
+  it('rejects non-canonical Save/Export instead of normalizing it', () => {
+    const invalid = { ...structuredClone(document), rowHeight: 8 };
+    const store = new LocalDashboardStore(memoryStorage());
+    expect(() => store.save(invalid)).toThrow(/invalid or non-canonical/i);
+    expect(() => exportDashboard(invalid)).toThrow(/invalid or non-canonical/i);
+    expect(store.load('home')).toBeUndefined();
   });
 
   it('rejects invalid JSON and malformed recognized-version documents', () => {
@@ -63,6 +92,6 @@ describe('legacy dashboard import/export', () => {
       w: overlapping.items[0].w,
       h: overlapping.items[0].h,
     };
-    expect(() => importDashboard(JSON.stringify(overlapping))).toThrow(/contains overlapping items/);
+    expect(() => importDashboard(JSON.stringify(overlapping))).toThrow(/Invalid FRAKON dashboard payload/);
   });
 });
