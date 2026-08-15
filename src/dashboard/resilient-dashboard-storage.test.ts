@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FrakonDashboardDocument } from './layout-model';
 import {
+  LocalStorageDashboardSyncQueue,
   MemoryDashboardSyncQueue,
   ResilientDashboardStorageAdapter,
 } from './resilient-dashboard-storage';
@@ -16,6 +17,32 @@ function dashboard(revision: number): FrakonDashboardDocument {
     rowHeight: 80,
     gap: 12,
     items: [],
+  };
+}
+
+function exactDashboard(): FrakonDashboardDocument {
+  return {
+    ...dashboard(9),
+    items: [
+      { id: 'front', x: 8, y: 7, w: 3, h: 2, card: { type: 'custom:front' } },
+      { id: 'hidden', x: 1, y: 4, w: 2, h: 2, hidden: true, card: { type: 'custom:hidden' } },
+      { id: 'back', x: 0, y: 0, w: 2, h: 2, card: { type: 'custom:back' } },
+    ],
+    constraints: [
+      { id: 'hidden-left-front', kind: 'align-left', sourceId: 'hidden', targetId: 'front', priority: 40 },
+    ],
+  };
+}
+
+function memoryStorage(initial: Record<string, string> = {}): Storage {
+  const values = new Map(Object.entries(initial));
+  return {
+    get length() { return values.size; },
+    clear() { values.clear(); },
+    getItem(key: string) { return values.get(key) ?? null; },
+    key(index: number) { return [...values.keys()][index] ?? null; },
+    removeItem(key: string) { values.delete(key); },
+    setItem(key: string, value: string) { values.set(key, value); },
   };
 }
 
@@ -78,6 +105,29 @@ describe('ResilientDashboardStorageAdapter', () => {
     expect(storage.currentState.pending).toBe(0);
   });
 
+  it('replays exact hidden geometry, z-order and constraints after reconnecting', async () => {
+    const primary = new ToggleAdapter();
+    const fallback = new MemoryDashboardStorageAdapter();
+    const queue = new MemoryDashboardSyncQueue();
+    const storage = new ResilientDashboardStorageAdapter(primary, fallback, queue);
+    const exact = exactDashboard();
+    primary.online = false;
+
+    await storage.save(exact);
+    const queued = await queue.list();
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.kind).toBe('save');
+    if (queued[0]?.kind !== 'save') throw new Error('Expected queued save.');
+    expect(queued[0].document.items).toEqual(exact.items);
+    expect(queued[0].document.constraints).toEqual(exact.constraints);
+
+    primary.online = true;
+    await storage.synchronize();
+    const loaded = await primary.load('home');
+    expect(loaded?.items).toEqual(exact.items);
+    expect(loaded?.constraints).toEqual(exact.constraints);
+  });
+
   it('queues removals and replays them after reconnecting', async () => {
     const primary = new ToggleAdapter();
     const fallback = new MemoryDashboardStorageAdapter();
@@ -105,5 +155,36 @@ describe('ResilientDashboardStorageAdapter', () => {
 
     expect((await storage.load('home'))?.title).toBe('Home 5');
     expect(storage.currentState.mode).toBe('fallback');
+  });
+
+  it('filters malformed or mismatched local-storage sync operations before replay', async () => {
+    const validRemove = { kind: 'remove', id: 'old', queuedAt: 1 };
+    const malformedSave = {
+      kind: 'save',
+      id: 'home',
+      queuedAt: 2,
+      document: {
+        version: 1,
+        id: 'home',
+        title: 'Broken',
+        breakpoint: 'desktop',
+        columns: 12,
+        rowHeight: 80,
+        gap: 12,
+        items: [{ id: 'bad', card: {}, x: 0, y: 0, w: 'bad', h: 2 }],
+      },
+    };
+    const mismatchedSave = {
+      kind: 'save',
+      id: 'other',
+      queuedAt: 3,
+      document: exactDashboard(),
+    };
+    const backing = memoryStorage({
+      'frakon-dashboard:sync-queue': JSON.stringify([validRemove, malformedSave, mismatchedSave]),
+    });
+    const queue = new LocalStorageDashboardSyncQueue(backing);
+
+    expect(await queue.list()).toEqual([validRemove]);
   });
 });
