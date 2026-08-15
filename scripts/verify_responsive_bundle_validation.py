@@ -26,12 +26,13 @@ def load_module(name: str) -> ModuleType:
 package = ModuleType(PACKAGE)
 package.__path__ = [str(MODULE_DIR)]  # type: ignore[attr-defined]
 sys.modules[PACKAGE] = package
-load_module("const")
+const = load_module("const")
 load_module("document_validation")
 validation = load_module("responsive_bundle_validation")
 
 validate_bundle = validation.validate_responsive_bundle
 validate_envelope = validation.validate_responsive_revision_envelope
+MAX_SERIALIZED_BYTES = const.RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES
 ValidationError = validation.ResponsiveBundleValidationError
 
 
@@ -166,6 +167,10 @@ expect_invalid_bundle(payload, "enabled constraint dependency cycle")
 payload = valid_bundle()
 payload["defaultBreakpoint"] = "mobile"
 expect_invalid_bundle(payload, "missing default breakpoint document")
+
+payload = valid_bundle()
+payload["documents"]["desktop"]["items"][0]["card"]["oversized"] = "x" * MAX_SERIALIZED_BYTES
+expect_invalid_bundle(payload, "responsive bundle above serialized byte limit")
 
 payload = valid_envelope()
 payload["updatedAt"] = 10.5
