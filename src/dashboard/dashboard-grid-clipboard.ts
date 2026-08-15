@@ -10,8 +10,8 @@ export interface DashboardGridClipboardPayload {
   items: FrakonGridItem[];
   constraints: LayoutConstraint[];
   /**
-   * Copy/Duplicate create discoverable visible objects. Cut is a move and
-   * therefore preserves the original hidden state when pasted.
+   * Optional explicit visibility override. When omitted, Paste infers Copy
+   * versus Cut from whether the source item ids still exist in the document.
    */
   preserveHiddenOnPaste?: boolean;
 }
@@ -58,8 +58,17 @@ export function copyDashboardGridSelection(
   return {
     items,
     constraints,
-    preserveHiddenOnPaste: options.preserveHiddenOnPaste === true,
+    preserveHiddenOnPaste: options.preserveHiddenOnPaste,
   };
+}
+
+function shouldPreserveHiddenOnPaste(
+  document: FrakonDashboardDocument,
+  payload: DashboardGridClipboardPayload,
+): boolean {
+  if (typeof payload.preserveHiddenOnPaste === 'boolean') return payload.preserveHiddenOnPaste;
+  const currentIds = new Set(document.items.map((item) => item.id));
+  return payload.items.every((item) => !currentIds.has(item.id));
 }
 
 function placedItemsForOffset(
@@ -68,6 +77,7 @@ function placedItemsForOffset(
   idMap: Map<string, string>,
   dx: number,
   dy: number,
+  preserveHidden: boolean,
 ): FrakonGridItem[] | undefined {
   const items = payload.items.map((item) => ({
     ...structuredClone(item),
@@ -75,7 +85,7 @@ function placedItemsForOffset(
     x: item.x + dx,
     y: item.y + dy,
     locked: false,
-    hidden: payload.preserveHiddenOnPaste ? item.hidden === true : false,
+    hidden: preserveHidden ? item.hidden === true : false,
   }));
   if (items.some((item) => item.x < 0 || item.y < 0 || item.x + item.w > document.columns)) return undefined;
   if (findCollisions([...document.items, ...items]).length > 0) return undefined;
@@ -95,19 +105,20 @@ export function pasteDashboardGridClipboard(
     };
   }
 
+  const preserveHidden = shouldPreserveHiddenOnPaste(document, payload);
   const usedItemIds = new Set(document.items.map((item) => item.id));
   const idMap = new Map<string, string>();
   for (const item of payload.items) idMap.set(item.id, uniqueId(item.id, usedItemIds));
 
   let pasted: FrakonGridItem[] | undefined;
   for (let offset = 1; offset <= 24; offset += 1) {
-    pasted = placedItemsForOffset(document, payload, idMap, offset, offset);
+    pasted = placedItemsForOffset(document, payload, idMap, offset, offset, preserveHidden);
     if (pasted) break;
   }
   if (!pasted) {
     const maxBottom = Math.max(0, ...document.items.map((item) => item.y + item.h));
     const minTop = Math.min(...payload.items.map((item) => item.y));
-    pasted = placedItemsForOffset(document, payload, idMap, 0, maxBottom + 1 - minTop);
+    pasted = placedItemsForOffset(document, payload, idMap, 0, maxBottom + 1 - minTop, preserveHidden);
   }
   if (!pasted) {
     return {
