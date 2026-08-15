@@ -15,7 +15,9 @@ import {
 } from '../../../src/dashboard/dashboard-layers';
 import { applyDashboardSelectionLayout } from '../../../src/dashboard/dashboard-selection-layout';
 import type { FrakonDashboardDocument, FrakonGridItem } from '../../../src/dashboard/layout-model';
+import type { FrakonItemGeometryDocumentChangedDetail } from './item-geometry-controls';
 import type { FrakonSelectionLayoutActionDetail } from './selection-layout-toolbar';
+import './item-geometry-controls';
 import './selection-layout-toolbar';
 
 export interface FrakonLayersDocumentChangedDetail {
@@ -52,7 +54,7 @@ export class FrakonLayersPanel extends LitElement {
     }
     .title { font-size:13px; font-weight:760; letter-spacing:.06em; text-transform:uppercase; }
     .count { font-size:11px; opacity:.56; }
-    .layout-tools { padding:9px; border-bottom:1px solid rgb(255 255 255 / 7%); }
+    .layout-tools { display:grid; gap:8px; padding:9px; border-bottom:1px solid rgb(255 255 255 / 7%); }
     .layout-message { padding:0 12px 9px; font-size:10px; color:#ff9aaa; }
     .list { display:grid; }
     .row {
@@ -164,6 +166,11 @@ export class FrakonLayersPanel extends LitElement {
     this.layoutMessage = result.status === 'collision'
       ? `Layout blocked by collision: ${result.collisionIds.join(', ')}`
       : undefined;
+  }
+
+  private geometryChanged(event: CustomEvent<FrakonItemGeometryDocumentChangedDetail>): void {
+    this.layoutMessage = undefined;
+    this.emitDocument(event.detail.document);
   }
 
   private rename(item: FrakonGridItem, event: Event): void {
@@ -278,6 +285,11 @@ export class FrakonLayersPanel extends LitElement {
             .selection=${this.selection}
             @frakon-selection-layout-action=${this.layoutSelection}
           ></frakon-selection-layout-toolbar>
+          <frakon-item-geometry-controls
+            .document=${document}
+            .selection=${this.selection}
+            @frakon-item-geometry-document-changed=${this.geometryChanged}
+          ></frakon-item-geometry-controls>
         </div>
         ${this.layoutMessage ? html`<div class="layout-message" role="status">${this.layoutMessage}</div>` : nothing}
         ${visualOrder.length
