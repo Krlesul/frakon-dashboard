@@ -134,10 +134,21 @@ with zipfile.ZipFile(KIT) as archive:
         raise SystemExit("Embedded integration build-info frontendSha256 differs from Alpha Test Kit frontend hash")
     if bundled_frontend != frontend_bytes:
         raise SystemExit("Embedded integration frontend differs from Alpha Test Kit frontend bundle")
-    if b"validate_dashboard_document" not in validator_source:
-        raise SystemExit("Embedded integration document validator is invalid")
-    if b"validate_responsive_revision_envelope" not in responsive_validator_source:
-        raise SystemExit("Embedded integration responsive bundle validator is invalid")
+    for marker in (
+        b"validate_dashboard_document",
+        b"DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
+        b"dashboard_serialized_bytes",
+        b"max_serialized_bytes: int = DASHBOARD_MAX_SERIALIZED_BYTES",
+    ):
+        if marker not in validator_source:
+            raise SystemExit(f"Embedded integration document validator is missing {marker.decode()}")
+    for marker in (
+        b"validate_responsive_revision_envelope",
+        b"dashboard_serialized_bytes",
+        b"max_serialized_bytes=RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES",
+    ):
+        if marker not in responsive_validator_source:
+            raise SystemExit(f"Embedded integration responsive bundle validator is missing {marker.decode()}")
     if b"validate_responsive_revision_envelope" not in responsive_storage_source:
         raise SystemExit("Embedded integration responsive Store is not wired to the shared validator")
     if b"validate_responsive_bundle" not in responsive_websocket_source or b"validate_responsive_revision_envelope" not in responsive_websocket_source:
@@ -154,11 +165,15 @@ with zipfile.ZipFile(KIT) as archive:
     checks = [
         ("test guide", test_guide, "/config/custom_components/frakon_dashboard"),
         ("test guide", test_guide, "custom:frakon-dashboard-card"),
+        ("test guide", test_guide, "Dashboard serialized-byte guard: OK"),
+        ("test guide", test_guide, "2,000,000"),
         ("test guide", test_guide, "Responsive bundle validator: OK"),
         ("test guide", test_guide, "contractVersion"),
         ("test guide", test_guide, "updatedAt"),
         ("test guide", test_guide, "requested dashboard ID"),
         ("report template", report, "## Final alpha decision"),
+        ("report template", report, "Dashboard serialized-byte guard: OK"),
+        ("report template", report, "2,000,000"),
         ("report template", report, "Responsive bundle validator: OK"),
         ("report template", report, "Fractional `contractVersion`"),
         ("report template", report, "Stored responsive envelope with wrong dashboard ID"),
@@ -166,14 +181,18 @@ with zipfile.ZipFile(KIT) as archive:
         ("migration guide", migration, "## 9. Rollback"),
         ("self-check", self_check, "frontend SHA-256"),
         ("self-check", self_check, "Home Assistant brand assets: OK"),
+        ("self-check", self_check, "Dashboard serialized-byte guard: OK"),
         ("self-check", self_check, "Dashboard document validator: OK"),
         ("self-check", self_check, "Responsive bundle validator: OK"),
         ("self-check", self_check, "validate_responsive_bundle"),
         ("self-check", self_check, "validate_responsive_revision_envelope"),
         ("README", readme, "Frontend SHA-256"),
         ("README", readme, "python verify_home_assistant_install.py"),
+        ("README", readme, "Home Assistant brand assets: OK"),
+        ("README", readme, "Dashboard serialized-byte guard: OK"),
         ("README", readme, "Dashboard document validator: OK"),
         ("README", readme, "Responsive bundle validator: OK"),
+        ("README", readme, "2,000,000"),
         ("README", readme, "writable-kind allowlist"),
     ]
     for label, content, marker in checks:
