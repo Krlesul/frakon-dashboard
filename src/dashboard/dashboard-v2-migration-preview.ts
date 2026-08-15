@@ -4,6 +4,7 @@ import type { FrakonDashboardDocument } from './layout-model';
 export type DashboardV2MigrationWarning =
   | 'locked-items-preserved'
   | 'constraints-preserved'
+  | 'hidden-items-omitted'
   | 'responsive-layout-needs-review';
 
 export interface DashboardV2MigrationPreview {
@@ -11,6 +12,8 @@ export interface DashboardV2MigrationPreview {
   targetVersion: 2;
   safeToPersist: false;
   itemCount: number;
+  migratedItemCount: number;
+  hiddenItemCount: number;
   lockedItemCount: number;
   constraintCount: number;
   canvasWidth: number;
@@ -24,17 +27,21 @@ export function createDashboardV2MigrationPreview(
   canvasWidth: number,
 ): DashboardV2MigrationPreview {
   const candidate = migrateDashboardV1ToV2(document, canvasWidth);
+  const hiddenItemCount = document.items.filter((item) => item.hidden === true).length;
   const lockedItemCount = document.items.filter((item) => item.locked).length;
   const constraintCount = document.constraints?.length ?? 0;
   const warnings: DashboardV2MigrationWarning[] = ['responsive-layout-needs-review'];
   if (lockedItemCount > 0) warnings.unshift('locked-items-preserved');
   if (constraintCount > 0) warnings.unshift('constraints-preserved');
+  if (hiddenItemCount > 0) warnings.unshift('hidden-items-omitted');
 
   return {
     sourceVersion: 1,
     targetVersion: 2,
     safeToPersist: false,
     itemCount: document.items.length,
+    migratedItemCount: candidate.items.length,
+    hiddenItemCount,
     lockedItemCount,
     constraintCount,
     canvasWidth: candidate.layout.width,
