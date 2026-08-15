@@ -4,6 +4,8 @@ import {
   LocalStorageDashboardSyncQueue,
   MemoryDashboardSyncQueue,
   ResilientDashboardStorageAdapter,
+  type DashboardSyncOperation,
+  type DashboardSyncQueue,
 } from './resilient-dashboard-storage';
 import { MemoryDashboardStorageAdapter, type DashboardStorageAdapter } from './dashboard-storage';
 
@@ -157,6 +159,66 @@ describe('ResilientDashboardStorageAdapter', () => {
     expect(storage.currentState.mode).toBe('fallback');
   });
 
+  it('does not leak an invalid document returned by a custom primary adapter', async () => {
+    const fallback = new MemoryDashboardStorageAdapter();
+    await fallback.save(dashboard(6));
+    const invalid = { ...dashboard(99), rowHeight: 8 };
+    const primary: DashboardStorageAdapter = {
+      kind: 'raw-primary',
+      load: async () => invalid,
+      save: async () => undefined,
+      remove: async () => undefined,
+    };
+    const storage = new ResilientDashboardStorageAdapter(primary, fallback, new MemoryDashboardSyncQueue());
+
+    expect((await storage.load('home'))?.title).toBe('Home 6');
+    expect(storage.currentState.mode).toBe('fallback');
+    expect(storage.currentState.error?.message).toMatch(/non-canonical/i);
+  });
+
+  it('rejects an invalid fallback document instead of returning repaired state', async () => {
+    const primary: DashboardStorageAdapter = {
+      kind: 'offline',
+      load: async () => { throw new Error('offline'); },
+      save: async () => { throw new Error('offline'); },
+      remove: async () => { throw new Error('offline'); },
+    };
+    const invalid = { ...dashboard(7), rowHeight: 8 };
+    const fallback: DashboardStorageAdapter = {
+      kind: 'raw-fallback',
+      load: async () => invalid,
+      save: async () => undefined,
+      remove: async () => undefined,
+    };
+    const storage = new ResilientDashboardStorageAdapter(primary, fallback, new MemoryDashboardSyncQueue());
+
+    await expect(storage.load('home')).rejects.toThrow(/non-canonical/i);
+  });
+
+  it('blocks an invalid save before either custom adapter or queue sees it', async () => {
+    let primarySaves = 0;
+    let fallbackSaves = 0;
+    const primary: DashboardStorageAdapter = {
+      kind: 'permissive-primary',
+      load: async () => undefined,
+      save: async () => { primarySaves += 1; },
+      remove: async () => undefined,
+    };
+    const fallback: DashboardStorageAdapter = {
+      kind: 'permissive-fallback',
+      load: async () => undefined,
+      save: async () => { fallbackSaves += 1; },
+      remove: async () => undefined,
+    };
+    const queue = new MemoryDashboardSyncQueue();
+    const storage = new ResilientDashboardStorageAdapter(primary, fallback, queue);
+
+    await expect(storage.save({ ...dashboard(8), rowHeight: 8 })).rejects.toThrow(/non-canonical/i);
+    expect(primarySaves).toBe(0);
+    expect(fallbackSaves).toBe(0);
+    expect(await queue.list()).toEqual([]);
+  });
+
   it('filters malformed or mismatched local-storage sync operations before replay', async () => {
     const validRemove = { kind: 'remove', id: 'old', queuedAt: 1 };
     const malformedSave = {
@@ -180,11 +242,72 @@ describe('ResilientDashboardStorageAdapter', () => {
       queuedAt: 3,
       document: exactDashboard(),
     };
+    const fractionalTimestamp = { kind: 'remove', id: 'fractional', queuedAt: 3.5 };
     const backing = memoryStorage({
-      'frakon-dashboard:sync-queue': JSON.stringify([validRemove, malformedSave, mismatchedSave]),
+      'frakon-dashboard:sync-queue': JSON.stringify([
+        validRemove,
+        malformedSave,
+        mismatchedSave,
+        fractionalTimestamp,
+      ]),
     });
     const queue = new LocalStorageDashboardSyncQueue(backing);
 
     expect(await queue.list()).toEqual([validRemove]);
+  });
+
+  it('rejects malformed operations written directly to memory or local queues', async () => {
+    const invalidSave = {
+      kind: 'save',
+      id: 'home',
+      queuedAt: 1,
+      document: { ...dashboard(10), rowHeight: 8 },
+    } as unknown as DashboardSyncOperation;
+    const invalidRemove = {
+      kind: 'remove',
+      id: '',
+      queuedAt: 1,
+    } as unknown as DashboardSyncOperation;
+
+    const memory = new MemoryDashboardSyncQueue();
+    await expect(memory.put(invalidSave)).rejects.toThrow(/invalid.*sync operation/i);
+    await expect(memory.put(invalidRemove)).rejects.toThrow(/invalid.*sync operation/i);
+    expect(await memory.list()).toEqual([]);
+
+    const local = new LocalStorageDashboardSyncQueue(memoryStorage());
+    await expect(local.put(invalidSave)).rejects.toThrow(/invalid.*sync operation/i);
+    expect(await local.list()).toEqual([]);
+  });
+
+  it('refuses to replay an invalid operation returned by a custom queue', async () => {
+    let primarySaves = 0;
+    const primary: DashboardStorageAdapter = {
+      kind: 'permissive-primary',
+      load: async () => undefined,
+      save: async () => { primarySaves += 1; },
+      remove: async () => undefined,
+    };
+    const corruptOperation = {
+      kind: 'save',
+      id: 'home',
+      queuedAt: 1,
+      document: { ...dashboard(11), rowHeight: 8 },
+    } as unknown as DashboardSyncOperation;
+    const queue: DashboardSyncQueue = {
+      list: async () => [corruptOperation],
+      put: async () => undefined,
+      delete: async () => undefined,
+    };
+    const storage = new ResilientDashboardStorageAdapter(
+      primary,
+      new MemoryDashboardStorageAdapter(),
+      queue,
+    );
+
+    await storage.synchronize();
+
+    expect(primarySaves).toBe(0);
+    expect(storage.currentState.mode).toBe('fallback');
+    expect(storage.currentState.error?.message).toMatch(/invalid.*sync operation/i);
   });
 });
