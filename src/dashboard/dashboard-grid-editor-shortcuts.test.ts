@@ -7,6 +7,12 @@ describe('grid dashboard editor shortcuts', () => {
     expect(dashboardGridEditorShortcut({ key: 'Backspace' })).toEqual({ kind: 'item', action: 'delete' });
   });
 
+  it('maps Ctrl/Cmd+C/X/V to clipboard actions', () => {
+    expect(dashboardGridEditorShortcut({ key: 'c', ctrlKey: true })).toEqual({ kind: 'clipboard', action: 'copy' });
+    expect(dashboardGridEditorShortcut({ key: 'X', metaKey: true })).toEqual({ kind: 'clipboard', action: 'cut' });
+    expect(dashboardGridEditorShortcut({ key: 'v', ctrlKey: true })).toEqual({ kind: 'clipboard', action: 'paste' });
+  });
+
   it('maps Ctrl/Cmd+D to duplicate', () => {
     expect(dashboardGridEditorShortcut({ key: 'd', ctrlKey: true })).toEqual({ kind: 'item', action: 'duplicate' });
     expect(dashboardGridEditorShortcut({ key: 'D', metaKey: true })).toEqual({ kind: 'item', action: 'duplicate' });
@@ -23,7 +29,7 @@ describe('grid dashboard editor shortcuts', () => {
   });
 
   it('does not claim unrelated shortcuts', () => {
-    expect(dashboardGridEditorShortcut({ key: 'x', ctrlKey: true })).toBeUndefined();
+    expect(dashboardGridEditorShortcut({ key: 'q', ctrlKey: true })).toBeUndefined();
     expect(dashboardGridEditorShortcut({ key: 'Delete', ctrlKey: true })).toBeUndefined();
   });
 });
