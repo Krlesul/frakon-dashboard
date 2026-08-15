@@ -55,13 +55,14 @@ describe('dashboard document codec', () => {
     expect(failureReason(JSON.stringify({ version: 2, id: 'x', title: 'x', layout: { mode: 'canvas' } }))).toBe('invalid-document');
   });
 
-  it('rejects version 1 items with missing, non-finite or invalid geometry/card data', () => {
+  it('rejects version 1 items with missing or invalid geometry/card data', () => {
     const malformed = structuredClone(v1) as unknown as Record<string, unknown>;
     malformed.items = [{ id: 'bad', card: {}, x: 0, y: 0, w: null, h: 2 }];
     expect(failureReason(JSON.stringify(malformed))).toBe('invalid-document');
 
-    const nonFinite = JSON.stringify(v1).replace('"w": 1', '"w": "not-a-number"');
-    expect(failureReason(nonFinite)).toBe('invalid-document');
+    const invalidWidth = structuredClone(v1) as unknown as { items: Array<Record<string, unknown>> };
+    invalidWidth.items[0].w = 'not-a-number';
+    expect(failureReason(JSON.stringify(invalidWidth))).toBe('invalid-document');
   });
 
   it('rejects duplicate item ids instead of silently creating ambiguous layer identity', () => {
@@ -78,10 +79,9 @@ describe('dashboard document codec', () => {
     expect(failureReason(JSON.stringify(dangling))).toBe('invalid-document');
 
     const duplicate = structuredClone(v1);
-    duplicate.constraints = [
-      ...(v1.constraints ?? []),
-      { ...(v1.constraints?.[0] ?? { id: 'x', kind: 'align-left', sourceId: 'hidden', targetId: 'front' }) },
-    ];
+    const existing = structuredClone(v1.constraints?.[0]);
+    if (!existing) throw new Error('Missing test constraint.');
+    duplicate.constraints = [existing, structuredClone(existing)];
     expect(failureReason(JSON.stringify(duplicate))).toBe('invalid-document');
 
     const self = structuredClone(v1);
