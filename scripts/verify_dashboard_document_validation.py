@@ -128,6 +128,22 @@ payload["rowHeight"] = 48.5
 expect_invalid(payload, "fractional v1 row height")
 
 payload = valid_v1()
+payload["rowHeight"] = 8
+expect_invalid(payload, "non-canonical v1 row height")
+
+payload = valid_v1()
+payload["items"][0]["h"] = 25
+expect_invalid(payload, "v1 height above implicit maxH")
+
+payload = valid_v1()
+payload["items"][0]["minW"] = 4
+expect_invalid(payload, "v1 width below minW")
+
+payload = valid_v1()
+payload["items"][0]["maxW"] = 2
+expect_invalid(payload, "v1 width above maxW")
+
+payload = valid_v1()
 payload["items"][1]["x"] = 8
 payload["items"][1]["y"] = 5
 expect_invalid(payload, "overlapping v1 items")
