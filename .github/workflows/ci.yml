@@ -24,6 +24,7 @@ jobs:
       - run: python scripts/verify_integration_relative_imports.py
       - run: python scripts/verify_build_info_provider.py
       - run: python scripts/verify_brand_assets.py
+      - run: python scripts/verify_brand_release_chain.py
       - run: python scripts/verify_dashboard_document_validation.py
       - run: python scripts/verify_responsive_bundle_validation.py
       - run: python scripts/verify_responsive_write_lock.py
