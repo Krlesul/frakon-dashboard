@@ -119,6 +119,19 @@ payload = valid_v1()
 payload["items"][0]["hidden"] = "yes"
 expect_invalid(payload, "invalid v1 hidden flag")
 
+payload = valid_v1()
+payload["items"][0]["x"] = 7.5
+expect_invalid(payload, "fractional v1 grid coordinate")
+
+payload = valid_v1()
+payload["rowHeight"] = 48.5
+expect_invalid(payload, "fractional v1 row height")
+
+payload = valid_v1()
+payload["items"][1]["x"] = 8
+payload["items"][1]["y"] = 5
+expect_invalid(payload, "overlapping v1 items")
+
 payload = valid_v2()
 payload["items"].append(dict(payload["items"][0]))
 expect_invalid(payload, "duplicate v2 item id")
@@ -130,6 +143,10 @@ expect_invalid(payload, "invalid v2 snap settings")
 payload = valid_v2()
 payload["items"][0]["frame"] = {"x": 1100, "y": 0, "width": 200, "height": 100}
 expect_invalid(payload, "v2 frame outside canvas")
+
+payload = valid_v2()
+payload["items"][0]["hidden"] = True
+expect_invalid(payload, "unsupported persisted v2 hidden state")
 
 try:
     validate(valid_v1(), {2})
