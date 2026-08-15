@@ -4,6 +4,7 @@ import type { DashboardStorageTransport } from './dashboard-storage';
 import {
   compareDashboardRevisions,
   createDashboardRevision,
+  isDashboardRevisionEnvelope,
   type DashboardRevisionComparison,
   type DashboardRevisionEnvelope,
 } from './dashboard-revision';
@@ -28,9 +29,9 @@ export interface RevisionedDashboardStorageOptions<
 }
 
 /**
- * Revision-aware remote storage client. Every remote envelope is validated at
- * the client boundary and bound to the dashboard id requested/saved so corrupt
- * storage cannot substitute one dashboard for another.
+ * Revision-aware remote storage client. Every local/remote envelope is
+ * validated at the client boundary and bound to the dashboard id/schema being
+ * loaded or saved. Persistence never repairs malformed revision snapshots.
  */
 export class RevisionedDashboardStorage<
   TDocument extends FrakonDashboardAnyDocument = FrakonDashboardDocument,
@@ -49,6 +50,7 @@ export class RevisionedDashboardStorage<
   }
 
   async load(id: string): Promise<DashboardRevisionEnvelope<TDocument> | undefined> {
+    requireIdentifier(id, 'dashboard id', 128);
     const response = await this.transport.request<unknown>(
       `${this.namespace}/load_revision`,
       { dashboard_id: id },
@@ -64,6 +66,12 @@ export class RevisionedDashboardStorage<
     document: TDocument,
     previous?: DashboardRevisionEnvelope<TDocument>,
   ): Promise<RevisionedDashboardSaveResult<TDocument>> {
+    if (!isDashboardDocument(document)) {
+      throw new Error('Cannot persist an invalid or non-canonical dashboard revision document.');
+    }
+    if (previous && !isDashboardRevisionEnvelope(previous, document.id, document.version)) {
+      throw new Error('Previous dashboard revision envelope is invalid or belongs to another document.');
+    }
     if (!this.canPersist(document)) {
       return { status: 'blocked', reason: 'persistence-disabled' };
     }
@@ -86,7 +94,7 @@ export class RevisionedDashboardStorage<
     const result = response as Record<string, unknown>;
     if (result.status === 'saved') {
       const savedEnvelope = result.envelope;
-      if (!isDashboardRevisionEnvelope(savedEnvelope, document.id)) {
+      if (!isDashboardRevisionEnvelope(savedEnvelope, document.id, document.version)) {
         throw new Error('Home Assistant returned an invalid saved revision envelope.');
       }
       return {
@@ -96,7 +104,8 @@ export class RevisionedDashboardStorage<
     }
 
     const remoteCandidate = result.remote;
-    if (result.status !== 'conflict' || !isDashboardRevisionEnvelope(remoteCandidate, document.id)) {
+    if (result.status !== 'conflict'
+      || !isDashboardRevisionEnvelope(remoteCandidate, document.id, document.version)) {
       throw new Error('Home Assistant returned an invalid revision conflict response.');
     }
 
@@ -108,6 +117,8 @@ export class RevisionedDashboardStorage<
   }
 
   remove(id: string, expectedRevision?: string): Promise<void> {
+    requireIdentifier(id, 'dashboard id', 128);
+    if (expectedRevision !== undefined) requireIdentifier(expectedRevision, 'expected revision', 256);
     return this.transport.request<void>(`${this.namespace}/remove_revision`, {
       dashboard_id: id,
       expectedRevision,
@@ -115,31 +126,12 @@ export class RevisionedDashboardStorage<
   }
 }
 
-function isDashboardRevisionEnvelope(
-  value: unknown,
-  expectedDocumentId?: string,
-): value is DashboardRevisionEnvelope<FrakonDashboardAnyDocument> {
-  if (!value || typeof value !== 'object') return false;
-  const envelope = value as Record<string, unknown>;
-  if (!isDashboardDocument(envelope.document)) return false;
-  if (expectedDocumentId !== undefined && envelope.document.id !== expectedDocumentId) return false;
-
-  const revision = envelope.revision;
-  if (typeof revision !== 'string' || !revision || revision.length > 256) return false;
-
-  const parentRevision = envelope.parentRevision;
-  if (parentRevision !== undefined && parentRevision !== null) {
-    if (typeof parentRevision !== 'string' || !parentRevision || parentRevision.length > 256) return false;
-    if (parentRevision === revision) return false;
-  }
-
-  if (typeof envelope.updatedAt !== 'number'
-    || !Number.isSafeInteger(envelope.updatedAt)
-    || envelope.updatedAt < 0) return false;
-  if (typeof envelope.clientId !== 'string' || !envelope.clientId || envelope.clientId.length > 128) return false;
-  return true;
-}
-
 function isDashboardDocument(value: unknown): value is FrakonDashboardAnyDocument {
   return isDashboardDocumentV1(value) || isDashboardDocumentV2(value);
+}
+
+function requireIdentifier(value: string, label: string, maxLength: number): void {
+  if (!value || value.length > maxLength) {
+    throw new Error(`${label} must be a non-empty string up to ${maxLength} characters.`);
+  }
 }
