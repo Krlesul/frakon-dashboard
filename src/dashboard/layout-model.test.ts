@@ -100,6 +100,20 @@ describe('dashboard layout model', () => {
     expect(document.items[1]).toMatchObject({ x: 3, y: 0 });
   });
 
+  it('preserves exact non-colliding geometry instead of packing valid layouts', () => {
+    const source: FrakonDashboardDocument = {
+      ...base,
+      columns: 12,
+      items: [
+        { ...base.items[0], id: 'late', x: 8, y: 9, w: 3, h: 2 },
+        { ...base.items[0], id: 'middle', x: 4, y: 4, w: 2, h: 2 },
+        { ...base.items[0], id: 'early', x: 0, y: 0, w: 2, h: 2 },
+      ],
+    };
+    const resolved = normalizeAndCompactDashboard(source);
+    expect(resolved.items).toEqual(source.items);
+  });
+
   it('preserves serialized layer order while resolving geometry', () => {
     const document = normalizeAndCompactDashboard({
       ...base,
