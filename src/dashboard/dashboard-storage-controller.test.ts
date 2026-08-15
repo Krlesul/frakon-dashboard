@@ -15,18 +15,45 @@ const dashboard = (id: string, title = id): FrakonDashboardDocument => ({
 });
 
 describe('DashboardStorageController', () => {
-  it('loads normalized dashboards and exposes state changes', async () => {
+  it('loads canonical dashboards and exposes state changes', async () => {
     const adapter = new MemoryDashboardStorageAdapter();
-    await adapter.save({ ...dashboard('home'), rowHeight: 8 });
+    await adapter.save(dashboard('home'));
     const controller = new DashboardStorageController(adapter);
     const states: boolean[] = [];
     controller.subscribe((state) => states.push(state.loading));
 
     const loaded = await controller.load('home');
 
-    expect(loaded?.rowHeight).toBe(24);
+    expect(loaded).toEqual(dashboard('home'));
     expect(states).toContain(true);
     expect(states.at(-1)).toBe(false);
+  });
+
+  it('rejects a non-canonical document returned by a custom adapter', async () => {
+    const invalid = { ...dashboard('home'), rowHeight: 8 };
+    const adapter: DashboardStorageAdapter = {
+      kind: 'raw-invalid',
+      load: vi.fn(async () => invalid),
+      save: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
+    };
+    const controller = new DashboardStorageController(adapter);
+
+    expect(await controller.load('home')).toBeUndefined();
+    expect(controller.currentState.error?.message).toMatch(/non-canonical/i);
+  });
+
+  it('rejects a wrong-dashboard document returned by a custom adapter', async () => {
+    const adapter: DashboardStorageAdapter = {
+      kind: 'wrong-id',
+      load: vi.fn(async () => dashboard('other')),
+      save: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
+    };
+    const controller = new DashboardStorageController(adapter);
+
+    expect(await controller.load('home')).toBeUndefined();
+    expect(controller.currentState.error?.message).toMatch(/non-canonical/i);
   });
 
   it('preserves exact committed geometry, z-order, hidden state and constraints across save/load', async () => {
@@ -58,7 +85,7 @@ describe('DashboardStorageController', () => {
     expect(loaded?.constraints).toEqual(exact.constraints);
   });
 
-  it('does not turn storage load into an implicit compaction pass', async () => {
+  it('does not turn storage load into an implicit compaction or normalization pass', async () => {
     const source: FrakonDashboardDocument = {
       ...dashboard('spaced'),
       items: [
@@ -100,7 +127,7 @@ describe('DashboardStorageController', () => {
     expect(await first).toBeUndefined();
   });
 
-  it('serializes saves in request order', async () => {
+  it('serializes valid saves in request order', async () => {
     const order: string[] = [];
     const adapter: DashboardStorageAdapter = {
       kind: 'ordered',
@@ -117,6 +144,22 @@ describe('DashboardStorageController', () => {
 
     expect(order).toEqual(['one', 'two']);
     expect(controller.currentState.saving).toBe(false);
+  });
+
+  it('blocks a non-canonical save before it reaches the adapter', async () => {
+    const save = vi.fn(async () => undefined);
+    const adapter: DashboardStorageAdapter = {
+      kind: 'guarded',
+      load: vi.fn(async (): Promise<FrakonDashboardDocument | undefined> => undefined),
+      save,
+      remove: vi.fn(async () => undefined),
+    };
+    const controller = new DashboardStorageController(adapter);
+
+    await controller.save({ ...dashboard('bad'), rowHeight: 8 });
+
+    expect(save).not.toHaveBeenCalled();
+    expect(controller.currentState.error?.message).toMatch(/non-canonical/i);
   });
 
   it('captures adapter errors without rejecting editor operations', async () => {
