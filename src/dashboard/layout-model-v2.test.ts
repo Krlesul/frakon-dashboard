@@ -94,6 +94,16 @@ describe('layout model v2', () => {
     expect(isDashboardDocumentV2(badCard)).toBe(false);
   });
 
+  it('rejects any persisted hidden field until native v2 hidden-layer semantics exist', () => {
+    const hiddenTrue = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
+    hiddenTrue.items[0].hidden = true;
+    expect(isDashboardDocumentV2(hiddenTrue)).toBe(false);
+
+    const hiddenFalse = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
+    hiddenFalse.items[0].hidden = false;
+    expect(isDashboardDocumentV2(hiddenFalse)).toBe(false);
+  });
+
   it('rejects dangling, duplicate and self-referential constraints at the v2 schema boundary', () => {
     const dangling = migrateDashboardV1ToV2(v1, 430);
     dangling.constraints = [{ id: 'bad', kind: 'below', sourceId: 'a', targetId: 'missing' }];
