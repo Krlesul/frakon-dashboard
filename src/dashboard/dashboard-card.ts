@@ -219,8 +219,8 @@ export class FrakonDashboardCard extends LitElement {
     this.cancelInteractions();
   }
 
-  private persist(document: FrakonDashboardDocument, recordHistory = true): void {
-    const next = normalizeAndCompactDashboard(document);
+  private persist(document: FrakonDashboardDocument, recordHistory = true, compact = true): void {
+    const next = compact ? normalizeAndCompactDashboard(document) : normalizeDashboard(document);
     this.document = recordHistory && this.history ? this.history.push(next) : next;
     void this.storageController.save(this.document);
     this.dispatchEvent(new CustomEvent('frakon-layout-changed', {
@@ -248,7 +248,7 @@ export class FrakonDashboardCard extends LitElement {
     if (!this.history?.canUndo) return;
     this.clearAutoLayoutPreview();
     this.cancelInteractions();
-    this.persist(this.history.undo(), false);
+    this.persist(this.history.undo(), false, false);
     this.message = editorTranslate(this.language(), 'layoutUndone');
   }
 
@@ -256,7 +256,7 @@ export class FrakonDashboardCard extends LitElement {
     if (!this.history?.canRedo) return;
     this.clearAutoLayoutPreview();
     this.cancelInteractions();
-    this.persist(this.history.redo(), false);
+    this.persist(this.history.redo(), false, false);
     this.message = editorTranslate(this.language(), 'layoutRestored');
   }
 
@@ -526,7 +526,7 @@ export class FrakonDashboardCard extends LitElement {
     if (!this.autoLayoutSession || !this.autoLayoutPreview) return;
     const applied = this.autoLayoutSession.apply(this.autoLayoutPreview);
     this.clearAutoLayoutPreview();
-    this.persist(applied);
+    this.persist(applied, true, false);
     this.message = autoLayoutTranslate(this.language(), 'autoLayoutApplied');
   }
 
@@ -563,7 +563,7 @@ export class FrakonDashboardCard extends LitElement {
       this.clearSelection();
       this.clearAutoLayoutPreview();
       this.cancelInteractions();
-      this.persist(imported, false);
+      this.persist(imported, false, false);
       this.message = editorTranslate(this.language(), 'dashboardImported');
     } catch {
       this.message = editorTranslate(this.language(), 'dashboardImportFailed');
