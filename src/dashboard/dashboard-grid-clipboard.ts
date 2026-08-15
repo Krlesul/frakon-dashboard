@@ -9,6 +9,15 @@ import {
 export interface DashboardGridClipboardPayload {
   items: FrakonGridItem[];
   constraints: LayoutConstraint[];
+  /**
+   * Copy/Duplicate create discoverable visible objects. Cut is a move and
+   * therefore preserves the original hidden state when pasted.
+   */
+  preserveHiddenOnPaste?: boolean;
+}
+
+export interface DashboardGridClipboardOptions {
+  preserveHiddenOnPaste?: boolean;
 }
 
 export interface DashboardGridPasteResult {
@@ -34,6 +43,7 @@ function uniqueId(base: string, used: Set<string>): string {
 export function copyDashboardGridSelection(
   document: FrakonDashboardDocument,
   selectedIds: Iterable<string>,
+  options: DashboardGridClipboardOptions = {},
 ): DashboardGridClipboardPayload | undefined {
   const selected = new Set(selectedIds);
   const items = document.items
@@ -45,7 +55,11 @@ export function copyDashboardGridSelection(
   const constraints = (document.constraints ?? [])
     .filter((constraint) => copiedIds.has(constraint.sourceId) && copiedIds.has(constraint.targetId))
     .map((constraint) => structuredClone(constraint));
-  return { items, constraints };
+  return {
+    items,
+    constraints,
+    preserveHiddenOnPaste: options.preserveHiddenOnPaste === true,
+  };
 }
 
 function placedItemsForOffset(
@@ -61,6 +75,7 @@ function placedItemsForOffset(
     x: item.x + dx,
     y: item.y + dy,
     locked: false,
+    hidden: payload.preserveHiddenOnPaste ? item.hidden === true : false,
   }));
   if (items.some((item) => item.x < 0 || item.y < 0 || item.x + item.w > document.columns)) return undefined;
   if (findCollisions([...document.items, ...items]).length > 0) return undefined;
