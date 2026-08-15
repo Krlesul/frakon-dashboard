@@ -26,8 +26,16 @@ def _finite_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _integer_number(value: Any) -> bool:
+    return _finite_number(value) and float(value).is_integer()
+
+
 def _positive_number(value: Any) -> bool:
     return _finite_number(value) and value > 0
+
+
+def _positive_integer(value: Any) -> bool:
+    return _integer_number(value) and value > 0
 
 
 def _optional_finite(mapping: dict[str, Any], field: str) -> bool:
@@ -36,6 +44,10 @@ def _optional_finite(mapping: dict[str, Any], field: str) -> bool:
 
 def _optional_positive(mapping: dict[str, Any], field: str) -> bool:
     return field not in mapping or _positive_number(mapping[field])
+
+
+def _optional_positive_integer(mapping: dict[str, Any], field: str) -> bool:
+    return field not in mapping or _positive_integer(mapping[field])
 
 
 def _optional_bool(mapping: dict[str, Any], field: str) -> bool:
@@ -96,7 +108,7 @@ def _validate_constraints(
         constraint_ids.add(constraint_id)
 
 
-def _validate_v1_item(item: Any, columns: float) -> str:
+def _validate_v1_item(item: Any, columns: int) -> str:
     if not isinstance(item, dict):
         raise DashboardDocumentValidationError("Version 1 items must be objects.")
     item_id = _require_identifier(item.get("id"), "item.id")
@@ -105,31 +117,46 @@ def _validate_v1_item(item: Any, columns: float) -> str:
         raise DashboardDocumentValidationError(f"Dashboard item {item_id} requires card.type.")
 
     for field in ("x", "y", "w", "h"):
-        if not _finite_number(item.get(field)):
+        if not _integer_number(item.get(field)):
             raise DashboardDocumentValidationError(
-                f"Dashboard item {item_id} requires finite numeric {field}."
+                f"Dashboard item {item_id} requires integer {field}."
             )
-    x = item["x"]
-    y = item["y"]
-    width = item["w"]
-    height = item["h"]
+    x = int(item["x"])
+    y = int(item["y"])
+    width = int(item["w"])
+    height = int(item["h"])
     if x < 0 or y < 0 or width <= 0 or height <= 0 or x + width > columns:
         raise DashboardDocumentValidationError(
             f"Dashboard item {item_id} geometry is outside the version 1 grid."
         )
 
     for field in ("minW", "minH", "maxW", "maxH"):
-        if not _optional_positive(item, field):
-            raise DashboardDocumentValidationError(f"Dashboard item {item_id} has invalid {field}.")
+        if not _optional_positive_integer(item, field):
+            raise DashboardDocumentValidationError(
+                f"Dashboard item {item_id} has invalid integer {field}."
+            )
     if "minW" in item and "maxW" in item and item["minW"] > item["maxW"]:
         raise DashboardDocumentValidationError(f"Dashboard item {item_id} has minW greater than maxW.")
     if "minH" in item and "maxH" in item and item["minH"] > item["maxH"]:
         raise DashboardDocumentValidationError(f"Dashboard item {item_id} has minH greater than maxH.")
+    if "maxW" in item and item["maxW"] > columns:
+        raise DashboardDocumentValidationError(f"Dashboard item {item_id} has maxW outside the grid.")
+    if "minW" in item and item["minW"] > columns:
+        raise DashboardDocumentValidationError(f"Dashboard item {item_id} has minW outside the grid.")
     if not _optional_bool(item, "locked") or not _optional_bool(item, "hidden"):
         raise DashboardDocumentValidationError(
             f"Dashboard item {item_id} has invalid locked/hidden state."
         )
     return item_id
+
+
+def _v1_items_overlap(first: dict[str, Any], second: dict[str, Any]) -> bool:
+    return (
+        first["x"] < second["x"] + second["w"]
+        and first["x"] + first["w"] > second["x"]
+        and first["y"] < second["y"] + second["h"]
+        and first["y"] + first["h"] > second["y"]
+    )
 
 
 def _validate_v1(document: dict[str, Any], max_items: int, max_constraints: int) -> None:
@@ -140,22 +167,30 @@ def _validate_v1(document: dict[str, Any], max_items: int, max_constraints: int)
     columns = document.get("columns")
     row_height = document.get("rowHeight")
     gap = document.get("gap")
-    if not _positive_number(columns):
-        raise DashboardDocumentValidationError("Version 1 dashboard requires positive finite columns.")
-    if not _positive_number(row_height):
-        raise DashboardDocumentValidationError("Version 1 dashboard requires positive finite rowHeight.")
-    if not _finite_number(gap) or gap < 0:
-        raise DashboardDocumentValidationError("Version 1 dashboard requires non-negative finite gap.")
+    if not _positive_integer(columns):
+        raise DashboardDocumentValidationError("Version 1 dashboard requires positive integer columns.")
+    if not _positive_integer(row_height):
+        raise DashboardDocumentValidationError("Version 1 dashboard requires positive integer rowHeight.")
+    if not _integer_number(gap) or gap < 0:
+        raise DashboardDocumentValidationError("Version 1 dashboard requires non-negative integer gap.")
 
     items = document.get("items")
     if not isinstance(items, list) or len(items) > max_items:
         raise DashboardDocumentValidationError(f"items must be a list with at most {max_items} entries.")
     item_ids: set[str] = set()
     for item in items:
-        item_id = _validate_v1_item(item, columns)
+        item_id = _validate_v1_item(item, int(columns))
         if item_id in item_ids:
             raise DashboardDocumentValidationError(f"Duplicate dashboard item id: {item_id}.")
         item_ids.add(item_id)
+
+    for index, item in enumerate(items):
+        for other in items[index + 1 :]:
+            if _v1_items_overlap(item, other):
+                raise DashboardDocumentValidationError(
+                    f"Dashboard items {item['id']} and {other['id']} overlap in the version 1 grid."
+                )
+
     _validate_constraints(document.get("constraints"), item_ids, max_constraints)
 
 
@@ -163,6 +198,10 @@ def _validate_v2_item(item: Any, canvas_width: float) -> str:
     if not isinstance(item, dict):
         raise DashboardDocumentValidationError("Version 2 items must be objects.")
     item_id = _require_identifier(item.get("id"), "item.id")
+    if "hidden" in item:
+        raise DashboardDocumentValidationError(
+            f"Canvas item {item_id} cannot persist hidden state until native v2 hidden semantics are enabled."
+        )
     card = item.get("card")
     if not isinstance(card, dict) or not isinstance(card.get("type"), str) or not card["type"]:
         raise DashboardDocumentValidationError(f"Canvas item {item_id} requires card.type.")
