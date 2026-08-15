@@ -1,119 +1,110 @@
-# Home Assistant alpha test
+# FRAKON Dashboard — Home Assistant alpha test
 
-This checklist is for the first real installation of the current FRAKON Dashboard development build.
+This checklist is the mandatory real-install gate for FRAKON Dashboard Alpha. Issue #11 must remain open until the current verified build has been installed in a real Home Assistant instance and the evidence report is complete.
 
 > Use a non-critical test dashboard first. Do not rely on this alpha as the only control surface for gates, locks, heating protection or other safety-critical devices.
 
-## 1. Download the verified alpha package
+## 1. Use one verified Alpha Test Kit
 
-1. Open the latest successful `CI` workflow run for the current pull request.
-2. Download the `frakon-dashboard` workflow artifact.
-3. Inside the artifact use the verified integration package:
+Download **`frakon-dashboard-alpha-test-kit.zip`** from a successful GitHub Actions CI artifact for the exact commit being tested. Do not assemble test inputs from different workflow runs or from an unverified local build.
 
-```text
-frakon_dashboard.zip
-```
+The kit contains:
 
-The CI pipeline builds this ZIP from the current backend plus the current Vite frontend and then verifies its contents before publishing the artifact.
+- `frakon_dashboard.zip` — exact integration package to install
+- `frakon-dashboard.js` — exact frontend bundle from the same build, for identity/debugging only
+- `verify_home_assistant_install.py` — install/build identity self-check
+- `home-assistant-alpha-test.md` — this checklist
+- `home-assistant-alpha-test-report-template.md` — evidence report
+- `alpha-migration.md` — upgrade and rollback instructions
+- `alpha-test-kit.json` — version, source commit, integration SHA-256, frontend SHA-256 and install identity
+- `README.txt` — short install sequence
 
-The ZIP must contain at least:
+Before installation, record these immutable identity values from `alpha-test-kit.json` in the report:
 
-```text
-custom_components/
-└── frakon_dashboard/
-    ├── __init__.py
-    ├── build_info.py
-    ├── build-info.json
-    ├── build_websocket.py
-    ├── manifest.json
-    ├── frontend.py
-    ├── responsive_storage.py
-    ├── responsive_websocket.py
-    ├── storage.py
-    ├── websocket.py
-    ├── translations/
-    └── frontend/
-        └── frakon-dashboard.js
-```
+- `version`
+- `sourceCommit`
+- `integrationSha256`
+- `frontendSha256`
 
-`build-info.json` contains the source commit used to create the package. The same build identity is embedded into the frontend bundle so runtime diagnostics can detect a stale browser resource or a partial upgrade.
+If upgrading an older FRAKON development install, read `alpha-migration.md` first.
 
-## 2. Install the alpha package
+## 2. Install the integration
 
-For the first private alpha test, extract `frakon_dashboard.zip` into the Home Assistant config directory so the final path is:
+Extract the kit, then extract its `frakon_dashboard.zip` into the Home Assistant config directory. The final path must be:
 
 ```text
 /config/custom_components/frakon_dashboard
 ```
 
-Do **not** separately copy the JavaScript bundle into `/config/www`. The integration now ships and serves its own bundled frontend.
-
-Restart Home Assistant and add **FRAKON Dashboard** from:
+Do **not** copy `frakon-dashboard.js` to `/config/www` and do not keep a legacy `/local/frakon-dashboard.js` Lovelace resource enabled. The integration serves its own cache-busted module:
 
 ```text
-Settings → Devices & services → Add integration
+/frakon-dashboard/frakon-dashboard.js?v=<integration-version>
 ```
 
-The current alpha integration exposes the frontend module at a versioned URL:
+Then:
 
-```text
-/frakon-dashboard/frakon-dashboard.js?v=0.16.0-alpha.1
-```
-
-In Lovelace storage mode the integration attempts to create or repair this JavaScript-module resource automatically. The version suffix is intentional: after an integration upgrade Home Assistant updates the resource URL so the browser/service-worker does not keep an older FRAKON bundle. In YAML resource mode the integration does not rewrite YAML; add the versioned URL manually as a module resource.
-
-## 3. Run the install self-check
-
-If you have terminal access to the Home Assistant config directory, run the repository self-check against the installed config:
+1. restart Home Assistant,
+2. open **Settings → Devices & services → Add integration**,
+3. add **FRAKON Dashboard**,
+4. confirm the versioned module is registered/loaded,
+5. from the extracted Alpha Test Kit directory run:
 
 ```bash
-python3 scripts/verify_home_assistant_install.py /config
+python verify_home_assistant_install.py /path/to/home-assistant/config
 ```
 
-Expected result starts with:
+The required result starts with:
 
 ```text
 FRAKON Dashboard install self-check: OK
 ```
 
-The output must also show:
-
-- version `0.16.0-alpha.1`,
-- a non-empty source commit,
-- bundled frontend byte size,
-- resource URL `/frakon-dashboard/frakon-dashboard.js?v=0.16.0-alpha.1`.
-
-The self-check verifies the integration directory, runtime build-info provider, manifest domain/version/config flow, required `http` and `lovelace` dependencies, bundled frontend size and production custom-element registration markers.
-
-## 4. Verify runtime build identity
-
-Open the experimental FRAKON canvas in edit mode. The responsive diagnostics area contains a build badge loaded through:
+The output must include the same source commit and the same frontend SHA-256 as `alpha-test-kit.json`. It must also report:
 
 ```text
-frakon/dashboard/build_info
+Dashboard document validator: OK
+Czech config flow: OK
 ```
 
-A correct packaged alpha should show:
+The test-kit verifier has already proven the chain:
 
 ```text
-FRAKON 0.16.0-alpha.1
-<source commit>
-contract 1
+Alpha Test Kit manifest
+→ integration ZIP SHA-256
+→ Home Assistant manifest
+→ build-info.json sourceCommit + frontendSha256
+→ bundled frontend bytes
 ```
 
-The badge must **not** display:
+The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/`.
 
-```text
-FRAKON build mismatch
-```
+If any version, source commit or SHA-256 differs, stop functional testing and correct installation/cache/resource state first.
 
-If a mismatch appears, do not continue persistence testing. It means the loaded frontend version/source commit differs from the installed backend package. First verify the Lovelace resource URL, reload Home Assistant, clear the stale browser resource if necessary, and confirm that frontend and backend report the same build.
+## 3. Record the environment
 
-The backend also computes SHA-256 for the packaged `frontend/frakon-dashboard.js` and exposes it in build-info diagnostics for deeper troubleshooting.
+Use `home-assistant-alpha-test-report-template.md` from the same kit. Record at minimum:
 
-## 5. Test the stable grid dashboard first
+- Home Assistant Core version and installation type
+- host hardware
+- browser/app and version
+- client device and OS
+- viewport size/class
+- FRAKON version and source commit
+- integration/frontend SHA-256 values
+- Lovelace mode
+- FRAKON storage mode
 
-Add a Manual card with:
+Viewport classes:
+
+- Mobile: `<600 px`
+- Tablet: `600–1023 px`
+- Desktop: `1024–1599 px`
+- Wide: `≥1600 px`
+
+## 4. Stable FRAKON Dashboard Card
+
+Create a test dashboard:
 
 ```yaml
 type: custom:frakon-dashboard-card
@@ -134,21 +125,41 @@ responsive_columns:
 items: []
 ```
 
-The `entity` field is currently required by the Home Assistant card contract but is not used as the dashboard's only data source.
+Verify:
 
-Confirm:
+- card and visual editor render without custom-element errors
+- Czech editor strings render correctly
+- add/edit card and entity
+- pointer move/resize, marquee and multi-selection
+- lock/unlock, hide/show, duplicate, delete, Copy/Cut/Paste
+- normal Copy/Duplicate of a hidden layer creates a visible discoverable copy
+- Cut/Paste preserves the original hidden state
+- hidden layers remain absent from normal rendering while stored geometry survives hide/show
+- collision rejection never stores an overlapping layout
+- Undo/Redo restores exact geometry and z-order
+- Import/Export round-trip preserves hidden state, z-order and constraints
+- reload preserves exact saved geometry rather than compacting it
+- a second browser/device loads the expected server-backed layout
 
-- FRAKON Dashboard renders without a red custom-element error.
-- The editor language follows `language: cs`.
-- A FRAKON card can be added and assigned to a real Home Assistant entity.
-- Pointer move/resize, marquee, multi-selection and locked cards work.
-- Collision feedback blocks invalid commits.
-- Undo and Redo restore layout changes.
-- Reloading another browser/device restores server-side layout where that storage path is enabled.
+## 5. Automatic Designer
 
-## 6. Experimental native canvas v2
+With several cards present, including locked and hidden cards, verify:
 
-Add a second Manual card with a separate dashboard ID:
+- **Generate proposal** is non-destructive
+- **Next proposal** produces deterministic alternatives
+- `priority-first`, `balanced`, `compact` and `focus` strategies
+- proposals stay bounded and collision-free
+- locked/hidden geometry remains reserved
+- manual `priority` and `layout_group` overrides
+- mobile/tablet/desktop/wide previews
+- a non-canonical breakpoint preview cannot overwrite the canonical document
+- **Revert preview** creates no committed/history change
+- **Apply** commits exactly the previewed geometry as one undoable history step
+- Undo restores exact pre-Apply geometry and Redo restores the exact proposal
+
+## 6. Experimental native Canvas v2
+
+Create a separate card:
 
 ```yaml
 type: custom:frakon-canvas-dashboard-card
@@ -161,175 +172,100 @@ storage: home-assistant
 items: []
 ```
 
-The native v2 editor currently includes:
+Verify the implemented Canvas v2 workflows:
 
-- free-pixel move and resize,
-- multi-select and marquee,
-- alignment guidelines,
-- constraints and live constraint diagnostics,
-- align/distribute/equal-gap actions,
-- layers / z-order,
-- Add Card palette,
-- Copy / Cut / Paste plus `Ctrl/Cmd+C/X/V`,
-- Undo / Redo,
-- zoom, pan, wheel zoom and pinch-to-zoom,
-- per-device viewport memory,
-- Mobile / Tablet / Desktop / Wide breakpoint drafts,
-- Auto / Manual responsive mode,
-- Copy layout from another breakpoint and Reset active layout,
-- searchable single-entity selectors,
-- searchable multi-entity checklists,
-- schema-driven card configuration,
-- Dashboard / Card defaults / Selection surface styling,
-- responsive persistence diagnostics,
-- Alpha Readiness status,
-- Save Readiness and breakpoint-aware conflict-resolution UI,
-- non-mutating server-side responsive candidate validation.
+- add/configure cards
+- free-pixel move and resize
+- multi-select and marquee
+- collision-safe commits
+- smart edge/center/equal-spacing guides
+- align/distribute/equal-gap actions
+- constraints and diagnostics
+- layers/z-order
+- Copy/Cut/Paste
+- Undo/Redo
+- zoom/pan/pinch
+- per-device viewport memory
+- entity selectors and card palette
+- surface styling
 
-Responsive v2 server **reads are enabled**. Responsive v2 server **writes remain intentionally locked** during this alpha stage.
+Record any semantic mismatch between the stable grid card and Canvas v2. Do not infer support for a feature merely from the stable editor; test the Canvas implementation actually presented by the build.
 
-## 7. Responsive breakpoint test
+## 7. Responsive layout matrix
 
-Use these breakpoint boundaries:
+Exercise Mobile, Tablet, Desktop and Wide. For every supported breakpoint verify:
 
-- mobile: below 600 px
-- tablet: 600–1023 px
-- desktop: 1024–1599 px
-- wide: 1600 px and above
+- expected geometry loads
+- switching away and back preserves geometry
+- per-breakpoint Undo/Redo timeline is preserved
+- Auto mode follows viewport width
+- Manual mode remains on the selected breakpoint
+- shared card configuration remains synchronized
+- viewport memory is independent where designed
+- hidden geometry remains reserved in editor/optimizer projections where supported
+- runtime projection does not expose hidden v1 layers
+- constraints whose endpoint is absent from a runtime projection are not left dangling
 
-Verify:
+Also test Copy layout and Reset active breakpoint as single undoable draft operations.
 
-- each breakpoint keeps independent frame geometry,
-- switching breakpoints preserves each local Undo/Redo timeline,
-- shared card configuration remains synchronized,
-- zoom/pan memory is independent per breakpoint/device,
-- Auto follows viewport width,
-- Manual keeps the selected breakpoint after resize,
-- Copy layout and Reset active are single undoable draft operations.
+## 8. Storage, revisions and conflicts
 
-## 8. Responsive storage isolation and transport metadata
+For stable v1 server-backed storage verify:
 
-The diagnostics panel should report the current alpha contract:
+- Save/Load preserves exact accepted geometry and z-order; reload must not run implicit compaction
+- hidden state and constraints survive storage round-trip
+- offline/fallback queue replay preserves the same document
+- revision reload preserves exact document content
+- a one-sided layer reorder survives conflict merge
+- incompatible concurrent layer reorders surface an explicit `itemOrder` conflict
+- selecting Local/Remote for `itemOrder` changes only layer order, not item geometry
+- malformed remote or revision payloads are rejected rather than silently normalized into corrupt state
 
-```text
-contractVersion: 1
-storageNamespace: frakon_dashboard.responsive_dashboards
-maxItems: 2000
-maxConstraints: 4000
-maxSerializedBytes: 2000000
-loadEndpoint: frakon/dashboard/load_responsive_bundle_revision
-dryRunEndpoint: frakon/dashboard/dry_run_responsive_revision
-saveEndpoint: frakon/dashboard/save_responsive_revision
-removeEndpoint: frakon/dashboard/remove_responsive_revision
-```
+## 9. Responsive server validation / write lock
 
-For a clean loaded draft the Alpha Readiness row should report the equivalent of:
+Responsive Canvas v2 writes remain intentionally locked in this alpha. Verify:
 
-```text
-Read ready · write locked
-```
+- `responsiveCanvasV2.read = true`
+- `responsiveCanvasV2.write = false`
+- `atomicRevision = true`
+- Save Readiness reports `write-disabled`
+- normal responsive Save remains disabled
+- server Dry Run accepts a valid current-revision candidate without storage mutation
+- stale-base Dry Run reports conflict
+- direct responsive Save and Remove are rejected with `unsupported_responsive_write`
+- responsive storage remains unchanged after rejected writes
+- Home Assistant logs contain sanitized audit metadata only
 
-After making a local responsive change, it should advance to:
+Do not modify the writable-kind allowlist to make this section pass.
 
-```text
-Dry-run ready · write locked
-```
+## 10. Browser console, network and Home Assistant logs
 
-`Contract mismatch` or `Install mismatch` is a hard stop for persistence testing.
+Review and record:
 
-Responsive bundles use a dedicated Home Assistant Store namespace and must not overwrite legacy/single-document dashboard data.
+- JavaScript exceptions
+- custom-element registration errors
+- failed `/frakon-dashboard/` requests
+- WebSocket errors
+- build/version/hash mismatch diagnostics
+- storage/revision/conflict errors
+- unexpected Home Assistant warnings/errors
 
-Verify that a responsive bundle is preferred when present, single-v2 is used when responsive data is absent, and v1 remains the final compatibility fallback. A malformed responsive bundle must be reported as invalid rather than silently hidden behind fallback data.
+Attach screenshots/recordings for the stable dashboard, breakpoint matrix, Automatic Designer, Canvas v2, build identity/self-check and final console state.
 
-## 9. Responsive validation and quota test
+For every reproducible defect, create a separate issue with exact source commit, kit SHA-256 values, environment, reproduction steps, expected/actual result and evidence.
 
-Before any write unlock, validation must reject:
+## 11. Pass criteria
 
-- more than 2000 items across all breakpoint documents,
-- more than 4000 constraints in one breakpoint,
-- duplicate item IDs,
-- negative or non-finite frame coordinates,
-- zero/non-finite frame dimensions,
-- invalid/missing constraint references,
-- self-referential constraints,
-- duplicate constraint IDs,
-- enabled constraint dependency cycles,
-- a serialized responsive bundle larger than 2,000,000 bytes,
-- invalid revision envelopes including negative timestamps or self-parent revisions.
+Issue #11 can be closed only when:
 
-## 10. Responsive write-safety and audit test
+- the tested Alpha Test Kit came from a successful CI run for the tested commit
+- kit manifest, installed integration/frontend and runtime build identities match
+- install self-check passes with expected source commit + frontend SHA-256 + document validator
+- mandatory stable Dashboard, Automatic Designer, Canvas v2, storage/conflict and responsive checks were executed
+- responsive write lock remained intact
+- browser console and Home Assistant logs were reviewed
+- required screenshots/evidence were recorded
+- no unresolved blocker/critical defect remains
+- final report records PASS or explicitly accepted PASS WITH KNOWN LIMITATIONS
 
-Before responsive writes are intentionally enabled, verify all of the following:
-
-- `responsiveCanvasV2.read = true`,
-- `responsiveCanvasV2.write = false`,
-- `atomicRevision = true`,
-- revision sync is enabled,
-- Save Readiness lists `write-disabled`,
-- Save remains disabled,
-- direct `save_responsive_revision` is rejected with `unsupported_responsive_write`,
-- direct `remove_responsive_revision` is rejected with `unsupported_responsive_write`,
-- responsive storage remains unchanged after rejected requests,
-- Home Assistant logs contain only sanitized blocked-persistence audit metadata and never the dashboard/card payload.
-
-The CI workflow separately enforces this write-lock invariant. It also checks that the dry-run handler remains admin-only and contains no storage save/remove mutation calls. Do not change the responsive writable allowlist until the real-device round-trip, restart recovery and multi-device conflict tests pass.
-
-## 11. Server validation dry run
-
-Create at least one local native-v2 change while `responsiveCanvasV2.write = false`.
-
-The persistence panel should expose:
-
-```text
-Ověřit na serveru / Validate on server
-```
-
-Run it and verify:
-
-1. The request uses `frakon/dashboard/dry_run_responsive_revision`.
-2. The same contract v1, bundle, frame, constraint, quota and revision-envelope validation used by Save is applied.
-3. A candidate based on the current remote revision returns `valid`.
-4. The UI reports that server validation passed and explicitly states that storage was not changed.
-5. The server still reports `writeEnabled: false`.
-6. Reloading `load_responsive_bundle_revision` after dry run returns exactly the pre-dry-run persisted data.
-7. If another client advances the remote revision first, dry run returns `conflict` and the existing breakpoint Local / Remote resolver opens.
-8. Resolving that conflict while `write=false` must still stop at the write gate; dry run must never become a hidden save path.
-
-## 12. Save/conflict UI flow
-
-The current frontend contains the complete guarded flow:
-
-```text
-stable preview
-→ exact candidate validation
-→ server dry run (available while writes are locked)
-→ capability/write gate
-→ optimistic save
-→ breakpoint conflict session
-→ Local / Remote selection per breakpoint
-→ child revision against the latest remote revision
-```
-
-With the alpha write lock active, the actual Save flow must stop before transport mutation. After the future controlled unlock, verify that a successful save resets all breakpoint drafts to a clean base, clears Undo/Redo history, advances the displayed revision and updates the parent canvas state without a page reload.
-
-## 13. Browser console and runtime check
-
-Record:
-
-- red JavaScript errors,
-- failed requests for `/frakon-dashboard/frakon-dashboard.js?v=0.16.0-alpha.1`,
-- `FRAKON build mismatch`,
-- custom-element registration errors,
-- Home Assistant card creation errors,
-- WebSocket capability/load/dry-run/build-info errors,
-- storage/revision errors.
-
-When reporting an issue include Home Assistant version, browser/device, dashboard YAML, console error text, screenshot/recording, build badge version/source commit and exported FRAKON dashboard JSON when layout is involved.
-
-## 14. Current expected limitations
-
-- The repository is still private, so this is not yet a public HACS distribution flow.
-- A final FRAKON brand asset is still required before public HACS publication.
-- Responsive v2 writes are deliberately disabled even though the validated save/conflict/remove transport layers are implemented.
-- Real-device testing across multiple Home Assistant installations/devices is still required before the responsive write gate is opened.
-- The experimental canvas should not yet be the sole production control surface for safety-critical functions.
+Repository preflight and simulated installation are necessary but **not** a substitute for the real #11 installation.
