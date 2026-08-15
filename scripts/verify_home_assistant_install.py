@@ -159,6 +159,9 @@ def main() -> int:
         "Duplicate dashboard item id",
         "references an unknown item",
         "outside its canonical min/max bounds",
+        "DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
+        "def dashboard_serialized_bytes",
+        "max_serialized_bytes: int = DASHBOARD_MAX_SERIALIZED_BYTES",
     ):
         if marker not in validator_source:
             fail(f"dashboard document validator is missing marker {marker!r}")
@@ -169,6 +172,8 @@ def main() -> int:
         "validate_responsive_revision_envelope",
         "validate_dashboard_document",
         "enabled constraint dependency cycle",
+        "dashboard_serialized_bytes",
+        "max_serialized_bytes=RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES",
     ):
         if marker not in responsive_validator_source:
             fail(f"responsive bundle validator is missing marker {marker!r}")
@@ -232,6 +237,7 @@ def main() -> int:
     print(f"brand icon: {icon_dimensions[0]}x{icon_dimensions[1]}")
     print(f"brand icon @2x: {icon_2x_dimensions[0]}x{icon_2x_dimensions[1]}")
     print("Home Assistant brand assets: OK")
+    print("Dashboard serialized-byte guard: OK")
     print("Dashboard document validator: OK")
     print("Responsive bundle validator: OK")
     print("Czech config flow: OK")
