@@ -1,3 +1,4 @@
+import { isDashboardDocumentV1 } from './dashboard-document-codec';
 import type { FrakonDashboardDocument } from './layout-model';
 import type { DashboardStorageAdapter } from './dashboard-storage';
 
@@ -179,9 +180,11 @@ function isDashboardSyncOperation(value: unknown): value is DashboardSyncOperati
   if (!value || typeof value !== 'object') return false;
   const operation = value as Record<string, unknown>;
   if (operation.kind !== 'save' && operation.kind !== 'remove') return false;
-  if (typeof operation.id !== 'string' || typeof operation.queuedAt !== 'number') return false;
+  if (typeof operation.id !== 'string' || !operation.id) return false;
+  if (typeof operation.queuedAt !== 'number' || !Number.isFinite(operation.queuedAt)) return false;
   if (operation.kind === 'remove') return true;
-  return Boolean(operation.document && typeof operation.document === 'object');
+  if (!isDashboardDocumentV1(operation.document)) return false;
+  return operation.document.id === operation.id;
 }
 
 function toError(error: unknown): Error {
