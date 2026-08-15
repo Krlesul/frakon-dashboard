@@ -88,7 +88,7 @@ describe('dashboard storage adapters', () => {
     expect(await storage.load('home')).toBeUndefined();
   });
 
-  it('round-trips valid local-storage documents and rejects malformed stored payloads', async () => {
+  it('round-trips valid local-storage documents and rejects malformed or mismatched stored payloads', async () => {
     const backing = memoryStorage();
     const storage = new LocalStorageDashboardAdapter(backing);
     await storage.save(document);
@@ -107,6 +107,9 @@ describe('dashboard storage adapters', () => {
       items: [{ id: 'broken', card: {}, x: 0, y: 0, w: 'oops', h: 2 }],
     }));
     expect(await storage.load('bad')).toBeUndefined();
+
+    backing.setItem('frakon-dashboard:home', JSON.stringify({ ...document, id: 'other' }));
+    expect(await storage.load('home')).toBeUndefined();
   });
 
   it('maps remote operations to Home Assistant-safe transport commands without stripping hidden data', async () => {
@@ -132,8 +135,8 @@ describe('dashboard storage adapters', () => {
     ]);
   });
 
-  it('fails closed when a remote load returns malformed version 1 data', async () => {
-    const transport: DashboardStorageTransport = {
+  it('fails closed when a remote load returns malformed or mismatched version 1 data', async () => {
+    const malformedTransport: DashboardStorageTransport = {
       async request<T>(): Promise<T> {
         return {
           version: 1,
@@ -147,7 +150,13 @@ describe('dashboard storage adapters', () => {
         } as T;
       },
     };
-    const storage = new RemoteDashboardStorageAdapter(transport);
-    expect(await storage.load('home')).toBeUndefined();
+    expect(await new RemoteDashboardStorageAdapter(malformedTransport).load('home')).toBeUndefined();
+
+    const mismatchedTransport: DashboardStorageTransport = {
+      async request<T>(): Promise<T> {
+        return structuredClone({ ...document, id: 'other' }) as T;
+      },
+    };
+    expect(await new RemoteDashboardStorageAdapter(mismatchedTransport).load('home')).toBeUndefined();
   });
 });
