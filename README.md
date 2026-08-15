@@ -112,6 +112,12 @@ Use the package from a successful GitHub Actions CI artifact. The complete proce
 docs/home-assistant-alpha-test.md
 ```
 
+If you are upgrading an older development install, read the migration and rollback notes first:
+
+```text
+docs/alpha-migration.md
+```
+
 Short version:
 
 1. Download the `frakon-dashboard` workflow artifact from a successful CI run.
@@ -128,7 +134,7 @@ Do **not** separately copy the current bundled frontend into `/config/www`. The 
 
 In YAML resource mode, add that versioned URL manually as a JavaScript module.
 
-The repository also contains `scripts/verify_home_assistant_install.py` for checking an extracted/installed integration package.
+The repository also contains `scripts/verify_home_assistant_install.py` for checking an extracted/installed integration package. Run that script from a FRAKON Dashboard repository/release workspace and point it at the target Home Assistant config directory.
 
 ## Native Canvas v2 persistence safety
 
@@ -219,6 +225,12 @@ A manual priority can be set in card configuration:
 
 ```yaml
 priority: 92
+```
+
+An optional semantic grouping override is also supported:
+
+```yaml
+layout_group: security
 ```
 
 ## Architecture
