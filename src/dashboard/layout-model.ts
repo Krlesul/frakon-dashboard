@@ -75,13 +75,16 @@ export function compactItems(items: FrakonGridItem[], columns: number): FrakonGr
   const locked = clamped.filter((item) => item.locked).sort((a, b) => a.y - b.y || a.x - b.x);
   const movable = clamped.filter((item) => !item.locked).sort((a, b) => a.y - b.y || a.x - b.x);
   const placed = [...locked];
+  const resolved = new Map<string, FrakonGridItem>(locked.map((item) => [item.id, item]));
 
   for (const item of movable) {
     const position = firstFreePosition(item, placed, columns);
-    placed.push({ ...item, ...position });
+    const next = { ...item, ...position };
+    placed.push(next);
+    resolved.set(item.id, next);
   }
 
-  return placed.sort((a, b) => a.y - b.y || a.x - b.x);
+  return clamped.map((item) => resolved.get(item.id) ?? item);
 }
 
 function normalizeConstraints(
