@@ -33,6 +33,10 @@ export class FrakonBinarySensorCard extends LitElement {
   }
 
   getCardSize(): number { return 3; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-binary-sensor-card-editor'); }
+  static getStubConfig(): FrakonBinarySensorCardConfig {
+    return { type: 'custom:frakon-binary-sensor-card', entity: 'binary_sensor.example', show_state: true };
+  }
 
   render() {
     if (!this.hass || !this.config) return nothing;
