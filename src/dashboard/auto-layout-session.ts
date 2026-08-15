@@ -6,12 +6,19 @@ import {
 } from '../../packages/studio-engine/src/auto-layout';
 import {
   normalizeAndCompactDashboard,
+  type FrakonBreakpoint,
   type FrakonDashboardDocument,
   type FrakonGridItem,
 } from './layout-model';
+import {
+  defaultResponsiveColumns,
+  documentForBreakpoint,
+  type ResponsiveColumns,
+} from './responsive-layout';
 
 export interface DashboardAutoLayoutMetadata {
   priority?: number;
+  semanticGroup?: string;
   preferredWidth?: number;
   preferredHeight?: number;
   minWidth?: number;
@@ -25,11 +32,16 @@ export interface DashboardAutoLayoutPreview {
   proposal: FrakonDashboardDocument;
   strategy: AutoLayoutStrategy;
   variant: number;
+  breakpoint: FrakonBreakpoint;
 }
+
+export type DashboardAutoLayoutResponsiveSet = Record<FrakonBreakpoint, DashboardAutoLayoutPreview[]>;
 
 export type DashboardAutoLayoutMetadataResolver = (
   item: FrakonGridItem,
 ) => DashboardAutoLayoutMetadata;
+
+const BREAKPOINTS: FrakonBreakpoint[] = ['mobile', 'tablet', 'desktop', 'wide'];
 
 function cloneDocument(document: FrakonDashboardDocument): FrakonDashboardDocument {
   return structuredClone(document);
@@ -47,6 +59,7 @@ function toAutoLayoutItem(
     h: item.h,
     locked: item.locked,
     priority: metadata.priority,
+    semanticGroup: metadata.semanticGroup,
     preferredWidth: metadata.preferredWidth,
     preferredHeight: metadata.preferredHeight,
     minWidth: metadata.minWidth ?? item.minW,
@@ -77,6 +90,12 @@ function applyProposal(
   });
 }
 
+function proposalSignature(document: FrakonDashboardDocument): string {
+  return document.items
+    .map((item) => `${item.id}:${item.x},${item.y},${item.w},${item.h}`)
+    .join('|');
+}
+
 export class DashboardAutoLayoutSession {
   private readonly original: FrakonDashboardDocument;
   private variant = -1;
@@ -99,15 +118,55 @@ export class DashboardAutoLayoutSession {
 
   preview(variant: number): DashboardAutoLayoutPreview {
     this.variant = Math.max(0, Math.floor(variant));
+    return this.previewDocument(this.original, this.variant);
+  }
+
+  previewBreakpoint(
+    breakpoint: FrakonBreakpoint,
+    variant: number,
+    columns: ResponsiveColumns = defaultResponsiveColumns,
+  ): DashboardAutoLayoutPreview {
+    const projected = documentForBreakpoint(this.original, breakpoint, columns);
+    return this.previewDocument(projected, Math.max(0, Math.floor(variant)));
+  }
+
+  responsiveProposalSet(
+    count = 3,
+    columns: ResponsiveColumns = defaultResponsiveColumns,
+  ): DashboardAutoLayoutResponsiveSet {
+    const targetCount = Math.max(1, Math.floor(count));
+    const result = {} as DashboardAutoLayoutResponsiveSet;
+
+    for (const breakpoint of BREAKPOINTS) {
+      const previews: DashboardAutoLayoutPreview[] = [];
+      const signatures = new Set<string>();
+      // Four strategies plus rotations provide plenty of deterministic candidates.
+      // Stop after a bounded search so degenerate dashboards (for example one
+      // locked card) cannot make proposal generation loop forever.
+      for (let variant = 0; variant < 32 && previews.length < targetCount; variant += 1) {
+        const preview = this.previewBreakpoint(breakpoint, variant, columns);
+        const signature = proposalSignature(preview.proposal);
+        if (signatures.has(signature)) continue;
+        signatures.add(signature);
+        previews.push(preview);
+      }
+      result[breakpoint] = previews;
+    }
+
+    return result;
+  }
+
+  private previewDocument(document: FrakonDashboardDocument, variant: number): DashboardAutoLayoutPreview {
     const proposal = generateAutoLayoutProposal(
-      this.original.items.map((item) => toAutoLayoutItem(item, this.resolveMetadata(item))),
-      { columns: this.original.columns, variant: this.variant },
+      document.items.map((item) => toAutoLayoutItem(item, this.resolveMetadata(item))),
+      { columns: document.columns, variant },
     );
     return {
-      original: cloneDocument(this.original),
-      proposal: applyProposal(this.original, proposal),
+      original: cloneDocument(document),
+      proposal: applyProposal(document, proposal),
       strategy: proposal.strategy,
       variant: proposal.variant,
+      breakpoint: document.breakpoint,
     };
   }
 
