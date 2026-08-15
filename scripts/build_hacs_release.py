@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ if not INTEGRATION_SOURCE.is_dir():
     raise SystemExit(f"Missing integration directory: {INTEGRATION_SOURCE}")
 
 source_commit = os.environ.get("GITHUB_SHA", "development").strip() or "development"
+frontend_sha256 = sha256(FRONTEND_BUNDLE.read_bytes()).hexdigest()
 
 with tempfile.TemporaryDirectory(prefix="frakon-release-") as temp_dir:
     temp = Path(temp_dir)
@@ -32,7 +34,14 @@ with tempfile.TemporaryDirectory(prefix="frakon-release-") as temp_dir:
     frontend_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(FRONTEND_BUNDLE, frontend_dir / "frakon-dashboard.js")
     (staged / "build-info.json").write_text(
-        json.dumps({"sourceCommit": source_commit}, sort_keys=True, separators=(",", ":")),
+        json.dumps(
+            {
+                "sourceCommit": source_commit,
+                "frontendSha256": frontend_sha256,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
         encoding="utf-8",
     )
 
