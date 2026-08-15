@@ -11,6 +11,11 @@ import {
 } from '../../../packages/studio-engine/src/resize';
 import type { SelectionState } from '../../../packages/studio-engine/src/selection';
 import { solveDashboardConstraints } from '../../../src/dashboard/constraint-solver';
+import {
+  copyDashboardGridSelection,
+  pasteDashboardGridClipboard,
+  type DashboardGridClipboardPayload,
+} from '../../../src/dashboard/dashboard-grid-clipboard';
 import { dashboardGridEditorShortcut } from '../../../src/dashboard/dashboard-grid-editor-shortcuts';
 import { applyDashboardGridItemAction } from '../../../src/dashboard/dashboard-grid-item-actions';
 import { applyDashboardGridLayerAction } from '../../../src/dashboard/dashboard-grid-layer-actions';
@@ -82,6 +87,7 @@ export class FrakonDashboardStudio extends LitElement {
 
   private resizeSession?: ResizeSession;
   private moveSession?: MoveSession;
+  private clipboard?: DashboardGridClipboardPayload;
   private readonly windowMove = (event: PointerEvent) => this.continueMove(event);
   private readonly windowMoveEnd = (event: PointerEvent) => this.endMove(event);
 
@@ -263,6 +269,41 @@ export class FrakonDashboardStudio extends LitElement {
     ) return;
 
     const shortcut = dashboardGridEditorShortcut(event);
+    if (shortcut?.kind === 'clipboard') {
+      if (shortcut.action === 'paste') {
+        if (!this.clipboard) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const result = pasteDashboardGridClipboard(this.document, this.clipboard);
+        if (result.status === 'committed') {
+          this.document = result.document;
+          this.selection = { ids: result.selectedIds, anchorId: result.selectedIds[0] };
+          this.collisionIds = [];
+          this.guidelines = [];
+          this.emitChanged();
+        }
+        return;
+      }
+
+      if (this.selection.ids.length === 0) return;
+      const payload = copyDashboardGridSelection(this.document, this.selection.ids);
+      if (!payload) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.clipboard = payload;
+      if (shortcut.action === 'cut') {
+        const result = applyDashboardGridItemAction(this.document, this.selection.ids, 'delete');
+        if (result.status === 'committed') {
+          this.document = result.document;
+          this.selection = { ids: [] };
+          this.collisionIds = [];
+          this.guidelines = [];
+          this.emitChanged();
+        }
+      }
+      return;
+    }
+
     if (shortcut && this.selection.ids.length > 0) {
       event.preventDefault();
       event.stopPropagation();
