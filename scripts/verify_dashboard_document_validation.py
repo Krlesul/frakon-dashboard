@@ -111,6 +111,10 @@ payload["constraints"][0]["targetId"] = "missing"
 expect_invalid(payload, "dangling v1 constraint")
 
 payload = valid_v1()
+payload["constraints"] = None
+expect_invalid(payload, "explicit null v1 constraints")
+
+payload = valid_v1()
 payload["items"][1]["minW"] = None
 expect_invalid(payload, "null optional v1 numeric field")
 
@@ -179,6 +183,10 @@ expect_invalid(payload, "v2 frame height above maxHeight")
 payload = valid_v2()
 payload["items"][0]["maxWidth"] = 1300
 expect_invalid(payload, "v2 maxWidth outside canvas")
+
+payload = valid_v2()
+payload["constraints"] = None
+expect_invalid(payload, "explicit null v2 constraints")
 
 try:
     validate(valid_v1(), {2})
