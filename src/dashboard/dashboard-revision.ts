@@ -1,4 +1,8 @@
-import type { FrakonDashboardAnyDocument } from './dashboard-document-codec';
+import {
+  isDashboardDocumentV1,
+  type FrakonDashboardAnyDocument,
+} from './dashboard-document-codec';
+import { isDashboardDocumentV2 } from './layout-model-v2';
 import type { FrakonDashboardDocument } from './layout-model';
 
 export interface DashboardRevisionEnvelope<
@@ -25,6 +29,33 @@ export interface DashboardRevisionComparison<
   remote: DashboardRevisionEnvelope<TDocument>;
 }
 
+export function isDashboardRevisionEnvelope(
+  value: unknown,
+  expectedDocumentId?: string,
+  expectedVersion?: 1 | 2,
+): value is DashboardRevisionEnvelope<FrakonDashboardAnyDocument> {
+  if (!value || typeof value !== 'object') return false;
+  const envelope = value as Record<string, unknown>;
+  if (!isDashboardDocument(envelope.document)) return false;
+  if (expectedDocumentId !== undefined && envelope.document.id !== expectedDocumentId) return false;
+  if (expectedVersion !== undefined && envelope.document.version !== expectedVersion) return false;
+
+  const revision = envelope.revision;
+  if (typeof revision !== 'string' || !revision || revision.length > 256) return false;
+
+  const parentRevision = envelope.parentRevision;
+  if (parentRevision !== undefined && parentRevision !== null) {
+    if (typeof parentRevision !== 'string' || !parentRevision || parentRevision.length > 256) return false;
+    if (parentRevision === revision) return false;
+  }
+
+  if (typeof envelope.updatedAt !== 'number'
+    || !Number.isSafeInteger(envelope.updatedAt)
+    || envelope.updatedAt < 0) return false;
+  if (typeof envelope.clientId !== 'string' || !envelope.clientId || envelope.clientId.length > 128) return false;
+  return true;
+}
+
 export function createDashboardRevision<
   TDocument extends FrakonDashboardAnyDocument = FrakonDashboardDocument,
 >(
@@ -33,13 +64,30 @@ export function createDashboardRevision<
   previous?: DashboardRevisionEnvelope<TDocument>,
   updatedAt = Date.now(),
 ): DashboardRevisionEnvelope<TDocument> {
-  return {
+  if (!isDashboardDocument(document)) {
+    throw new Error('Cannot create a revision from an invalid or non-canonical dashboard document.');
+  }
+  if (!clientId || clientId.length > 128) {
+    throw new Error('Dashboard revision clientId must be a non-empty string up to 128 characters.');
+  }
+  if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) {
+    throw new Error('Dashboard revision updatedAt must be a non-negative safe integer.');
+  }
+  if (previous && !isDashboardRevisionEnvelope(previous, document.id, document.version)) {
+    throw new Error('Previous dashboard revision envelope is invalid or belongs to another document.');
+  }
+
+  const envelope: DashboardRevisionEnvelope<TDocument> = {
     document: structuredClone(document),
     revision: revisionId(clientId, updatedAt, document),
     parentRevision: previous?.revision,
     updatedAt,
     clientId,
   };
+  if (!isDashboardRevisionEnvelope(envelope, document.id, document.version)) {
+    throw new Error('Generated dashboard revision envelope is invalid.');
+  }
+  return envelope;
 }
 
 export function compareDashboardRevisions<
@@ -61,6 +109,10 @@ export function chooseDashboardRevision<
   choice: 'local' | 'remote',
 ): DashboardRevisionEnvelope<TDocument> {
   return structuredClone(choice === 'local' ? comparison.local : comparison.remote);
+}
+
+function isDashboardDocument(value: unknown): value is FrakonDashboardAnyDocument {
+  return isDashboardDocumentV1(value) || isDashboardDocumentV2(value);
 }
 
 function revisionId(clientId: string, updatedAt: number, document: FrakonDashboardAnyDocument): string {
