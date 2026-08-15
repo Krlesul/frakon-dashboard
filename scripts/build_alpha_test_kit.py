@@ -64,11 +64,17 @@ Frontend SHA-256: {frontend_sha256}
 
    python verify_home_assistant_install.py /path/to/home-assistant/config
 
-7. Confirm the self-check frontend SHA-256 equals the value above.
-8. Record results in home-assistant-alpha-test-report-template.md.
+7. Confirm the self-check frontend SHA-256 equals the value above and that it reports:
+
+   Dashboard document validator: OK
+   Responsive bundle validator: OK
+   Czech config flow: OK
+
+8. Record results and the required negative validation evidence in home-assistant-alpha-test-report-template.md.
 
 Do not copy frakon-dashboard.js to /config/www for the current bundled integration model.
 The standalone JavaScript file is included only for artifact identity/debugging.
+Responsive Canvas v2 writes remain intentionally locked; do not modify the writable-kind allowlist for alpha testing.
 """
 
 DIST.mkdir(parents=True, exist_ok=True)
