@@ -238,10 +238,32 @@ def _validate_v2_item(item: Any, canvas_width: float) -> str:
     for field in ("minWidth", "minHeight", "maxWidth", "maxHeight"):
         if not _optional_positive(item, field):
             raise DashboardDocumentValidationError(f"Canvas item {item_id} has invalid {field}.")
-    if "minWidth" in item and "maxWidth" in item and item["minWidth"] > item["maxWidth"]:
+
+    min_width = item.get("minWidth")
+    min_height = item.get("minHeight")
+    max_width = item.get("maxWidth")
+    max_height = item.get("maxHeight")
+    if min_width is not None and min_width > canvas_width:
+        raise DashboardDocumentValidationError(f"Canvas item {item_id} has minWidth outside the canvas.")
+    if max_width is not None and max_width > canvas_width:
+        raise DashboardDocumentValidationError(f"Canvas item {item_id} has maxWidth outside the canvas.")
+    if min_width is not None and max_width is not None and min_width > max_width:
         raise DashboardDocumentValidationError(f"Canvas item {item_id} has minWidth greater than maxWidth.")
-    if "minHeight" in item and "maxHeight" in item and item["minHeight"] > item["maxHeight"]:
+    if min_height is not None and max_height is not None and min_height > max_height:
         raise DashboardDocumentValidationError(f"Canvas item {item_id} has minHeight greater than maxHeight.")
+
+    effective_min_width = min_width if min_width is not None else 1
+    effective_max_width = max_width if max_width is not None else canvas_width
+    effective_min_height = min_height if min_height is not None else 1
+    effective_max_height = max_height if max_height is not None else _MAX_SAFE_INTEGER
+    if frame["width"] < effective_min_width or frame["width"] > effective_max_width:
+        raise DashboardDocumentValidationError(
+            f"Canvas item {item_id} width is outside its canonical min/max bounds."
+        )
+    if frame["height"] < effective_min_height or frame["height"] > effective_max_height:
+        raise DashboardDocumentValidationError(
+            f"Canvas item {item_id} height is outside its canonical min/max bounds."
+        )
     if not _optional_bool(item, "locked"):
         raise DashboardDocumentValidationError(f"Canvas item {item_id} has invalid locked state.")
     return item_id
@@ -287,7 +309,7 @@ def validate_dashboard_document(
         raise DashboardDocumentValidationError("Dashboard document must be an object.")
     _require_identifier(document.get("id"), "dashboard.id")
     version = document.get("version")
-    if version not in readable_versions:
+    if not isinstance(version, int) or isinstance(version, bool) or version not in readable_versions:
         raise DashboardDocumentValidationError(f"Unsupported dashboard document version: {version}.")
     if version == 1:
         _validate_v1(document, max_items, max_constraints)
@@ -296,3 +318,6 @@ def validate_dashboard_document(
     else:
         raise DashboardDocumentValidationError(f"Unsupported dashboard document version: {version}.")
     return document
+
+
+_MAX_SAFE_INTEGER = 9_007_199_254_740_991
