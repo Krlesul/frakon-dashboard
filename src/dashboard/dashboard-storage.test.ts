@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LocalStorageDashboardAdapter,
   MemoryDashboardStorageAdapter,
   RemoteDashboardStorageAdapter,
   type DashboardStorageTransport,
@@ -16,23 +17,58 @@ const document: FrakonDashboardDocument = {
   gap: 12,
   items: [
     {
-      id: 'light',
+      id: 'front',
       card: { type: 'custom:frakon-light-card', entity: 'light.living_room' },
-      x: 0,
-      y: 0,
+      x: 7,
+      y: 5,
       w: 4,
       h: 3,
     },
+    {
+      id: 'hidden',
+      card: { type: 'custom:frakon-sensor-card', entity: 'sensor.temperature' },
+      x: 1,
+      y: 3,
+      w: 3,
+      h: 2,
+      hidden: true,
+    },
+    {
+      id: 'back',
+      card: { type: 'custom:frakon-card' },
+      x: 0,
+      y: 0,
+      w: 2,
+      h: 2,
+    },
+  ],
+  constraints: [
+    { id: 'hidden-left-front', kind: 'align-left', sourceId: 'hidden', targetId: 'front', priority: 40 },
   ],
 };
 
+function memoryStorage(initial: Record<string, string> = {}): Storage {
+  const values = new Map(Object.entries(initial));
+  return {
+    get length() { return values.size; },
+    clear() { values.clear(); },
+    getItem(key: string) { return values.get(key) ?? null; },
+    key(index: number) { return [...values.keys()][index] ?? null; },
+    removeItem(key: string) { values.delete(key); },
+    setItem(key: string, value: string) { values.set(key, value); },
+  };
+}
+
 describe('dashboard storage adapters', () => {
-  it('stores and loads normalized documents', async () => {
+  it('stores and loads normalized documents without compacting exact geometry or z-order', async () => {
     const storage = new MemoryDashboardStorageAdapter();
     await storage.save({ ...document, rowHeight: 10, gap: -2 });
     const loaded = await storage.load('home');
     expect(loaded).toMatchObject({ rowHeight: 24, gap: 0 });
-    expect(loaded?.items).toHaveLength(1);
+    expect(loaded?.items.map((item) => item.id)).toEqual(['front', 'hidden', 'back']);
+    expect(loaded?.items.find((item) => item.id === 'front')).toMatchObject({ x: 7, y: 5 });
+    expect(loaded?.items.find((item) => item.id === 'hidden')).toMatchObject({ x: 1, y: 3, hidden: true });
+    expect(loaded?.constraints).toEqual(document.constraints);
   });
 
   it('returns defensive copies', async () => {
@@ -52,24 +88,66 @@ describe('dashboard storage adapters', () => {
     expect(await storage.load('home')).toBeUndefined();
   });
 
-  it('maps remote operations to Home Assistant-safe transport commands', async () => {
+  it('round-trips valid local-storage documents and rejects malformed stored payloads', async () => {
+    const backing = memoryStorage();
+    const storage = new LocalStorageDashboardAdapter(backing);
+    await storage.save(document);
+    const loaded = await storage.load('home');
+    expect(loaded?.items).toEqual(document.items);
+    expect(loaded?.constraints).toEqual(document.constraints);
+
+    backing.setItem('frakon-dashboard:bad', JSON.stringify({
+      version: 1,
+      id: 'bad',
+      title: 'Bad',
+      breakpoint: 'desktop',
+      columns: 12,
+      rowHeight: 48,
+      gap: 12,
+      items: [{ id: 'broken', card: {}, x: 0, y: 0, w: 'oops', h: 2 }],
+    }));
+    expect(await storage.load('bad')).toBeUndefined();
+  });
+
+  it('maps remote operations to Home Assistant-safe transport commands without stripping hidden data', async () => {
     const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
     const transport: DashboardStorageTransport = {
       async request<T>(command: string, payload: Record<string, unknown>): Promise<T> {
         calls.push({ command, payload });
-        return (command.endsWith('/load') ? document : undefined) as T;
+        return (command.endsWith('/load') ? structuredClone(document) : undefined) as T;
       },
     };
     const storage = new RemoteDashboardStorageAdapter(transport);
 
-    await storage.load('home');
+    const loaded = await storage.load('home');
     await storage.save(document);
     await storage.remove('home');
 
+    expect(loaded?.items).toEqual(document.items);
+    expect(loaded?.constraints).toEqual(document.constraints);
     expect(calls).toEqual([
       { command: 'frakon/dashboard/load', payload: { dashboard_id: 'home' } },
       { command: 'frakon/dashboard/save', payload: { document } },
       { command: 'frakon/dashboard/remove', payload: { dashboard_id: 'home' } },
     ]);
+  });
+
+  it('fails closed when a remote load returns malformed version 1 data', async () => {
+    const transport: DashboardStorageTransport = {
+      async request<T>(): Promise<T> {
+        return {
+          version: 1,
+          id: 'home',
+          title: 'Corrupt',
+          breakpoint: 'desktop',
+          columns: 12,
+          rowHeight: 48,
+          gap: 12,
+          items: [{ id: 'bad', card: { type: 'custom:bad' }, x: 0, y: 0, w: null, h: 2 }],
+        } as T;
+      },
+    };
+    const storage = new RemoteDashboardStorageAdapter(transport);
+    expect(await storage.load('home')).toBeUndefined();
   });
 });
