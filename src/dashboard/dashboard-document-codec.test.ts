@@ -80,6 +80,27 @@ describe('dashboard document codec', () => {
     expect(failureReason(JSON.stringify(outside))).toBe('invalid-document');
   });
 
+  it('rejects fractional v1 grid values instead of normalizing persisted geometry', () => {
+    const fractionalX = structuredClone(v1);
+    fractionalX.items[0].x = 2.5;
+    expect(failureReason(JSON.stringify(fractionalX))).toBe('invalid-document');
+
+    const fractionalRowHeight = structuredClone(v1);
+    fractionalRowHeight.rowHeight = 50.5;
+    expect(failureReason(JSON.stringify(fractionalRowHeight))).toBe('invalid-document');
+
+    const fractionalGap = structuredClone(v1);
+    fractionalGap.gap = 10.25;
+    expect(failureReason(JSON.stringify(fractionalGap))).toBe('invalid-document');
+  });
+
+  it('rejects overlapping v1 cards because hidden and visible geometry reserve real grid space', () => {
+    const overlapping = structuredClone(v1);
+    overlapping.items[1].x = 2;
+    overlapping.items[1].y = 4;
+    expect(failureReason(JSON.stringify(overlapping))).toBe('invalid-document');
+  });
+
   it('rejects invalid optional size limits with the same policy as the Home Assistant boundary', () => {
     const nullMin = structuredClone(v1) as unknown as { items: Array<Record<string, unknown>> };
     nullMin.items[0].minW = null;
@@ -89,6 +110,14 @@ describe('dashboard document codec', () => {
     inverted.items[0].minW = 3;
     inverted.items[0].maxW = 2;
     expect(failureReason(JSON.stringify(inverted))).toBe('invalid-document');
+
+    const fractionalMin = structuredClone(v1);
+    fractionalMin.items[0].minW = 1.5;
+    expect(failureReason(JSON.stringify(fractionalMin))).toBe('invalid-document');
+
+    const outsideMax = structuredClone(v1);
+    outsideMax.items[0].maxW = 5;
+    expect(failureReason(JSON.stringify(outsideMax))).toBe('invalid-document');
   });
 
   it('rejects overlong dashboard, item and constraint identities', () => {
@@ -130,5 +159,11 @@ describe('dashboard document codec', () => {
       { id: 'self', kind: 'align-left', sourceId: 'hidden', targetId: 'hidden', priority: 10 },
     ];
     expect(failureReason(JSON.stringify(self))).toBe('invalid-document');
+  });
+
+  it('rejects persisted hidden state in Canvas v2 until the v2 schema supports it natively', () => {
+    const v2 = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
+    v2.items[0].hidden = false;
+    expect(failureReason(JSON.stringify(v2))).toBe('invalid-document');
   });
 });
