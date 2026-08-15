@@ -47,6 +47,8 @@ export interface FrakonDashboardDocumentV2 {
 }
 
 const BREAKPOINTS = new Set(['mobile', 'tablet', 'desktop', 'wide']);
+const MAX_ITEMS = 2000;
+const MAX_CONSTRAINTS = 4000;
 const CONSTRAINT_KINDS = new Set([
   'align-left',
   'align-center-x',
@@ -78,6 +80,10 @@ function optionalPositiveNumber(value: unknown): boolean {
 
 function optionalBoolean(value: unknown): boolean {
   return value === undefined || typeof value === 'boolean';
+}
+
+function identifier(value: unknown, maxLength: number): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= maxLength;
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -230,15 +236,17 @@ export function migrateDashboardV1ToV2(
 export function isDashboardDocumentV2(value: unknown): value is FrakonDashboardDocumentV2 {
   if (!record(value)) return false;
   if (value.version !== 2) return false;
-  if (typeof value.id !== 'string' || !value.id || value.id.length > 128) return false;
+  if (!identifier(value.id, 128)) return false;
   if (typeof value.title !== 'string') return false;
   if (typeof value.breakpoint !== 'string' || !BREAKPOINTS.has(value.breakpoint)) return false;
-  if (!validCanvasLayout(value.layout)) return false;
-  if (!Array.isArray(value.items)) return false;
+
+  const layout = value.layout;
+  if (!validCanvasLayout(layout)) return false;
+  if (!Array.isArray(value.items) || value.items.length > MAX_ITEMS) return false;
 
   const itemIds = new Set<string>();
   for (const item of value.items) {
-    if (!validCanvasItem(item, value.layout.width)) return false;
+    if (!validCanvasItem(item, layout.width)) return false;
     if (itemIds.has(item.id)) return false;
     itemIds.add(item.id);
   }
@@ -254,7 +262,7 @@ function validCanvasLayout(value: unknown): value is FrakonCanvasLayout {
 
 function validCanvasItem(value: unknown, canvasWidth: number): value is FrakonCanvasItem {
   if (!record(value)) return false;
-  if (typeof value.id !== 'string' || !value.id || value.id.length > 128) return false;
+  if (!identifier(value.id, 128)) return false;
   if (!record(value.card) || typeof value.card.type !== 'string' || !value.card.type) return false;
   if (!record(value.frame)) return false;
   if (!finiteNumber(value.frame.x) || value.frame.x < 0) return false;
@@ -266,20 +274,25 @@ function validCanvasItem(value: unknown, canvasWidth: number): value is FrakonCa
     || !optionalPositiveNumber(value.maxWidth)
     || !optionalPositiveNumber(value.maxHeight)) return false;
   if (!optionalBoolean(value.locked)) return false;
-  if (positiveNumber(value.minWidth) && positiveNumber(value.maxWidth) && value.minWidth > value.maxWidth) return false;
-  if (positiveNumber(value.minHeight) && positiveNumber(value.maxHeight) && value.minHeight > value.maxHeight) return false;
+
+  const minWidth = value.minWidth;
+  const minHeight = value.minHeight;
+  const maxWidth = value.maxWidth;
+  const maxHeight = value.maxHeight;
+  if (positiveNumber(minWidth) && positiveNumber(maxWidth) && minWidth > maxWidth) return false;
+  if (positiveNumber(minHeight) && positiveNumber(maxHeight) && minHeight > maxHeight) return false;
   return true;
 }
 
 function validConstraints(value: unknown, itemIds: Set<string>): boolean {
   if (value === undefined) return true;
-  if (!Array.isArray(value)) return false;
+  if (!Array.isArray(value) || value.length > MAX_CONSTRAINTS) return false;
   const constraintIds = new Set<string>();
   for (const constraint of value) {
     if (!record(constraint)) return false;
-    if (typeof constraint.id !== 'string' || !constraint.id || constraintIds.has(constraint.id)) return false;
+    if (!identifier(constraint.id, 256) || constraintIds.has(constraint.id)) return false;
     if (typeof constraint.kind !== 'string' || !CONSTRAINT_KINDS.has(constraint.kind)) return false;
-    if (typeof constraint.sourceId !== 'string' || typeof constraint.targetId !== 'string') return false;
+    if (!identifier(constraint.sourceId, 128) || !identifier(constraint.targetId, 128)) return false;
     if (constraint.sourceId === constraint.targetId) return false;
     if (!itemIds.has(constraint.sourceId) || !itemIds.has(constraint.targetId)) return false;
     if (constraint.gap !== undefined && !finiteNumber(constraint.gap)) return false;
