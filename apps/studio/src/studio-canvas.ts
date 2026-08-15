@@ -4,6 +4,7 @@ import {
   DEFAULT_VIEWPORT,
   MAX_VIEWPORT_ZOOM,
   MIN_VIEWPORT_ZOOM,
+  fitRectToViewport,
   normalizeViewport,
   panViewport,
   resetViewport,
@@ -250,6 +251,24 @@ export class FrakonStudioCanvas extends LitElement {
     });
   }
 
+  private fitToContent(): void {
+    const items = this.selectableItems();
+    if (items.length === 0) {
+      this.emitViewport(resetViewport());
+      return;
+    }
+    const left = Math.min(...items.map((item) => item.x));
+    const top = Math.min(...items.map((item) => item.y));
+    const right = Math.max(...items.map((item) => item.x + item.width));
+    const bottom = Math.max(...items.map((item) => item.y + item.height));
+    const rect = this.getBoundingClientRect();
+    this.emitViewport(fitRectToViewport(
+      { x: left, y: top, width: right - left, height: bottom - top },
+      { width: rect.width, height: rect.height },
+      64,
+    ));
+  }
+
   private zoomBy(factor: number, anchor?: Point): void {
     const rect = this.getBoundingClientRect();
     const point = anchor ?? { x: rect.width / 2, y: rect.height / 2 };
@@ -369,6 +388,7 @@ export class FrakonStudioCanvas extends LitElement {
           <output>${zoomPercent}%</output>
           <button @click=${() => this.zoomBy(1.25)} ?disabled=${this.viewport.zoom >= MAX_VIEWPORT_ZOOM}>+</button>
           <button @click=${() => this.emitViewport(resetViewport())}>100%</button>
+          <button @click=${this.fitToContent}>Fit</button>
           <output>${this.selection.ids.length} selected</output>
         </div>
         <div
