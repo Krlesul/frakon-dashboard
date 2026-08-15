@@ -5,7 +5,7 @@ import {
   type AutoLayoutStrategy,
 } from '../../packages/studio-engine/src/auto-layout';
 import {
-  normalizeAndCompactDashboard,
+  normalizeDashboard,
   type FrakonBreakpoint,
   type FrakonDashboardDocument,
   type FrakonGridItem,
@@ -74,7 +74,10 @@ function applyProposal(
   proposal: AutoLayoutProposal,
 ): FrakonDashboardDocument {
   const positions = new Map(proposal.items.map((item) => [item.id, item]));
-  return normalizeAndCompactDashboard({
+  // The auto-layout engine has already produced a bounded, collision-free
+  // proposal. Re-running the generic compactor here would change the proposed
+  // geometry and could move hidden cards that are intentionally fixed.
+  return normalizeDashboard({
     ...document,
     items: document.items.map((item) => {
       const next = positions.get(item.id);
