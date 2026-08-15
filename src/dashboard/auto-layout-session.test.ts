@@ -46,6 +46,20 @@ describe('DashboardAutoLayoutSession', () => {
     expect(session.revert()).toEqual(document);
   });
 
+  it('keeps hidden card geometry fixed while arranging visible cards around it', () => {
+    const hiddenDocument: FrakonDashboardDocument = {
+      ...document,
+      items: [
+        ...document.items,
+        { id: 'hidden', card: { type: 'custom:frakon-room-card' }, x: 8, y: 5, w: 4, h: 3, hidden: true },
+      ],
+    };
+    const preview = new DashboardAutoLayoutSession(hiddenDocument, scoreDashboardItemPriority).preview(3);
+    expect(preview.proposal.items.find((item) => item.id === 'hidden'))
+      .toMatchObject({ x: 8, y: 5, w: 4, h: 3, hidden: true });
+    expect(findCollisions(preview.proposal.items)).toHaveLength(0);
+  });
+
   it('returns independent documents for preview, apply and revert', () => {
     const session = new DashboardAutoLayoutSession(document);
     const preview = session.preview(3);
