@@ -5,7 +5,7 @@ import type { FrakonCameraCardConfig } from './camera-card';
 
 interface ConfigChangedEventDetail { config: FrakonCameraCardConfig; }
 
-const ASPECT_RATIOS = ['16 / 9', '4 / 3', '1 / 1', '21 / 9'];
+const ASPECT_RATIOS = ['16 / 9', '4 / 3', '3 / 2', '1 / 1', '21 / 9'];
 
 @customElement('frakon-camera-card-editor')
 export class FrakonCameraCardEditor extends LitElement {
@@ -20,6 +20,7 @@ export class FrakonCameraCardEditor extends LitElement {
     label { display:grid; gap:7px; font-size:13px; }
     input[type='text'], select { width:100%; box-sizing:border-box; min-height:42px; padding:0 12px; border:1px solid var(--divider-color); border-radius:10px; color:inherit; background:var(--card-background-color); }
     .toggle { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .hint { margin:0; font-size:12px; line-height:1.45; opacity:.62; }
   `;
 
   setConfig(config: FrakonCameraCardConfig): void {
@@ -55,10 +56,10 @@ export class FrakonCameraCardEditor extends LitElement {
       <section class="section">
         <div class="title">Presentation</div>
         <label>Aspect ratio
-          <select .value=${this.config.aspect_ratio ?? '16 / 9'} @change=${(event:Event) => this.updateConfig('aspect_ratio', (event.target as HTMLSelectElement).value)}>
-            ${ASPECT_RATIOS.map((ratio) => html`<option value=${ratio}>${ratio.replaceAll(' ', '')}</option>`)}
-          </select>
+          <input type="text" list="frakon-camera-aspect-ratios" .value=${this.config.aspect_ratio ?? '16 / 9'} @change=${(event:Event) => this.updateConfig('aspect_ratio', (event.target as HTMLInputElement).value.trim())}>
+          <datalist id="frakon-camera-aspect-ratios">${ASPECT_RATIOS.map((ratio) => html`<option value=${ratio}></option>`)}</datalist>
         </label>
+        <p class="hint">Use a positive numeric ratio such as 16 / 9, 4 / 3 or 3 / 2.</p>
         <label class="toggle"><span>Show camera state</span><input type="checkbox" .checked=${this.config.show_state !== false} @change=${(event:Event) => this.updateConfig('show_state', (event.target as HTMLInputElement).checked)}></label>
       </section>
     </div>`;
