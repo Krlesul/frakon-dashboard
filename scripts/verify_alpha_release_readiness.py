@@ -14,6 +14,13 @@ INTEGRATION_ROOT = ROOT / "custom_components/frakon_dashboard"
 INIT_SOURCE = (INTEGRATION_ROOT / "__init__.py").read_text()
 CONST_SOURCE = (INTEGRATION_ROOT / "const.py").read_text()
 WEBSOCKET_SOURCE = (INTEGRATION_ROOT / "websocket.py").read_text()
+RESPONSIVE_WEBSOCKET = INTEGRATION_ROOT / "responsive_websocket.py"
+RESPONSIVE_WEBSOCKET_SOURCE = RESPONSIVE_WEBSOCKET.read_text() if RESPONSIVE_WEBSOCKET.is_file() else ""
+RESPONSIVE_STORAGE = INTEGRATION_ROOT / "responsive_storage.py"
+RESPONSIVE_STORAGE_SOURCE = RESPONSIVE_STORAGE.read_text() if RESPONSIVE_STORAGE.is_file() else ""
+RESPONSIVE_BUNDLE_VALIDATOR = INTEGRATION_ROOT / "responsive_bundle_validation.py"
+RESPONSIVE_BUNDLE_VALIDATOR_SOURCE = RESPONSIVE_BUNDLE_VALIDATOR.read_text() if RESPONSIVE_BUNDLE_VALIDATOR.is_file() else ""
+RESPONSIVE_CONSTRAINT_VALIDATOR = INTEGRATION_ROOT / "responsive_constraint_validation.py"
 FRONTEND_HELPER = INTEGRATION_ROOT / "frontend.py"
 FRONTEND_HELPER_SOURCE = FRONTEND_HELPER.read_text() if FRONTEND_HELPER.is_file() else ""
 BUILD_INFO_PROVIDER = INTEGRATION_ROOT / "build_info.py"
@@ -24,6 +31,9 @@ RELEASE_PACKAGER = ROOT / "scripts/build_hacs_release.py"
 INSTALL_SELF_CHECK = ROOT / "scripts/verify_home_assistant_install.py"
 INSTALL_SELF_CHECK_SOURCE = INSTALL_SELF_CHECK.read_text() if INSTALL_SELF_CHECK.is_file() else ""
 DOCUMENT_VALIDATOR_CHECK = ROOT / "scripts/verify_dashboard_document_validation.py"
+RESPONSIVE_VALIDATOR_CHECK = ROOT / "scripts/verify_responsive_bundle_validation.py"
+RESPONSIVE_WRITE_LOCK_CHECK = ROOT / "scripts/verify_responsive_write_lock.py"
+PERSISTENCE_INTEGRITY_CHECK = ROOT / "scripts/verify_persistence_integrity_readiness.py"
 ALPHA_KIT_BUILDER = ROOT / "scripts/build_alpha_test_kit.py"
 ALPHA_KIT_VERIFIER = ROOT / "scripts/verify_alpha_test_kit.py"
 CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
@@ -102,6 +112,7 @@ if "from .build_websocket import register_build_info_command" not in INIT_SOURCE
     errors.append("integration __init__ must import register_build_info_command")
 if "register_build_info_command(hass)" not in INIT_SOURCE:
     errors.append("integration __init__ must register the build-info WebSocket command")
+
 if not DOCUMENT_VALIDATOR.is_file():
     errors.append("dashboard document validator is missing")
 else:
@@ -109,6 +120,8 @@ else:
         "class DashboardDocumentValidationError",
         "def validate_dashboard_document",
         "Duplicate dashboard item id",
+        "overlap in the version 1 grid",
+        "outside its canonical min/max bounds",
         "references an unknown item",
     ):
         if marker not in DOCUMENT_VALIDATOR_SOURCE:
@@ -117,11 +130,43 @@ if "from .document_validation import DashboardDocumentValidationError, validate_
     errors.append("websocket boundary must import the standalone document validator")
 if "validate_dashboard_document(" not in WEBSOCKET_SOURCE:
     errors.append("websocket boundary must invoke validate_dashboard_document")
+if "vol.Coerce(int)" in WEBSOCKET_SOURCE:
+    errors.append("websocket persistence schema must not coerce integer values")
+
+if not RESPONSIVE_BUNDLE_VALIDATOR.is_file():
+    errors.append("responsive bundle validator is missing")
+else:
+    for marker in (
+        "validate_responsive_bundle",
+        "validate_responsive_revision_envelope",
+        "validate_dashboard_document(",
+        "enabled constraint dependency cycle",
+        "_MAX_SAFE_INTEGER",
+    ):
+        if marker not in RESPONSIVE_BUNDLE_VALIDATOR_SOURCE:
+            errors.append(f"responsive bundle validator is missing marker {marker!r}")
+if not RESPONSIVE_CONSTRAINT_VALIDATOR.is_file():
+    errors.append("responsive constraint validator is missing")
+if not RESPONSIVE_STORAGE.is_file():
+    errors.append("responsive Home Assistant Store is missing")
+elif "validate_responsive_revision_envelope" not in RESPONSIVE_STORAGE_SOURCE:
+    errors.append("responsive Home Assistant Store must use the shared responsive revision validator")
+if not RESPONSIVE_WEBSOCKET.is_file():
+    errors.append("responsive WebSocket boundary is missing")
+else:
+    for marker in ("_strict_contract_version", "_strict_updated_at", "_validate_stored_responsive_revision"):
+        if marker not in RESPONSIVE_WEBSOCKET_SOURCE:
+            errors.append(f"responsive WebSocket boundary is missing marker {marker!r}")
+    if "vol.Coerce(int)" in RESPONSIVE_WEBSOCKET_SOURCE:
+        errors.append("responsive WebSocket persistence schema must not coerce integer values")
 
 for path, label in (
     (RELEASE_PACKAGER, "HACS release packager"),
     (INSTALL_SELF_CHECK, "Home Assistant install self-check"),
     (DOCUMENT_VALIDATOR_CHECK, "dashboard document validator contract check"),
+    (RESPONSIVE_VALIDATOR_CHECK, "responsive bundle validator contract check"),
+    (RESPONSIVE_WRITE_LOCK_CHECK, "responsive write-lock audit"),
+    (PERSISTENCE_INTEGRITY_CHECK, "persistence integrity readiness audit"),
     (ALPHA_KIT_BUILDER, "Alpha Test Kit builder"),
     (ALPHA_KIT_VERIFIER, "Alpha Test Kit verifier"),
     (CI_WORKFLOW, "CI workflow"),
@@ -156,8 +201,10 @@ else:
         "/config/custom_components/frakon_dashboard",
         "/frakon-dashboard/frakon-dashboard.js?v=",
         "Dashboard document validator: OK",
+        "Responsive bundle validator: OK",
         "commits exactly the previewed geometry",
         "responsiveCanvasV2.write = false",
+        "constraint dependency cycle",
     ):
         if marker not in guide:
             errors.append(f"alpha test guide is missing required marker {marker!r}")
@@ -172,10 +219,13 @@ else:
         "Frontend SHA-256",
         "Identity gate",
         "Dashboard document validator",
+        "Responsive bundle validator",
         "## Home Assistant environment",
         "## Client matrix",
         "## Automatic layout",
         "## Storage / revisions / conflict handling",
+        "Independently valid concurrent edits",
+        "## Responsive server validation / write lock",
         "## Browser console / network",
         "## Defects found",
     ):
@@ -201,11 +251,14 @@ else:
 
 for marker in (
     '"document_validation.py"',
+    '"responsive_bundle_validation.py"',
+    '"responsive_constraint_validation.py"',
     '"translations/cs.json"',
     "sourceCommit must identify a verified source revision",
     "frontendSha256",
     "installed frontend SHA-256 does not match build-info.json",
     "Dashboard document validator: OK",
+    "Responsive bundle validator: OK",
     "runtime integration version does not match manifest",
     "Czech config flow: OK",
 ):
@@ -216,12 +269,48 @@ if DOCUMENT_VALIDATOR_CHECK.is_file():
     validator_check_source = DOCUMENT_VALIDATOR_CHECK.read_text()
     for marker in (
         "Dashboard document validation contract: OK",
+        "boolean document version",
         "duplicate v1 item id",
-        "dangling v1 constraint",
-        "v2 frame outside canvas",
+        "overlapping v1 items",
+        "unsupported persisted v2 hidden state",
+        "v2 frame width below minWidth",
     ):
         if marker not in validator_check_source:
             errors.append(f"document validator contract check is missing marker {marker!r}")
+
+if RESPONSIVE_VALIDATOR_CHECK.is_file():
+    responsive_validator_check_source = RESPONSIVE_VALIDATOR_CHECK.read_text()
+    for marker in (
+        "Responsive bundle validation contract: OK",
+        "persisted v2 hidden field",
+        "frame width below canonical minWidth",
+        "enabled constraint dependency cycle",
+        "fractional updatedAt",
+    ):
+        if marker not in responsive_validator_check_source:
+            errors.append(f"responsive validator contract check is missing marker {marker!r}")
+
+if RESPONSIVE_WRITE_LOCK_CHECK.is_file():
+    responsive_lock_source = RESPONSIVE_WRITE_LOCK_CHECK.read_text()
+    for marker in (
+        "WRITABLE_RESPONSIVE_BUNDLE_KINDS must remain an empty frozenset",
+        "Responsive websocket must not coerce integer persistence metadata",
+        "shared canonical v2 bundle validation",
+    ):
+        if marker not in responsive_lock_source:
+            errors.append(f"responsive write-lock audit is missing marker {marker!r}")
+
+if PERSISTENCE_INTEGRITY_CHECK.is_file():
+    persistence_source = PERSISTENCE_INTEGRITY_CHECK.read_text()
+    for marker in (
+        "Persistence integrity readiness: OK",
+        "normalizeAndCompactDashboard(",
+        "escalateV1IntegrityConflicts",
+        "vol.Coerce(int)",
+        "Responsive bundle validator: OK",
+    ):
+        if marker not in persistence_source:
+            errors.append(f"persistence integrity audit is missing marker {marker!r}")
 
 if ALPHA_KIT_BUILDER.is_file():
     builder_source = ALPHA_KIT_BUILDER.read_text()
@@ -244,6 +333,9 @@ if ALPHA_KIT_VERIFIER.is_file():
         "build-info.json",
         "manifest.json",
         "document_validation.py",
+        "responsive_bundle_validation.py",
+        "responsive_constraint_validation.py",
+        "Responsive bundle validator: OK",
         "bundled_frontend",
     ):
         if marker not in verifier_source:
@@ -253,6 +345,9 @@ if CI_WORKFLOW.is_file():
     ci_source = CI_WORKFLOW.read_text()
     for marker in (
         "python scripts/verify_dashboard_document_validation.py",
+        "python scripts/verify_responsive_bundle_validation.py",
+        "python scripts/verify_responsive_write_lock.py",
+        "python scripts/verify_persistence_integrity_readiness.py",
         "python scripts/build_alpha_test_kit.py",
         "python scripts/verify_alpha_test_kit.py",
         "Simulate Home Assistant install from alpha test kit",
