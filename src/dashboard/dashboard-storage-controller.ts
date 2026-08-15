@@ -1,4 +1,4 @@
-import { normalizeAndCompactDashboard, type FrakonDashboardDocument } from './layout-model';
+import { normalizeDashboard, type FrakonDashboardDocument } from './layout-model';
 import type { DashboardStorageAdapter } from './dashboard-storage';
 
 export interface DashboardStorageControllerState {
@@ -37,7 +37,10 @@ export class DashboardStorageController {
     try {
       const document = await this.adapter.load(id);
       if (generation !== this.loadGeneration) return undefined;
-      return document ? normalizeAndCompactDashboard(document) : undefined;
+      // Storage is an identity boundary, not an auto-layout operation. Normalize
+      // scalar bounds and constraint references, but never compact/reposition a
+      // document that has already been accepted by the editor.
+      return document ? normalizeDashboard(document) : undefined;
     } catch (error) {
       if (generation === this.loadGeneration) this.patchState({ error: toError(error) });
       return undefined;
@@ -47,7 +50,10 @@ export class DashboardStorageController {
   }
 
   save(document: FrakonDashboardDocument): Promise<void> {
-    const normalized = normalizeAndCompactDashboard(document);
+    // Exact persistence is required for Undo/Redo, imports, Layers z-order and
+    // Automatic Designer previews: save what the editor committed, not a fresh
+    // compaction of it.
+    const normalized = normalizeDashboard(document);
     this.patchState({ saving: true, error: undefined });
     this.saveQueue = this.saveQueue
       .catch(() => undefined)
