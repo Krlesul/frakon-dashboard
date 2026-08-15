@@ -11,6 +11,7 @@ import {
 } from '../../../packages/studio-engine/src/resize';
 import type { SelectionState } from '../../../packages/studio-engine/src/selection';
 import { solveDashboardConstraints } from '../../../src/dashboard/constraint-solver';
+import { keyboardNudgeDelta, nudgeDashboardSelection } from '../../../src/dashboard/dashboard-keyboard-nudge';
 import type { FrakonDashboardDocument, FrakonGridItem } from '../../../src/dashboard/layout-model';
 import { resolveDashboardSurfaces, resolveGridItemSurface } from '../../../src/dashboard/surface-style-resolver';
 import type { FrakonConstraintDocumentChangedDetail } from './constraint-inspector';
@@ -219,6 +220,32 @@ export class FrakonDashboardStudio extends LitElement {
   private onConstraintDocumentChanged(event: CustomEvent<FrakonConstraintDocumentChangedDetail>): void {
     this.document = event.detail.document;
     this.emitChanged();
+  }
+
+  private onStudioKeyDown(event: KeyboardEvent): void {
+    if (!this.document || this.moving || this.resizing || event.ctrlKey || event.metaKey || event.altKey) return;
+    const originalTarget = event.composedPath()[0];
+    if (
+      originalTarget instanceof HTMLInputElement
+      || originalTarget instanceof HTMLTextAreaElement
+      || originalTarget instanceof HTMLSelectElement
+      || originalTarget instanceof HTMLButtonElement
+      || (originalTarget instanceof HTMLElement && originalTarget.isContentEditable)
+    ) return;
+
+    const delta = keyboardNudgeDelta(event.key, event.shiftKey);
+    if (!delta || this.selection.ids.length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const result = nudgeDashboardSelection(this.document, this.selection.ids, delta);
+    this.collisionIds = result.collisionIds;
+    if (result.status === 'moved') {
+      this.document = result.document;
+      this.collisionIds = [];
+      this.guidelines = [];
+      this.emitChanged();
+    }
   }
 
   private itemToTransform(item: FrakonGridItem, document: FrakonDashboardDocument): GroupTransformItem {
@@ -473,6 +500,7 @@ export class FrakonDashboardStudio extends LitElement {
       <section class="studio-shell">
         <div class="canvas-pane" style=${dashboardCss}>
           <frakon-studio-canvas
+            @keydown=${this.onStudioKeyDown}
             @frakon-studio-selection-changed=${this.onSelectionChanged}
             @frakon-studio-viewport-changed=${this.onViewportChanged}
           >
