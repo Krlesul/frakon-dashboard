@@ -114,7 +114,7 @@ function semanticGroupKey(item: AutoLayoutItem): string {
   return configured ? configured : `__single:${item.id}`;
 }
 
-function semanticOrder(items: AutoLayoutItem[], strategy: AutoLayoutStrategy): AutoLayoutItem[] {
+export function orderAutoLayoutItems(items: AutoLayoutItem[], strategy: AutoLayoutStrategy): AutoLayoutItem[] {
   const sorted = [...items].sort((a, b) => normalizedPriority(b) - normalizedPriority(a) || a.id.localeCompare(b.id));
   const groups = new Map<string, AutoLayoutItem[]>();
   for (const item of sorted) {
@@ -168,7 +168,7 @@ export function generateAutoLayoutProposal(
     }));
 
   const movable = items.filter((item) => !item.locked);
-  const fairOrdered = semanticOrder(movable, strategy);
+  const fairOrdered = orderAutoLayoutItems(movable, strategy);
   const ordered = rotate(fairOrdered, Math.floor(variant / STRATEGIES.length));
   const placed = [...locked];
 
