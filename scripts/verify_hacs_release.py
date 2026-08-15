@@ -21,6 +21,8 @@ required = {
     f"{PREFIX}frontend.py",
     f"{PREFIX}frontend/frakon-dashboard.js",
     f"{PREFIX}manifest.json",
+    f"{PREFIX}responsive_bundle_validation.py",
+    f"{PREFIX}responsive_constraint_validation.py",
     f"{PREFIX}responsive_storage.py",
     f"{PREFIX}responsive_websocket.py",
     f"{PREFIX}storage.py",
@@ -93,6 +95,9 @@ with ZipFile(ZIP_PATH) as archive:
     validator_source = archive.read(f"{PREFIX}document_validation.py")
     if b"validate_dashboard_document" not in validator_source:
         raise SystemExit("Packaged document validator is missing validate_dashboard_document")
+    responsive_validator_source = archive.read(f"{PREFIX}responsive_bundle_validation.py")
+    if b"validate_responsive_revision_envelope" not in responsive_validator_source:
+        raise SystemExit("Packaged responsive validator is missing validate_responsive_revision_envelope")
 
     missing_markers = sorted(marker.decode() for marker in required_frontend_markers if marker not in frontend)
     if missing_markers:
