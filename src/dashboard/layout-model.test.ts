@@ -87,6 +87,20 @@ describe('dashboard layout model', () => {
     expect(document.items[1]).toMatchObject({ x: 3, y: 0 });
   });
 
+  it('preserves serialized layer order while resolving geometry', () => {
+    const document = normalizeAndCompactDashboard({
+      ...base,
+      columns: 6,
+      items: [
+        { ...base.items[0], id: 'front', x: 3, y: 4, w: 3, h: 2 },
+        { ...base.items[0], id: 'back', x: 0, y: 0, w: 3, h: 2 },
+        { ...base.items[0], id: 'middle', x: 0, y: 0, w: 3, h: 2 },
+      ],
+    });
+    expect(document.items.map((item) => item.id)).toEqual(['front', 'back', 'middle']);
+    expect(findCollisions(document.items)).toHaveLength(0);
+  });
+
   it('keeps locked cards fixed while resolving collisions', () => {
     const document = normalizeAndCompactDashboard({
       ...base,
