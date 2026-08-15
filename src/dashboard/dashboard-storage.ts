@@ -1,3 +1,4 @@
+import { isDashboardDocumentV1 } from './dashboard-document-codec';
 import { normalizeDashboard, type FrakonDashboardDocument } from './layout-model';
 
 const STORAGE_PREFIX = 'frakon-dashboard:';
@@ -22,9 +23,8 @@ export class LocalStorageDashboardAdapter implements DashboardStorageAdapter {
     const raw = this.storage?.getItem(`${STORAGE_PREFIX}${id}`);
     if (!raw) return undefined;
     try {
-      const parsed = JSON.parse(raw) as FrakonDashboardDocument;
-      if (parsed.version !== 1 || !Array.isArray(parsed.items)) return undefined;
-      return normalizeDashboard(parsed);
+      const parsed: unknown = JSON.parse(raw);
+      return isDashboardDocumentV1(parsed) ? normalizeDashboard(parsed) : undefined;
     } catch {
       return undefined;
     }
@@ -66,8 +66,8 @@ export class RemoteDashboardStorageAdapter implements DashboardStorageAdapter {
   ) {}
 
   async load(id: string): Promise<FrakonDashboardDocument | undefined> {
-    const document = await this.transport.request<FrakonDashboardDocument | undefined>(`${this.namespace}/load`, { dashboard_id: id });
-    return document ? normalizeDashboard(document) : undefined;
+    const document = await this.transport.request<unknown>(`${this.namespace}/load`, { dashboard_id: id });
+    return isDashboardDocumentV1(document) ? normalizeDashboard(document) : undefined;
   }
 
   async save(document: FrakonDashboardDocument): Promise<void> {
