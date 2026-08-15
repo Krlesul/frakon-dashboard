@@ -42,6 +42,30 @@ describe('StudioHistoryController', () => {
     expect(controller.redo().items[0].x).toBe(6);
   });
 
+  it('records auto-layout preview only when explicitly applied', () => {
+    const controller = new StudioHistoryController(dashboard());
+    controller.beginPreview(dashboard(3), 'auto-layout');
+    controller.updatePreview(dashboard(7));
+
+    expect(controller.canUndo).toBe(false);
+    expect(controller.committed.items[0].x).toBe(0);
+
+    controller.commitPreview();
+    expect(controller.committed.items[0].x).toBe(7);
+    expect(controller.snapshot().lastSource).toBe('auto-layout');
+    expect(controller.undo().items[0].x).toBe(0);
+  });
+
+  it('cancels an auto-layout preview without creating history', () => {
+    const controller = new StudioHistoryController(dashboard());
+    controller.beginPreview(dashboard(8), 'auto-layout');
+    controller.cancelPreview();
+
+    expect(controller.committed.items[0].x).toBe(0);
+    expect(controller.canUndo).toBe(false);
+    expect(controller.snapshot().lastSource).toBeUndefined();
+  });
+
   it('cancels a preview without creating history', () => {
     const controller = new StudioHistoryController(dashboard());
     controller.beginPreview(dashboard(5));
