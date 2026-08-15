@@ -3,8 +3,12 @@ import { mergeDashboardDocuments } from './dashboard-conflict-resolver';
 import { migrateDashboardV1ToV2 } from './layout-model-v2';
 import type { FrakonDashboardDocument, FrakonGridItem } from './layout-model';
 
-function item(id: string, x: number): FrakonGridItem { return { id, x, y: 0, w: 2, h: 2, card: { type: `custom:${id}` } }; }
-function dashboard(items: FrakonGridItem[], title = 'Home'): FrakonDashboardDocument { return { version: 1, id: 'home', title, breakpoint: 'desktop', columns: 12, rowHeight: 80, gap: 12, items }; }
+function item(id: string, x: number): FrakonGridItem {
+  return { id, x, y: 0, w: 2, h: 2, card: { type: `custom:${id}` } };
+}
+function dashboard(items: FrakonGridItem[], title = 'Home'): FrakonDashboardDocument {
+  return { version: 1, id: 'home', title, breakpoint: 'desktop', columns: 12, rowHeight: 80, gap: 12, items };
+}
 
 describe('mergeDashboardDocuments', () => {
   it('merges independent card changes cleanly without sorting layer order by geometry', () => {
@@ -16,6 +20,21 @@ describe('mergeDashboardDocuments', () => {
     expect(result.document.items.map((entry) => entry.id)).toEqual(['camera', 'light']);
     expect(result.document.items.find((entry) => entry.id === 'light')?.x).toBe(1);
     expect(result.document.items.find((entry) => entry.id === 'camera')?.x).toBe(6);
+  });
+
+  it('escalates independent card moves when their combined v1 result overlaps', () => {
+    const base = dashboard([item('a', 0), item('b', 4)]);
+    const local = dashboard([item('a', 6), item('b', 4)]);
+    const remote = dashboard([item('a', 0), item('b', 6)]);
+
+    const result = mergeDashboardDocuments(base, local, remote);
+
+    expect(result.clean).toBe(false);
+    expect(result.conflicts.map((conflict) => conflict.path)).toEqual(
+      expect.arrayContaining(['items.a', 'items.b']),
+    );
+    expect(result.document.items.find((entry) => entry.id === 'a')?.x).toBe(6);
+    expect(result.document.items.find((entry) => entry.id === 'b')?.x).toBe(6);
   });
 
   it('detects concurrent changes to the same card', () => {
@@ -91,6 +110,23 @@ describe('mergeDashboardDocuments', () => {
     expect(result.document.items.find((entry) => entry.id === 'camera')?.frame.y).toBe(remoteCamera.frame.y);
   });
 
+  it('escalates a v2 layout/item combination that is invalid only after merge', () => {
+    const base = migrateDashboardV1ToV2(dashboard([item('light', 0), item('camera', 4)]), 1200);
+    const local = structuredClone(base);
+    const remote = structuredClone(base);
+    const localLight = local.items.find((entry) => entry.id === 'light');
+    if (!localLight) throw new Error('Missing light item.');
+    localLight.frame.x = 950;
+    remote.layout.width = 800;
+
+    const result = mergeDashboardDocuments(base, local, remote);
+
+    expect(result.clean).toBe(false);
+    expect(result.conflicts.map((conflict) => conflict.path)).toEqual(
+      expect.arrayContaining(['layout', 'items.light']),
+    );
+  });
+
   it('preserves a one-sided version 2 layer reorder instead of sorting by geometry', () => {
     const base = migrateDashboardV1ToV2(dashboard([item('a', 0), item('b', 4), item('c', 8)]), 1200);
     const local = structuredClone(base);
@@ -121,6 +157,21 @@ describe('mergeDashboardDocuments', () => {
     expect(result.clean).toBe(false);
     expect(result.conflicts[0]?.path).toBe('layout');
     expect(result.document.layout.minHeight).toBe(900);
+  });
+
+  it('rejects malformed source documents instead of merging repaired state', () => {
+    const base = dashboard([item('a', 0)]);
+    const invalid = { ...dashboard([item('a', 0)]), rowHeight: 8 };
+    expect(() => mergeDashboardDocuments(base, invalid, base)).toThrow(/invalid or non-canonical version 1/i);
+
+    const v2 = migrateDashboardV1ToV2(base, 1200);
+    const invalidV2 = structuredClone(v2) as unknown as { items: Array<Record<string, unknown>> };
+    invalidV2.items[0].hidden = false;
+    expect(() => mergeDashboardDocuments(
+      v2,
+      invalidV2 as unknown as typeof v2,
+      v2,
+    )).toThrow(/invalid or non-canonical version 2/i);
   });
 
   it('rejects merge attempts across document versions', () => {
