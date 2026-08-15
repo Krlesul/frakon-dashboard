@@ -11,6 +11,9 @@ import {
 } from '../../../packages/studio-engine/src/resize';
 import type { SelectionState } from '../../../packages/studio-engine/src/selection';
 import { solveDashboardConstraints } from '../../../src/dashboard/constraint-solver';
+import { dashboardGridEditorShortcut } from '../../../src/dashboard/dashboard-grid-editor-shortcuts';
+import { applyDashboardGridItemAction } from '../../../src/dashboard/dashboard-grid-item-actions';
+import { applyDashboardGridLayerAction } from '../../../src/dashboard/dashboard-grid-layer-actions';
 import { keyboardNudgeDelta, nudgeDashboardSelection } from '../../../src/dashboard/dashboard-keyboard-nudge';
 import type { FrakonDashboardDocument, FrakonGridItem } from '../../../src/dashboard/layout-model';
 import { resolveDashboardSurfaces, resolveGridItemSurface } from '../../../src/dashboard/surface-style-resolver';
@@ -223,7 +226,7 @@ export class FrakonDashboardStudio extends LitElement {
   }
 
   private onStudioKeyDown(event: KeyboardEvent): void {
-    if (!this.document || this.moving || this.resizing || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!this.document || this.moving || this.resizing) return;
     const originalTarget = event.composedPath()[0];
     if (
       originalTarget instanceof HTMLInputElement
@@ -233,6 +236,33 @@ export class FrakonDashboardStudio extends LitElement {
       || (originalTarget instanceof HTMLElement && originalTarget.isContentEditable)
     ) return;
 
+    const shortcut = dashboardGridEditorShortcut(event);
+    if (shortcut && this.selection.ids.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (shortcut.kind === 'item') {
+        const result = applyDashboardGridItemAction(this.document, this.selection.ids, shortcut.action);
+        if (result.status === 'committed') {
+          this.document = result.document;
+          this.selection = { ids: result.selectedIds, anchorId: result.selectedIds[0] };
+          this.collisionIds = [];
+          this.guidelines = [];
+          this.emitChanged();
+        }
+        return;
+      }
+
+      const result = applyDashboardGridLayerAction(this.document, this.selection.ids, shortcut.action);
+      if (result.status === 'committed') {
+        this.document = result.document;
+        this.collisionIds = [];
+        this.guidelines = [];
+        this.emitChanged();
+      }
+      return;
+    }
+
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
     const delta = keyboardNudgeDelta(event.key, event.shiftKey);
     if (!delta || this.selection.ids.length === 0) return;
     event.preventDefault();
