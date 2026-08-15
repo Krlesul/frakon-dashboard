@@ -24,6 +24,10 @@ Identity gate:
 - ☐ Kit source commit = installed `build-info.json` source commit
 - ☐ Kit frontend SHA-256 = install self-check frontend SHA-256
 - ☐ Kit version = installed Home Assistant manifest/runtime version
+- ☐ `Home Assistant brand assets: OK` reported
+- ☐ Installed `brand/icon.png` verified as 256×256 PNG
+- ☐ Installed `brand/icon@2x.png` verified as 512×512 PNG
+- ☐ FRAKON integration icon visually checked where the HA version supports local custom-integration brand assets
 - ☐ `Dashboard document validator: OK` reported
 - ☐ `Responsive bundle validator: OK` reported
 - ☐ Runtime build badge identifies the same build
@@ -56,10 +60,12 @@ If any identity item differs, stop functional testing and fix installation/cache
 - ☐ `frakon_dashboard.zip` extracted to `/config/custom_components/frakon_dashboard`
 - ☐ Home Assistant restarted successfully
 - ☐ FRAKON Dashboard integration added
+- ☐ FRAKON integration icon displayed where supported
 - ☐ Versioned `/frakon-dashboard/frakon-dashboard.js?v=…` module loaded
 - ☐ No legacy duplicate `/local/frakon-dashboard.js` resource remains
 - ☐ Install self-check reports `OK`
 - ☐ Self-check frontend SHA-256 matches kit manifest
+- ☐ Home Assistant brand assets report `OK`
 - ☐ Dashboard document validator reports `OK`
 - ☐ Responsive bundle validator reports `OK`
 - ☐ Runtime build badge matches package identity
@@ -234,6 +240,7 @@ Relevant log excerpts / timestamps:
 
 | Evidence | File / link | What it proves |
 |---|---|---|
+| FRAKON integration icon | | Packaged brand asset is rendered by Home Assistant |
 | Stable dashboard | | |
 | Mobile | | |
 | Tablet | | |
@@ -258,6 +265,8 @@ For every reproducible defect create a separate GitHub issue with reproduction s
 
 - ☐ All mandatory #11 checks passed
 - ☐ Alpha Test Kit / installed frontend / runtime identities match
+- ☐ Home Assistant brand asset dimensions/self-check passed
+- ☐ FRAKON integration icon visually checked where supported
 - ☐ Dashboard document validator identity/negative cases passed
 - ☐ Responsive bundle validator identity/negative cases passed
 - ☐ Strict non-coercing persistence metadata checks passed
