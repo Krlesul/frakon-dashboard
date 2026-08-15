@@ -19,6 +19,10 @@ BUILD_INFO_PROVIDER = INTEGRATION_ROOT / "build_info.py"
 BUILD_INFO_WEBSOCKET = INTEGRATION_ROOT / "build_websocket.py"
 RELEASE_PACKAGER = ROOT / "scripts/build_hacs_release.py"
 INSTALL_SELF_CHECK = ROOT / "scripts/verify_home_assistant_install.py"
+INSTALL_SELF_CHECK_SOURCE = INSTALL_SELF_CHECK.read_text() if INSTALL_SELF_CHECK.is_file() else ""
+CS_TRANSLATION = INTEGRATION_ROOT / "translations/cs.json"
+ALPHA_TEST_GUIDE = ROOT / "docs/home-assistant-alpha-test.md"
+ALPHA_REPORT_TEMPLATE = ROOT / "docs/home-assistant-alpha-test-report-template.md"
 
 errors: list[str] = []
 
@@ -94,6 +98,54 @@ if not RELEASE_PACKAGER.is_file():
     errors.append("HACS release packager is missing")
 if not INSTALL_SELF_CHECK.is_file():
     errors.append("Home Assistant install self-check is missing")
+
+if not CS_TRANSLATION.is_file():
+    errors.append("Czech config-flow translation is missing")
+else:
+    try:
+        cs_translation = json.loads(CS_TRANSLATION.read_text())
+        description = cs_translation["config"]["step"]["user"]["description"]
+        already_configured = cs_translation["config"]["abort"]["already_configured"]
+        if cs_translation.get("title") != "FRAKON Dashboard":
+            errors.append("Czech translation title must be FRAKON Dashboard")
+        if not isinstance(description, str) or len(description.strip()) < 20:
+            errors.append("Czech config-flow description is missing or too short")
+        if not isinstance(already_configured, str) or not already_configured.strip():
+            errors.append("Czech already-configured translation is missing")
+    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+        errors.append(f"Czech config-flow translation is invalid: {exc}")
+
+if not ALPHA_TEST_GUIDE.is_file():
+    errors.append("Home Assistant alpha test guide is missing")
+else:
+    guide = ALPHA_TEST_GUIDE.read_text()
+    if "/config/custom_components/frakon_dashboard" not in guide:
+        errors.append("alpha test guide must document the bundled integration install path")
+    if "/frakon-dashboard/frakon-dashboard.js?v=" not in guide:
+        errors.append("alpha test guide must document the versioned bundled frontend URL")
+
+if not ALPHA_REPORT_TEMPLATE.is_file():
+    errors.append("Home Assistant alpha evidence report template is missing")
+else:
+    report = ALPHA_REPORT_TEMPLATE.read_text()
+    for required_heading in (
+        "## Build identity",
+        "## Home Assistant environment",
+        "## Client matrix",
+        "## Automatic layout",
+        "## Browser console / network",
+        "## Defects found",
+    ):
+        if required_heading not in report:
+            errors.append(f"alpha report template is missing {required_heading}")
+
+for required_self_check_marker in (
+    '"translations/cs.json"',
+    "sourceCommit must identify a verified source revision",
+    "Czech config flow: OK",
+):
+    if required_self_check_marker not in INSTALL_SELF_CHECK_SOURCE:
+        errors.append(f"install self-check is missing preflight marker {required_self_check_marker!r}")
 
 if not package_version or "alpha" not in package_version:
     errors.append("current release readiness policy requires an explicit alpha package version")
