@@ -60,6 +60,22 @@ describe('DashboardAutoLayoutSession', () => {
     expect(findCollisions(preview.proposal.items)).toHaveLength(0);
   });
 
+  it('keeps scaled hidden geometry in responsive previews instead of dropping the layer', () => {
+    const hiddenDocument: FrakonDashboardDocument = {
+      ...document,
+      items: [
+        ...document.items,
+        { id: 'hidden', card: { type: 'custom:frakon-room-card' }, x: 6, y: 7, w: 3, h: 2, hidden: true },
+      ],
+    };
+    const preview = new DashboardAutoLayoutSession(hiddenDocument, scoreDashboardItemPriority)
+      .previewBreakpoint('mobile', 0);
+    expect(preview.proposal.columns).toBe(4);
+    expect(preview.proposal.items.find((item) => item.id === 'hidden'))
+      .toMatchObject({ x: 2, y: 7, w: 1, h: 2, hidden: true });
+    expect(findCollisions(preview.proposal.items)).toHaveLength(0);
+  });
+
   it('returns independent documents for preview, apply and revert', () => {
     const session = new DashboardAutoLayoutSession(document);
     const preview = session.preview(3);
