@@ -52,6 +52,13 @@ describe('RevisionedDashboardStorage', () => {
     });
   });
 
+  it('rejects revision loads that substitute another dashboard id', async () => {
+    const transport = new Transport();
+    transport.response = createDashboardRevision({ ...document, id: 'other' }, 'server', undefined, 10);
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet' });
+    await expect(storage.load('home')).rejects.toThrow(/invalid dashboard revision envelope/i);
+  });
+
   it('rejects malformed revision envelopes returned by remote storage', async () => {
     const transport = new Transport();
     transport.response = {
@@ -64,6 +71,27 @@ describe('RevisionedDashboardStorage', () => {
       clientId: 'server',
     };
     const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet' });
+    await expect(storage.load('home')).rejects.toThrow(/invalid dashboard revision envelope/i);
+  });
+
+  it('rejects self-parenting or invalid revision metadata on load', async () => {
+    const transport = new Transport();
+    transport.response = {
+      document,
+      revision: 'same',
+      parentRevision: 'same',
+      updatedAt: 10,
+      clientId: 'server',
+    };
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet' });
+    await expect(storage.load('home')).rejects.toThrow(/invalid dashboard revision envelope/i);
+
+    transport.response = {
+      document,
+      revision: 'remote-2',
+      updatedAt: -1,
+      clientId: 'server',
+    };
     await expect(storage.load('home')).rejects.toThrow(/invalid dashboard revision envelope/i);
   });
 
@@ -90,6 +118,14 @@ describe('RevisionedDashboardStorage', () => {
       status: 'saved',
       envelope: { document, revision: '', updatedAt: 20, clientId: 'server' },
     };
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet', now: () => 20 });
+    await expect(storage.save(document)).rejects.toThrow(/invalid saved revision envelope/i);
+  });
+
+  it('rejects a saved response that substitutes another dashboard id', async () => {
+    const transport = new Transport();
+    const substituted = createDashboardRevision({ ...document, id: 'other' }, 'server', undefined, 20);
+    transport.response = { status: 'saved', envelope: substituted };
     const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet', now: () => 20 });
     await expect(storage.save(document)).rejects.toThrow(/invalid saved revision envelope/i);
   });
