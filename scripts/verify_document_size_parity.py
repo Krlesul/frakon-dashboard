@@ -78,5 +78,46 @@ require(
     "dashboard one byte above serialized limit",
     "multibyte UTF-8 dashboard above serialized limit",
 )
+require(
+    "scripts/verify_hacs_release.py",
+    "DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
+    "dashboard_serialized_bytes",
+    "max_serialized_bytes: int = DASHBOARD_MAX_SERIALIZED_BYTES",
+)
+require(
+    "scripts/verify_home_assistant_install.py",
+    "DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
+    "Dashboard serialized-byte guard: OK",
+)
+require(
+    "scripts/verify_alpha_test_kit.py",
+    "DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
+    "Dashboard serialized-byte guard: OK",
+    "2,000,000",
+)
+require(
+    "scripts/build_alpha_test_kit.py",
+    "Dashboard serialized-byte guard: OK",
+    "2,000,000",
+)
+require(
+    "docs/home-assistant-alpha-test.md",
+    "Dashboard serialized-byte guard: OK",
+    "2,000,000",
+    "2,000,001",
+    "multibyte",
+)
+require(
+    "docs/home-assistant-alpha-test-report-template.md",
+    "Dashboard serialized-byte guard: OK",
+    "2,000,000",
+    "2,000,001",
+    "Multibyte UTF-8",
+)
+require(
+    ".github/workflows/ci.yml",
+    "python scripts/verify_dashboard_document_validation.py",
+    "python scripts/verify_document_size_parity.py",
+)
 
 print("Dashboard serialized-byte parity: OK")
