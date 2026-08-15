@@ -27,10 +27,13 @@ export function nudgeDashboardSelection(
   delta: { x: number; y: number },
 ): DashboardKeyboardNudgeResult {
   const selected = new Set(selectedIds);
-  const movable = document.items.filter((item) => selected.has(item.id) && !item.locked);
+  const movable = document.items.filter(
+    (item) => selected.has(item.id) && !item.locked && !item.hidden,
+  );
   if (!movable.length || (!delta.x && !delta.y)) {
     return { status: 'unchanged', document: structuredClone(document), collisionIds: [] };
   }
+  const movableIds = new Set(movable.map((item) => item.id));
 
   const minDeltaX = -Math.min(...movable.map((item) => item.x));
   const maxDeltaX = document.columns - Math.max(...movable.map((item) => item.x + item.w));
@@ -51,9 +54,9 @@ export function nudgeDashboardSelection(
       y: item.y,
       width: item.w,
       height: item.h,
-      locked: item.locked,
+      locked: item.locked || item.hidden,
     })),
-    selected,
+    movableIds,
     bounded,
     { minX: 0, minY: 0, gridX: 1, gridY: 1 },
   );
