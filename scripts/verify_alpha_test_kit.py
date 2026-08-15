@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from hashlib import sha256
+from io import BytesIO
 import json
 import os
 from pathlib import Path
@@ -61,10 +63,45 @@ with zipfile.ZipFile(KIT) as archive:
         if not re.fullmatch(r"[0-9a-fA-F]{7,64}", source_commit):
             raise SystemExit(f"CI alpha test kit sourceCommit is not a Git revision: {source_commit!r}")
 
-    if archive.read("frakon_dashboard.zip") != INTEGRATION.read_bytes():
+    integration_bytes = archive.read("frakon_dashboard.zip")
+    frontend_bytes = archive.read("frakon-dashboard.js")
+    if integration_bytes != INTEGRATION.read_bytes():
         raise SystemExit("Alpha test kit does not contain the exact dist/frakon_dashboard.zip bytes")
-    if archive.read("frakon-dashboard.js") != FRONTEND.read_bytes():
+    if frontend_bytes != FRONTEND.read_bytes():
         raise SystemExit("Alpha test kit does not contain the exact dist/frakon-dashboard.js bytes")
+
+    integration_digest = sha256(integration_bytes).hexdigest()
+    frontend_digest = sha256(frontend_bytes).hexdigest()
+    if manifest.get("integrationSha256") != integration_digest:
+        raise SystemExit("Alpha test kit integrationSha256 does not match embedded integration archive")
+    if manifest.get("frontendSha256") != frontend_digest:
+        raise SystemExit("Alpha test kit frontendSha256 does not match embedded frontend bundle")
+
+    with zipfile.ZipFile(BytesIO(integration_bytes)) as integration_archive:
+        prefix = "custom_components/frakon_dashboard/"
+        build_info_path = f"{prefix}build-info.json"
+        manifest_path = f"{prefix}manifest.json"
+        validator_path = f"{prefix}document_validation.py"
+        bundled_frontend_path = f"{prefix}frontend/frakon-dashboard.js"
+        integration_names = set(integration_archive.namelist())
+        for required_path in (build_info_path, manifest_path, validator_path, bundled_frontend_path):
+            if required_path not in integration_names:
+                raise SystemExit(f"Embedded integration archive is missing {required_path}")
+        build_info = json.loads(integration_archive.read(build_info_path))
+        ha_manifest = json.loads(integration_archive.read(manifest_path))
+        validator_source = integration_archive.read(validator_path)
+        bundled_frontend = integration_archive.read(bundled_frontend_path)
+
+    if ha_manifest.get("domain") != "frakon_dashboard" or ha_manifest.get("version") != VERSION:
+        raise SystemExit("Embedded Home Assistant manifest identity does not match the Alpha Test Kit")
+    if build_info.get("sourceCommit") != source_commit:
+        raise SystemExit("Alpha Test Kit sourceCommit differs from embedded integration build-info.json")
+    if build_info.get("frontendSha256") != frontend_digest:
+        raise SystemExit("Embedded integration build-info frontendSha256 differs from Alpha Test Kit frontend hash")
+    if bundled_frontend != frontend_bytes:
+        raise SystemExit("Embedded integration frontend differs from Alpha Test Kit frontend bundle")
+    if b"validate_dashboard_document" not in validator_source:
+        raise SystemExit("Embedded integration document validator is invalid")
 
     test_guide = archive.read("home-assistant-alpha-test.md").decode("utf-8")
     report = archive.read("home-assistant-alpha-test-report-template.md").decode("utf-8")
@@ -78,7 +115,9 @@ with zipfile.ZipFile(KIT) as archive:
         ("report template", report, "## Final alpha decision"),
         ("migration guide", migration, "/local/frakon-dashboard.js"),
         ("migration guide", migration, "## 9. Rollback"),
-        ("self-check", self_check, "FRAKON Dashboard install self-check: OK"),
+        ("self-check", self_check, "frontend SHA-256"),
+        ("self-check", self_check, "Dashboard document validator: OK"),
+        ("README", readme, "Frontend SHA-256"),
         ("README", readme, "python verify_home_assistant_install.py"),
     ]
     for label, content, marker in checks:
