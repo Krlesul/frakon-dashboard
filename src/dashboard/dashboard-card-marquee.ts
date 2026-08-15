@@ -23,7 +23,7 @@ export function selectDashboardCardsByMarquee(
     y: item.y * metrics.rowStep,
     width: Math.max(1, item.w * columnWidth + Math.max(0, item.w - 1) * document.gap),
     height: Math.max(1, item.h * rowHeight + Math.max(0, item.h - 1) * document.gap),
-    selectable: true,
+    selectable: item.hidden !== true,
   }));
   return selectByMarquee(items, marquee, {
     mode: options.mode ?? 'intersect',
