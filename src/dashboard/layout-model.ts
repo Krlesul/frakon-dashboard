@@ -71,9 +71,10 @@ function firstFreePosition(item: FrakonGridItem, placed: FrakonGridItem[], colum
 }
 
 /**
- * Resolve collisions without changing serialized layer order. Locked and
- * hidden cards are fixed obstacles: background compaction must not change a
- * hidden layer's reserved location before the user explicitly shows it.
+ * Resolve collisions without changing serialized layer order or repacking a
+ * layout that is already valid. Locked and hidden cards are fixed obstacles.
+ * Visible movable cards keep their accepted geometry unless that exact frame
+ * collides with a fixed/earlier resolved card.
  */
 export function compactItems(items: FrakonGridItem[], columns: number): FrakonGridItem[] {
   const clamped = items.map((item) => clampGridItem(item, columns));
@@ -87,8 +88,10 @@ export function compactItems(items: FrakonGridItem[], columns: number): FrakonGr
   const resolved = new Map<string, FrakonGridItem>(fixed.map((item) => [item.id, item]));
 
   for (const item of movable) {
-    const position = firstFreePosition(item, placed, columns);
-    const next = { ...item, ...position };
+    const collides = placed.some((existing) => itemsOverlap(item, existing));
+    const next = collides
+      ? { ...item, ...firstFreePosition(item, placed, columns) }
+      : item;
     placed.push(next);
     resolved.set(item.id, next);
   }
