@@ -6,7 +6,7 @@
   "dependencies": ["http", "lovelace"],
   "documentation": "https://github.com/Krlesul/frakon-dashboard",
   "integration_type": "service",
-  "iot_class": "local_push",
+  "iot_class": "calculated",
   "issue_tracker": "https://github.com/Krlesul/frakon-dashboard/issues",
   "single_config_entry": true,
   "version": "0.16.0-alpha.1"
