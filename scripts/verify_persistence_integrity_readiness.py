@@ -151,6 +151,10 @@ require(
 )
 require(
     "custom_components/frakon_dashboard/responsive_websocket.py",
+    "validate_responsive_bundle",
+    "validate_responsive_revision_envelope",
+    "_validate_bundle",
+    "_validate_revision_envelope",
     "_strict_contract_version",
     "_strict_updated_at",
     "_validate_stored_responsive_revision",
