@@ -7,9 +7,11 @@ import './cards/action/action-card';
 import './cards/fan/fan-card';
 import './cards/cover/cover-card';
 import './cards/climate/climate-card';
+import './cards/climate/climate-card-editor';
 import './cards/room/room-card';
 import './cards/camera/camera-card';
 import './cards/media/media-player-card';
+import './cards/media/media-player-card-editor';
 import './cards/vehicle/vehicle-card';
 import './cards/energy/energy-card';
 import './cards/switch/switch-card';
@@ -42,10 +44,10 @@ window.customCards.push(
   { type: 'frakon-action-card', name: 'FRAKON Action Card', description: 'Press a button, run a script or activate a scene.', preview: true },
   { type: 'frakon-fan-card', name: 'FRAKON Fan Card', description: 'Fan power and percentage speed control.', preview: true },
   { type: 'frakon-cover-card', name: 'FRAKON Cover Card', description: 'Premium cover control with position feedback.', preview: true },
-  { type: 'frakon-climate-card', name: 'FRAKON Climate Card', description: 'Premium climate control with current and target temperature.', preview: true },
+  { type: 'frakon-climate-card', name: 'FRAKON Climate Card', description: 'Premium climate control with current and target temperature plus visual editor.', preview: true },
   { type: 'frakon-room-card', name: 'FRAKON Room Card', description: 'Room overview with climate and grouped lights.', preview: true },
   { type: 'frakon-camera-card', name: 'FRAKON Camera Card', description: 'Camera preview with status overlay.', preview: true },
-  { type: 'frakon-media-player-card', name: 'FRAKON Media Player Card', description: 'Media playback and volume controls.', preview: true },
+  { type: 'frakon-media-player-card', name: 'FRAKON Media Player Card', description: 'Media playback, volume controls and visual editor.', preview: true },
   { type: 'frakon-vehicle-card', name: 'FRAKON Vehicle Card', description: 'Vehicle battery, range and charging overview.', preview: true },
   { type: 'frakon-energy-card', name: 'FRAKON Energy Card', description: 'Power, energy and price overview for Home Assistant.', preview: true },
   { type: 'frakon-switch-card', name: 'FRAKON Switch Card', description: 'Direct Home Assistant switch control.', preview: true },
