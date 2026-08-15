@@ -1,5 +1,8 @@
-import type { FrakonDashboardAnyDocument } from './dashboard-document-codec';
-import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
+import {
+  isDashboardDocumentV1,
+  type FrakonDashboardAnyDocument,
+} from './dashboard-document-codec';
+import { isDashboardDocumentV2, type FrakonDashboardDocumentV2 } from './layout-model-v2';
 import type { FrakonDashboardDocument } from './layout-model';
 
 export interface DashboardMergeConflict {
@@ -23,12 +26,31 @@ export function mergeDashboardDocuments<TDocument extends FrakonDashboardAnyDocu
   if (base.version !== local.version || base.version !== remote.version) {
     throw new Error('Cannot merge dashboard conflicts across document versions. Migrate all revisions first.');
   }
-  return base.version === 2
-    ? mergeV2(base as FrakonDashboardDocumentV2, local as FrakonDashboardDocumentV2, remote as FrakonDashboardDocumentV2) as DashboardMergeResult<TDocument>
-    : mergeV1(base as FrakonDashboardDocument, local as FrakonDashboardDocument, remote as FrakonDashboardDocument) as DashboardMergeResult<TDocument>;
+  if (base.version === 2) {
+    if (!isDashboardDocumentV2(base) || !isDashboardDocumentV2(local) || !isDashboardDocumentV2(remote)) {
+      throw new Error('Cannot merge invalid or non-canonical version 2 dashboard documents.');
+    }
+    return mergeV2(
+      base as FrakonDashboardDocumentV2,
+      local as FrakonDashboardDocumentV2,
+      remote as FrakonDashboardDocumentV2,
+    ) as DashboardMergeResult<TDocument>;
+  }
+  if (!isDashboardDocumentV1(base) || !isDashboardDocumentV1(local) || !isDashboardDocumentV1(remote)) {
+    throw new Error('Cannot merge invalid or non-canonical version 1 dashboard documents.');
+  }
+  return mergeV1(
+    base as FrakonDashboardDocument,
+    local as FrakonDashboardDocument,
+    remote as FrakonDashboardDocument,
+  ) as DashboardMergeResult<TDocument>;
 }
 
-function mergeV1(base: FrakonDashboardDocument, local: FrakonDashboardDocument, remote: FrakonDashboardDocument): DashboardMergeResult<FrakonDashboardDocument> {
+function mergeV1(
+  base: FrakonDashboardDocument,
+  local: FrakonDashboardDocument,
+  remote: FrakonDashboardDocument,
+): DashboardMergeResult<FrakonDashboardDocument> {
   const conflicts: DashboardMergeConflict[] = [];
   const mergedItems = mergeItems(base.items, local.items, remote.items, conflicts);
   const itemOrder = mergeItemOrder(
@@ -50,10 +72,15 @@ function mergeV1(base: FrakonDashboardDocument, local: FrakonDashboardDocument, 
     constraints: mergeValue('constraints', base.constraints, local.constraints, remote.constraints, conflicts),
     items: orderItems(mergedItems, itemOrder),
   };
+  escalateV1IntegrityConflicts(base, local, remote, document, conflicts);
   return { document, conflicts, clean: conflicts.length === 0 };
 }
 
-function mergeV2(base: FrakonDashboardDocumentV2, local: FrakonDashboardDocumentV2, remote: FrakonDashboardDocumentV2): DashboardMergeResult<FrakonDashboardDocumentV2> {
+function mergeV2(
+  base: FrakonDashboardDocumentV2,
+  local: FrakonDashboardDocumentV2,
+  remote: FrakonDashboardDocumentV2,
+): DashboardMergeResult<FrakonDashboardDocumentV2> {
   const conflicts: DashboardMergeConflict[] = [];
   const mergedItems = mergeItems(base.items, local.items, remote.items, conflicts);
   const itemOrder = mergeItemOrder(
@@ -73,7 +100,82 @@ function mergeV2(base: FrakonDashboardDocumentV2, local: FrakonDashboardDocument
     constraints: mergeValue('constraints', base.constraints, local.constraints, remote.constraints, conflicts),
     items: orderItems(mergedItems, itemOrder),
   };
+  escalateV2IntegrityConflicts(base, local, remote, document, conflicts);
   return { document, conflicts, clean: conflicts.length === 0 };
+}
+
+function escalateV1IntegrityConflicts(
+  base: FrakonDashboardDocument,
+  local: FrakonDashboardDocument,
+  remote: FrakonDashboardDocument,
+  merged: FrakonDashboardDocument,
+  conflicts: DashboardMergeConflict[],
+): void {
+  if (isDashboardDocumentV1(merged)) return;
+  const before = conflicts.length;
+  addIntegrityConflict('columns', base.columns, local.columns, remote.columns, conflicts);
+  addIntegrityConflict('rowHeight', base.rowHeight, local.rowHeight, remote.rowHeight, conflicts);
+  addIntegrityConflict('gap', base.gap, local.gap, remote.gap, conflicts);
+  addIntegrityConflict('constraints', base.constraints, local.constraints, remote.constraints, conflicts);
+  addItemIntegrityConflicts(base.items, local.items, remote.items, conflicts);
+  if (conflicts.length === before) {
+    throw new Error('Version 1 dashboard merge produced a non-canonical result without resolvable source differences.');
+  }
+}
+
+function escalateV2IntegrityConflicts(
+  base: FrakonDashboardDocumentV2,
+  local: FrakonDashboardDocumentV2,
+  remote: FrakonDashboardDocumentV2,
+  merged: FrakonDashboardDocumentV2,
+  conflicts: DashboardMergeConflict[],
+): void {
+  if (isDashboardDocumentV2(merged)) return;
+  const before = conflicts.length;
+  addIntegrityConflict('layout', base.layout, local.layout, remote.layout, conflicts);
+  addIntegrityConflict('constraints', base.constraints, local.constraints, remote.constraints, conflicts);
+  addItemIntegrityConflicts(base.items, local.items, remote.items, conflicts);
+  if (conflicts.length === before) {
+    throw new Error('Version 2 dashboard merge produced a non-canonical result without resolvable source differences.');
+  }
+}
+
+function addItemIntegrityConflicts<TItem extends { id: string }>(
+  baseItems: TItem[],
+  localItems: TItem[],
+  remoteItems: TItem[],
+  conflicts: DashboardMergeConflict[],
+): void {
+  const base = new Map(baseItems.map((item) => [item.id, item]));
+  const local = new Map(localItems.map((item) => [item.id, item]));
+  const remote = new Map(remoteItems.map((item) => [item.id, item]));
+  const ids = new Set([...base.keys(), ...local.keys(), ...remote.keys()]);
+  for (const id of ids) {
+    addIntegrityConflict(
+      `items.${id}`,
+      base.get(id),
+      local.get(id),
+      remote.get(id),
+      conflicts,
+    );
+  }
+}
+
+function addIntegrityConflict(
+  path: string,
+  base: unknown,
+  local: unknown,
+  remote: unknown,
+  conflicts: DashboardMergeConflict[],
+): void {
+  if (conflicts.some((conflict) => conflict.path === path)) return;
+  if (equal(local, remote)) return;
+  conflicts.push({
+    path,
+    base: structuredClone(base),
+    local: structuredClone(local),
+    remote: structuredClone(remote),
+  });
 }
 
 function mergeItems<TItem extends { id: string }>(
@@ -147,8 +249,6 @@ function mergeItemOrder(
 
   const order = uniqueAllowed(primary, mergedIds);
   for (const sequence of secondarySequences) mergeMissingOrderIds(order, sequence, mergedIds);
-  // A merged item should always appear in at least one source sequence, but keep
-  // this final guard so malformed inputs cannot silently drop an item.
   for (const id of mergedIds) if (!order.includes(id)) order.push(id);
   return order;
 }
@@ -216,4 +316,6 @@ function mergeValue<T>(path: string, base: T, local: T, remote: T, conflicts: Da
   return structuredClone(local);
 }
 
-function equal(left: unknown, right: unknown): boolean { return JSON.stringify(left) === JSON.stringify(right); }
+function equal(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
