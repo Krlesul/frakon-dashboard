@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -15,15 +14,16 @@ from .const import (
     RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
     RESPONSIVE_CANVAS_V2_KIND,
     RESPONSIVE_CANVAS_V2_LOAD_ENDPOINT,
-    RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
-    RESPONSIVE_CANVAS_V2_MAX_ITEMS,
-    RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
     RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
     RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
-from .document_validation import DashboardDocumentValidationError, validate_dashboard_document
-from .responsive_constraint_validation import validate_responsive_constraints
+from .responsive_bundle_validation import (
+    BREAKPOINTS,
+    ResponsiveBundleValidationError,
+    validate_responsive_bundle,
+    validate_responsive_revision_envelope,
+)
 from .responsive_storage import FrakonResponsiveDashboardStorage
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,7 +32,6 @@ _MAX_SAFE_INTEGER = 9_007_199_254_740_991
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
 REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
 CLIENT_ID = vol.All(str, vol.Length(min=1, max=128))
-BREAKPOINTS = ("mobile", "tablet", "desktop", "wide")
 EXPECTED_REVISION = vol.Any(None, REVISION_ID)
 
 
@@ -56,75 +55,18 @@ def _strict_contract_version(value: Any) -> int:
     return contract_version
 
 
-def _validate_canvas_document(document: dict[str, Any], dashboard_id: str, breakpoint: str) -> int:
-    try:
-        validated = validate_dashboard_document(
-            document,
-            {2},
-            max_items=RESPONSIVE_CANVAS_V2_MAX_ITEMS,
-            max_constraints=RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
-        )
-    except DashboardDocumentValidationError as err:
-        raise vol.Invalid(str(err)) from err
-
-    if validated.get("id") != dashboard_id:
-        raise vol.Invalid("Responsive breakpoint dashboard id must match the bundle id.")
-    if validated.get("breakpoint") != breakpoint:
-        raise vol.Invalid("Responsive breakpoint document.breakpoint must match its bundle key.")
-
-    items = validated["items"]
-    validate_responsive_constraints(
-        validated.get("constraints", []),
-        item_ids={item["id"] for item in items},
-        breakpoint=breakpoint,
-        max_constraints=RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
-    )
-    return len(items)
-
-
 def _validate_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
-    kind = bundle.get("kind")
-    if kind not in READABLE_RESPONSIVE_BUNDLE_KINDS:
-        raise vol.Invalid(f"Unsupported responsive dashboard bundle kind: {kind}.")
-    dashboard_id = bundle.get("id")
-    documents = bundle.get("documents")
-    default_breakpoint = bundle.get("defaultBreakpoint")
-    if not isinstance(dashboard_id, str) or not dashboard_id:
-        raise vol.Invalid("Responsive bundle requires an id.")
-    if not isinstance(documents, dict) or not documents:
-        raise vol.Invalid("Responsive canvas bundle requires at least one breakpoint document.")
-    if len(documents) > len(BREAKPOINTS):
-        raise vol.Invalid("Responsive canvas bundle contains too many breakpoint documents.")
-    if default_breakpoint not in BREAKPOINTS or default_breakpoint not in documents:
-        raise vol.Invalid("Responsive bundle defaultBreakpoint must reference a present document.")
-
-    total_items = 0
-    for breakpoint, document in documents.items():
-        if breakpoint not in BREAKPOINTS:
-            raise vol.Invalid(f"Unsupported responsive canvas breakpoint: {breakpoint}.")
-        if not isinstance(document, dict):
-            raise vol.Invalid(f"Responsive breakpoint {breakpoint} must contain a dashboard document.")
-        total_items += _validate_canvas_document(document, dashboard_id, breakpoint)
-        if total_items > RESPONSIVE_CANVAS_V2_MAX_ITEMS:
-            raise vol.Invalid(
-                f"Responsive canvas bundle may contain at most {RESPONSIVE_CANVAS_V2_MAX_ITEMS} items across all breakpoints."
-            )
-
     try:
-        serialized_bytes = len(json.dumps(bundle, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
-    except (TypeError, ValueError) as err:
-        raise vol.Invalid("Responsive canvas bundle must be JSON serializable.") from err
-    if serialized_bytes > RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES:
-        raise vol.Invalid(
-            f"Responsive canvas bundle exceeds the {RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES} byte storage limit."
-        )
-    return bundle
+        return validate_responsive_bundle(bundle)
+    except ResponsiveBundleValidationError as err:
+        raise vol.Invalid(str(err)) from err
 
 
 def _validate_revision_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
-    if envelope.get("parentRevision") == envelope.get("revision"):
-        raise vol.Invalid("Responsive revision cannot reference itself as parentRevision.")
-    return envelope
+    try:
+        return validate_responsive_revision_envelope(envelope)
+    except ResponsiveBundleValidationError as err:
+        raise vol.Invalid(str(err)) from err
 
 
 RESPONSIVE_BUNDLE = vol.All(
@@ -161,13 +103,9 @@ def _validate_stored_responsive_revision(
     expected_dashboard_id: str,
 ) -> dict[str, Any] | None:
     try:
-        envelope = RESPONSIVE_REVISION_ENVELOPE(value)
-    except (vol.Invalid, TypeError, ValueError):
+        return validate_responsive_revision_envelope(value, expected_dashboard_id)
+    except ResponsiveBundleValidationError:
         return None
-    document = envelope.get("document")
-    if not isinstance(document, dict) or document.get("id") != expected_dashboard_id:
-        return None
-    return envelope
 
 
 def _audit_blocked_persistence(
@@ -247,7 +185,11 @@ def register_responsive_commands(
         msg: dict[str, Any],
     ) -> None:
         dashboard_id = msg["dashboard_id"]
-        envelope = await storage.load_revision(dashboard_id)
+        try:
+            envelope = await storage.load_revision(dashboard_id)
+        except ValueError as err:
+            connection.send_error(msg["id"], "invalid_dashboard_id", str(err))
+            return
         if envelope is None:
             connection.send_result(msg["id"], None)
             return
@@ -292,7 +234,11 @@ def register_responsive_commands(
         if not _validate_candidate_lineage(connection, msg, envelope, expected_revision):
             return
 
-        remote = await storage.load_revision(dashboard_id)
+        try:
+            remote = await storage.load_revision(dashboard_id)
+        except ValueError as err:
+            connection.send_error(msg["id"], "invalid_dashboard_id", str(err))
+            return
         if remote is not None:
             validated_remote = _validate_stored_responsive_revision(remote, dashboard_id)
             if validated_remote is None:
@@ -366,7 +312,11 @@ def register_responsive_commands(
         if not _validate_candidate_lineage(connection, msg, envelope, expected_revision):
             return
 
-        saved, remote = await storage.save_revision(envelope, expected_revision)
+        try:
+            saved, remote = await storage.save_revision(envelope, expected_revision)
+        except ValueError as err:
+            connection.send_error(msg["id"], "invalid_responsive_revision", str(err))
+            return
         if saved:
             saved_envelope = _validate_stored_responsive_revision(remote, dashboard_id)
             if saved_envelope is None:
@@ -435,7 +385,11 @@ def register_responsive_commands(
             )
             return
 
-        removed, remote = await storage.remove_revision(dashboard_id, msg.get("expectedRevision"))
+        try:
+            removed, remote = await storage.remove_revision(dashboard_id, msg.get("expectedRevision"))
+        except ValueError as err:
+            connection.send_error(msg["id"], "invalid_responsive_revision", str(err))
+            return
         if removed:
             connection.send_result(msg["id"], {"status": "removed"})
             return
