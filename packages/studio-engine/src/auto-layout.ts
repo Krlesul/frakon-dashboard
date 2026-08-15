@@ -1,4 +1,4 @@
-export type AutoLayoutStrategy = 'priority-first' | 'balanced' | 'compact' | 'focus';
+export type AutoLayoutStrategy = 'priority-first' | 'comfortable' | 'balanced' | 'compact' | 'focus';
 
 export interface AutoLayoutItem {
   id: string;
@@ -29,7 +29,7 @@ export interface AutoLayoutProposal {
   items: AutoLayoutItem[];
 }
 
-const STRATEGIES: AutoLayoutStrategy[] = ['priority-first', 'balanced', 'compact', 'focus'];
+const STRATEGIES: AutoLayoutStrategy[] = ['priority-first', 'comfortable', 'compact', 'focus'];
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, Math.round(value)));
@@ -63,7 +63,7 @@ function preferredSize(
   if (strategy === 'compact') {
     width = Math.min(baseW, Math.max(minW, Math.ceil(columns / 4)));
     height = Math.min(baseH, Math.max(minH, 2));
-  } else if (strategy === 'balanced') {
+  } else if (strategy === 'comfortable' || strategy === 'balanced') {
     width = Math.max(baseW, Math.ceil(columns / 3));
     height = Math.max(baseH, 3);
   } else if (strategy === 'priority-first') {
@@ -129,12 +129,12 @@ export function orderAutoLayoutItems(items: AutoLayoutItem[], strategy: AutoLayo
     return priorityDelta || firstKey.localeCompare(secondKey);
   });
 
-  if (strategy !== 'balanced') {
+  if (strategy !== 'comfortable' && strategy !== 'balanced') {
     return orderedGroups.flatMap(([, group]) => group);
   }
 
-  // Balanced mode deliberately interleaves semantic groups. This prevents one
-  // large domain (for example sensors) from monopolising the first viewport.
+  // Comfortable mode deliberately interleaves semantic groups. This prevents
+  // one large domain (for example sensors) from monopolising the first viewport.
   const queues = orderedGroups.map(([, group]) => [...group]);
   const result: AutoLayoutItem[] = [];
   while (queues.some((queue) => queue.length > 0)) {
