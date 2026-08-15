@@ -2,15 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   generateAutoLayoutProposal,
   nextAutoLayoutProposal,
+  orderAutoLayoutItems,
   strategyForVariant,
   type AutoLayoutItem,
 } from './auto-layout';
 
 const items: AutoLayoutItem[] = [
-  { id: 'camera', x: 0, y: 0, w: 4, h: 3, priority: 95, preferredWidth: 5, preferredHeight: 4 },
-  { id: 'energy', x: 4, y: 0, w: 4, h: 3, priority: 80, preferredWidth: 5, preferredHeight: 4 },
-  { id: 'lights', x: 8, y: 0, w: 3, h: 2, priority: 50 },
-  { id: 'weather', x: 0, y: 3, w: 3, h: 2, priority: 20 },
+  { id: 'camera', x: 0, y: 0, w: 4, h: 3, priority: 95, semanticGroup: 'security', preferredWidth: 5, preferredHeight: 4 },
+  { id: 'energy', x: 4, y: 0, w: 4, h: 3, priority: 80, semanticGroup: 'energy', preferredWidth: 5, preferredHeight: 4 },
+  { id: 'lights', x: 8, y: 0, w: 3, h: 2, priority: 50, semanticGroup: 'lighting' },
+  { id: 'weather', x: 0, y: 3, w: 3, h: 2, priority: 20, semanticGroup: 'status' },
 ];
 
 function overlap(a: AutoLayoutItem, b: AutoLayoutItem): boolean {
@@ -21,6 +22,30 @@ describe('automatic layout proposals', () => {
   it('cycles through four distinct strategies', () => {
     expect([0, 1, 2, 3, 4].map(strategyForVariant)).toEqual([
       'priority-first', 'balanced', 'compact', 'focus', 'priority-first',
+    ]);
+  });
+
+  it('keeps semantic groups together in priority-oriented modes', () => {
+    const grouped: AutoLayoutItem[] = [
+      { id: 'security-high', x: 0, y: 0, w: 2, h: 2, priority: 100, semanticGroup: 'security' },
+      { id: 'security-low', x: 0, y: 0, w: 2, h: 2, priority: 60, semanticGroup: 'security' },
+      { id: 'energy-high', x: 0, y: 0, w: 2, h: 2, priority: 80, semanticGroup: 'energy' },
+      { id: 'energy-low', x: 0, y: 0, w: 2, h: 2, priority: 40, semanticGroup: 'energy' },
+    ];
+    expect(orderAutoLayoutItems(grouped, 'priority-first').map((item) => item.id)).toEqual([
+      'security-high', 'security-low', 'energy-high', 'energy-low',
+    ]);
+  });
+
+  it('interleaves semantic groups in balanced mode for fair first-screen representation', () => {
+    const grouped: AutoLayoutItem[] = [
+      { id: 'security-high', x: 0, y: 0, w: 2, h: 2, priority: 100, semanticGroup: 'security' },
+      { id: 'security-low', x: 0, y: 0, w: 2, h: 2, priority: 60, semanticGroup: 'security' },
+      { id: 'energy-high', x: 0, y: 0, w: 2, h: 2, priority: 80, semanticGroup: 'energy' },
+      { id: 'energy-low', x: 0, y: 0, w: 2, h: 2, priority: 40, semanticGroup: 'energy' },
+    ];
+    expect(orderAutoLayoutItems(grouped, 'balanced').map((item) => item.id)).toEqual([
+      'security-high', 'energy-high', 'security-low', 'energy-low',
     ]);
   });
 
