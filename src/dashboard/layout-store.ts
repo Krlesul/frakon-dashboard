@@ -1,7 +1,8 @@
 import { isDashboardDocumentV1 } from './dashboard-document-codec';
-import { findCollisions, normalizeDashboard, type FrakonDashboardDocument } from './layout-model';
+import type { FrakonDashboardDocument } from './layout-model';
 
 const STORAGE_PREFIX = 'frakon-dashboard:';
+const INVALID_DOCUMENT_MESSAGE = 'Invalid or non-canonical FRAKON dashboard document.';
 
 export interface DashboardStore {
   load(id: string): FrakonDashboardDocument | undefined;
@@ -16,7 +17,7 @@ export class LocalDashboardStore implements DashboardStore {
     try {
       const parsed: unknown = JSON.parse(raw);
       return isDashboardDocumentV1(parsed) && parsed.id === id
-        ? normalizeDashboard(parsed)
+        ? structuredClone(parsed)
         : undefined;
     } catch {
       return undefined;
@@ -24,7 +25,9 @@ export class LocalDashboardStore implements DashboardStore {
   }
 
   save(document: FrakonDashboardDocument): void {
-    globalThis.localStorage?.setItem(`${STORAGE_PREFIX}${document.id}`, JSON.stringify(normalizeDashboard(document)));
+    if (!isDashboardDocumentV1(document)) throw new Error(INVALID_DOCUMENT_MESSAGE);
+    const exact = structuredClone(document);
+    globalThis.localStorage?.setItem(`${STORAGE_PREFIX}${exact.id}`, JSON.stringify(exact));
   }
 
   remove(id: string): void {
@@ -33,7 +36,8 @@ export class LocalDashboardStore implements DashboardStore {
 }
 
 export function exportDashboard(document: FrakonDashboardDocument): string {
-  return JSON.stringify(normalizeDashboard(document), null, 2);
+  if (!isDashboardDocumentV1(document)) throw new Error(INVALID_DOCUMENT_MESSAGE);
+  return JSON.stringify(structuredClone(document), null, 2);
 }
 
 export function importDashboard(source: string): FrakonDashboardDocument {
@@ -46,10 +50,5 @@ export function importDashboard(source: string): FrakonDashboardDocument {
   if (!isDashboardDocumentV1(parsed)) {
     throw new Error('Invalid FRAKON dashboard payload.');
   }
-
-  const normalized = normalizeDashboard(parsed);
-  if (findCollisions(normalized.items).length > 0) {
-    throw new Error('Imported FRAKON dashboard contains overlapping items.');
-  }
-  return normalized;
+  return structuredClone(parsed);
 }
