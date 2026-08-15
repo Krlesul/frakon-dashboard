@@ -10,6 +10,24 @@ PACKAGE = ROOT / "package.json"
 manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 package = json.loads(PACKAGE.read_text(encoding="utf-8"))
 
+
+def source(relative: str) -> str:
+    path = ROOT / relative
+    if not path.is_file():
+        raise SystemExit(f"Home Assistant manifest contract failed; missing {relative}")
+    return path.read_text(encoding="utf-8")
+
+
+def require(relative: str, *markers: str) -> None:
+    text = source(relative)
+    missing = [marker for marker in markers if marker not in text]
+    if missing:
+        raise SystemExit(
+            f"Home Assistant manifest contract failed; {relative} is missing markers:\n- "
+            + "\n- ".join(repr(marker) for marker in missing)
+        )
+
+
 required = {
     "domain",
     "name",
@@ -45,5 +63,40 @@ if manifest.get("issue_tracker") != "https://github.com/Krlesul/frakon-dashboard
     raise SystemExit("FRAKON Dashboard manifest issue tracker URL is invalid")
 if manifest.get("codeowners") != ["@Krlesul"]:
     raise SystemExit("FRAKON Dashboard manifest codeowners are invalid")
+
+require(
+    "scripts/verify_hacs_release.py",
+    'manifest.get("integration_type") != "service"',
+    "Packaged manifest must declare integration_type=service",
+)
+require(
+    "scripts/verify_home_assistant_install.py",
+    'manifest.get("integration_type") != "service"',
+    'print("Home Assistant manifest contract: OK")',
+)
+require(
+    "scripts/verify_alpha_test_kit.py",
+    'ha_manifest.get("integration_type") != "service"',
+    "Home Assistant manifest contract: OK",
+)
+require(
+    "scripts/build_alpha_test_kit.py",
+    "Home Assistant manifest contract: OK",
+    "single-entry `service` integration",
+)
+require(
+    "docs/home-assistant-alpha-test.md",
+    "Home Assistant manifest contract: OK",
+    "single-entry `service` integration",
+)
+require(
+    "docs/home-assistant-alpha-test-report-template.md",
+    "Home Assistant manifest contract: OK",
+    "integration_type: service",
+)
+require(
+    ".github/workflows/ci.yml",
+    "python scripts/verify_manifest_contract.py",
+)
 
 print("Home Assistant manifest contract: OK")
