@@ -6,6 +6,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONST_PATH = ROOT / "custom_components/frakon_dashboard/const.py"
 WS_PATH = ROOT / "custom_components/frakon_dashboard/responsive_websocket.py"
+STORAGE_PATH = ROOT / "custom_components/frakon_dashboard/responsive_storage.py"
+BUNDLE_VALIDATOR_PATH = ROOT / "custom_components/frakon_dashboard/responsive_bundle_validation.py"
 ACTION_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-persistence-action-panel.ts"
 DRY_RUN_PROOF_PATH = ROOT / "src/dashboard/responsive-v2-dry-run-storage-proof.ts"
 SAVE_PANEL_PATH = ROOT / "src/dashboard/responsive-v2-save-panel.ts"
@@ -83,8 +85,39 @@ def main() -> None:
             "@websocket_api.require_admin",
             '"unsupported_responsive_write"',
             "if RESPONSIVE_CANVAS_V2_KIND not in WRITABLE_RESPONSIVE_BUNDLE_KINDS",
+            "_strict_contract_version",
+            "_strict_updated_at",
+            "validate_dashboard_document(",
+            "_validate_stored_responsive_revision",
+            "validated_remote = _validate_stored_responsive_revision(remote, dashboard_id)",
+            "remote_envelope = _validate_stored_responsive_revision(remote, dashboard_id)",
         ),
-        "Responsive backend write-lock guard",
+        "Responsive backend write-lock and validation guard",
+    )
+    if "vol.Coerce(int)" in source:
+        raise SystemExit("Responsive websocket must not coerce integer persistence metadata or contract versions.")
+
+    require_snippets(
+        STORAGE_PATH,
+        (
+            "validate_responsive_revision_envelope",
+            "validated = self._validated_envelope(value, key)",
+            'validated.get("parentRevision") != expected_revision',
+            "self._validate_expected_revision(expected_revision)",
+        ),
+        "Responsive Home Assistant Store validation boundary",
+    )
+    require_snippets(
+        BUNDLE_VALIDATOR_PATH,
+        (
+            "validate_dashboard_document(",
+            "validate_responsive_bundle",
+            "validate_responsive_revision_envelope",
+            "_has_enabled_constraint_cycle",
+            "_MAX_SAFE_INTEGER",
+            "Responsive breakpoint dashboard id must match the bundle id.",
+        ),
+        "Standalone responsive bundle validation contract",
     )
 
     tree = ast.parse(source, filename=str(WS_PATH))
@@ -171,6 +204,7 @@ def main() -> None:
 
     print(
         "Responsive alpha write lock verified: contract v1, empty write allowlist, admin guarded handlers, "
+        "strict non-coercing metadata, dashboard-id-bound stored/conflict revisions, canonical v2 bundle validation, "
         "non-mutating dry-run, before/after storage proof, exact-candidate validation receipt, conflict dry-run, "
         "post-save state bridge."
     )
