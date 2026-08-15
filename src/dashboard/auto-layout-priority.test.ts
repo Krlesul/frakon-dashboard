@@ -31,6 +31,18 @@ describe('scoreDashboardItemPriority', () => {
     expect(scored.reasons.join(' ')).toContain('manual priority');
   });
 
+  it('assigns explainable semantic groups and allows a manual group override', () => {
+    const camera = scoreDashboardItemPriority(item('custom:frakon-camera-card'));
+    expect(camera.semanticGroup).toBe('security');
+    expect(camera.reasons.join(' ')).toContain('semantic group security');
+
+    const overridden = scoreDashboardItemPriority(item('custom:frakon-camera-card', {
+      card: { type: 'custom:frakon-camera-card', layout_group: 'outdoor' },
+    }));
+    expect(overridden.semanticGroup).toBe('outdoor');
+    expect(overridden.reasons.join(' ')).toContain('manual layout group outdoor');
+  });
+
   it('explains preservation of locked cards', () => {
     const scored = scoreDashboardItemPriority(item('custom:frakon-card', { locked: true }));
     expect(scored.reasons.join(' ')).toContain('locked cards');
