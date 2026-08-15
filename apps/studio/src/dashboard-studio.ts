@@ -527,6 +527,7 @@ export class FrakonDashboardStudio extends LitElement {
     }, {
       minWidth: COLUMN_WIDTH,
       minHeight: document.rowHeight,
+      lockAspectRatio: event.shiftKey || event.altKey,
     });
     const byId = new Map(resized.map((item) => [item.id, item]));
     const candidate: FrakonDashboardDocument = {
@@ -585,6 +586,8 @@ export class FrakonDashboardStudio extends LitElement {
           <span
             class="resize-handle"
             data-handle=${handle}
+            title="Resize · hold Shift or Alt to preserve aspect ratio"
+            aria-label="Resize · hold Shift or Alt to preserve aspect ratio"
             @pointerdown=${(event: PointerEvent) => this.beginResize(event, handle)}
             @pointermove=${this.continueResize}
             @pointerup=${this.endResize}
