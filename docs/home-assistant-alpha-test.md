@@ -64,12 +64,15 @@ FRAKON Dashboard install self-check: OK
 The output must include the same source commit and the same frontend SHA-256 as `alpha-test-kit.json`. It must also report:
 
 ```text
+Home Assistant manifest contract: OK
 Home Assistant brand assets: OK
 Dashboard serialized-byte guard: OK
 Dashboard document validator: OK
 Responsive bundle validator: OK
 Czech config flow: OK
 ```
+
+`Home Assistant manifest contract: OK` proves the installed manifest still identifies FRAKON Dashboard as a single-entry `service` integration with the expected dependencies, documentation and issue-tracker identity.
 
 `Home Assistant brand assets: OK` proves the installed integration contains valid PNG assets at `brand/icon.png` (256×256) and `brand/icon@2x.png` (512×512), rather than merely relying on repository metadata.
 
@@ -80,15 +83,15 @@ The test-kit verifier has already proven the chain:
 ```text
 Alpha Test Kit manifest
 → integration ZIP SHA-256
-→ Home Assistant manifest + brand assets
+→ Home Assistant manifest contract + brand assets
 → document/byte-limit validators
 → build-info.json sourceCommit + frontendSha256
 → bundled frontend bytes
 ```
 
-The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/`, validating both installed brand PNGs and verifying that the installed normal and responsive validation boundaries are wired to the packaged validators.
+The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/`, validating the installed manifest, both brand PNGs and the installed normal/responsive validation boundaries.
 
-If any version, source commit, SHA-256, brand, byte-limit or validator marker differs, stop functional testing and correct installation/cache/resource state first.
+If any version, source commit, SHA-256, manifest, brand, byte-limit or validator marker differs, stop functional testing and correct installation/cache/resource state first.
 
 ## 3. Record the environment
 
@@ -284,7 +287,8 @@ Issue #11 can be closed only when:
 
 - the tested Alpha Test Kit came from a successful CI run for the tested commit
 - kit manifest, installed integration/frontend and runtime build identities match
-- install self-check passes with expected source commit + frontend SHA-256 + `Home Assistant brand assets: OK` + `Dashboard serialized-byte guard: OK` + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
+- install self-check passes with expected source commit + frontend SHA-256 + `Home Assistant manifest contract: OK` + `Home Assistant brand assets: OK` + `Dashboard serialized-byte guard: OK` + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
+- installed manifest still declares the intended single-entry `service` integration contract
 - packaged FRAKON brand assets have the required dimensions and the integration icon is visually checked where the Home Assistant version supports local custom-integration brand assets
 - the 2,000,000-byte persistence ceiling is verified at the exact boundary, one byte above it and with multibyte UTF-8 content without mutating stored state on rejection
 - mandatory stable Dashboard, Automatic Designer, Canvas v2, storage/conflict and responsive checks were executed
