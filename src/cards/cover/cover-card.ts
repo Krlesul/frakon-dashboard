@@ -23,6 +23,10 @@ export class FrakonCoverCard extends LitElement {
     this.config = { show_position: true, ...config };
   }
   getCardSize(): number { return 4; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-cover-card-editor'); }
+  static getStubConfig(): FrakonCoverCardConfig {
+    return { type: 'custom:frakon-cover-card', entity: 'cover.example', show_position: true };
+  }
   private call(service: string): void { if (this.hass && this.config) void this.hass.callService('cover', service, { entity_id: this.config.entity }); }
   render() {
     if (!this.hass || !this.config) return nothing;
