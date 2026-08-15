@@ -39,10 +39,6 @@ function isIntegerNumber(value: unknown): value is number {
   return isFiniteNumber(value) && Number.isInteger(value);
 }
 
-function isPositiveNumber(value: unknown): value is number {
-  return isFiniteNumber(value) && value > 0;
-}
-
 function isPositiveInteger(value: unknown): value is number {
   return isIntegerNumber(value) && value > 0;
 }
@@ -84,6 +80,14 @@ function isV1Item(value: unknown, columns: number): value is FrakonGridItem {
   if (isPositiveInteger(maxW) && maxW > columns) return false;
   if (isPositiveInteger(minW) && isPositiveInteger(maxW) && minW > maxW) return false;
   if (isPositiveInteger(minH) && isPositiveInteger(maxH) && minH > maxH) return false;
+
+  const effectiveMinW = isPositiveInteger(minW) ? minW : 1;
+  const effectiveMaxW = isPositiveInteger(maxW) ? maxW : columns;
+  const effectiveMinH = isPositiveInteger(minH) ? minH : 1;
+  const effectiveMaxH = isPositiveInteger(maxH) ? maxH : Math.max(effectiveMinH, 24);
+  if (value.w < effectiveMinW || value.w > effectiveMaxW) return false;
+  if (value.h < effectiveMinH || value.h > effectiveMaxH) return false;
+
   return optionalBoolean(value.locked) && optionalBoolean(value.hidden);
 }
 
@@ -121,7 +125,7 @@ export function isDashboardDocumentV1(value: unknown): value is FrakonDashboardD
 
   const columns = value.columns;
   if (!isPositiveInteger(columns)) return false;
-  if (!isPositiveInteger(value.rowHeight)) return false;
+  if (!isPositiveInteger(value.rowHeight) || value.rowHeight < 24) return false;
   if (!isIntegerNumber(value.gap) || value.gap < 0) return false;
   if (!Array.isArray(value.items) || value.items.length > MAX_ITEMS) return false;
   if (!value.items.every((item) => isV1Item(item, columns))) return false;
