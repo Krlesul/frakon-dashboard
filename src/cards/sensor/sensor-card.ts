@@ -11,6 +11,10 @@ export interface FrakonSensorCardConfig extends LovelaceCardConfig {
   compact?: boolean;
 }
 
+const DEFAULT_PRECISION = 1;
+const MIN_PRECISION = 0;
+const MAX_PRECISION = 6;
+
 @customElement('frakon-sensor-card')
 export class FrakonSensorCard extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
@@ -29,13 +33,17 @@ export class FrakonSensorCard extends LitElement {
 
   setConfig(config: FrakonSensorCardConfig): void {
     if (!config.entity) throw new Error('FRAKON Sensor Card requires an entity.');
-    this.config = { precision: 1, ...config };
+    const precision = config.precision ?? DEFAULT_PRECISION;
+    if (!Number.isInteger(precision) || precision < MIN_PRECISION || precision > MAX_PRECISION) {
+      throw new Error(`FRAKON Sensor Card precision must be an integer between ${MIN_PRECISION} and ${MAX_PRECISION}.`);
+    }
+    this.config = { ...config, precision };
   }
 
   getCardSize(): number { return this.config?.compact ? 2 : 3; }
-
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-sensor-card-editor'); }
   static getStubConfig(): FrakonSensorCardConfig {
-    return { type: 'custom:frakon-sensor-card', entity: 'sensor.example', precision: 1 };
+    return { type: 'custom:frakon-sensor-card', entity: 'sensor.example', precision: DEFAULT_PRECISION };
   }
 
   render() {
@@ -45,7 +53,7 @@ export class FrakonSensorCard extends LitElement {
     if (!entity) return html`<article class="card unavailable">${translate(language, 'entityMissing')}</article>`;
     const unavailable = ['unknown', 'unavailable'].includes(entity.state);
     const parsed = Number(entity.state);
-    const value = unavailable ? '—' : Number.isFinite(parsed) ? parsed.toFixed(this.config.precision ?? 1) : entity.state;
+    const value = unavailable ? '—' : Number.isFinite(parsed) ? parsed.toFixed(this.config.precision ?? DEFAULT_PRECISION) : entity.state;
     const unit = this.config.unit ?? String(entity.attributes.unit_of_measurement ?? '');
     const name = this.config.name ?? String(entity.attributes.friendly_name ?? this.config.entity);
     return html`<article class="card ${unavailable ? 'unavailable' : ''}"><div class="eyebrow">FRAKON SENSOR</div><div class="name">${name}</div><div class="value">${value}${unit ? html` <small>${unit}</small>` : nothing}</div><div class="meta">${unavailable ? translate(language, 'unavailable') : this.config.entity}</div></article>`;
