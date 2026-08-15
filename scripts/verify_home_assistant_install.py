@@ -161,7 +161,12 @@ def main() -> int:
         fail("websocket persistence schema must not coerce integer values")
 
     responsive_websocket_source = (integration / "responsive_websocket.py").read_text(encoding="utf-8")
-    for marker in ("_strict_contract_version", "_strict_updated_at", "validate_dashboard_document"):
+    for marker in (
+        "_strict_contract_version",
+        "_strict_updated_at",
+        "validate_responsive_bundle",
+        "validate_responsive_revision_envelope",
+    ):
         if marker not in responsive_websocket_source:
             fail(f"responsive WebSocket validation is missing marker {marker!r}")
     if "vol.Coerce(int)" in responsive_websocket_source:
