@@ -27,6 +27,10 @@ export class FrakonSwitchCard extends LitElement {
   }
 
   getCardSize(): number { return 3; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-switch-card-editor'); }
+  static getStubConfig(): FrakonSwitchCardConfig {
+    return { type: 'custom:frakon-switch-card', entity: 'switch.example', show_state: true };
+  }
 
   private toggle(state: string): void {
     if (!this.hass || !this.config) return;
