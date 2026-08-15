@@ -31,6 +31,10 @@ export class FrakonMediaPlayerCard extends LitElement {
   }
 
   getCardSize(): number { return 4; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-media-player-card-editor'); }
+  static getStubConfig(): FrakonMediaPlayerCardConfig {
+    return { type: 'custom:frakon-media-player-card', entity: 'media_player.example', show_volume: true };
+  }
 
   private async call(service: string, data: Record<string, unknown> = {}): Promise<void> {
     if (!this.hass || !this.config) return;
