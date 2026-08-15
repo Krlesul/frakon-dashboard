@@ -26,10 +26,31 @@ from .const import (
 from .document_validation import DashboardDocumentValidationError, validate_dashboard_document
 from .storage import FrakonDashboardStorage
 
+_MAX_SAFE_INTEGER = 9_007_199_254_740_991
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
 REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
 CLIENT_ID = vol.All(str, vol.Length(min=1, max=128))
 BREAKPOINTS = ("mobile", "tablet", "desktop", "wide")
+
+
+def _strict_integer(value: Any) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise vol.Invalid("value must be an integer")
+    return value
+
+
+def _strict_document_version(value: Any) -> int:
+    version = _strict_integer(value)
+    if version not in READABLE_DOCUMENT_VERSIONS:
+        raise vol.Invalid(f"unsupported dashboard document version: {version}")
+    return version
+
+
+def _strict_updated_at(value: Any) -> int:
+    timestamp = _strict_integer(value)
+    if timestamp < 0 or timestamp > _MAX_SAFE_INTEGER:
+        raise vol.Invalid("updatedAt must be a non-negative safe integer")
+    return timestamp
 
 
 def _validate_document_shape(document: dict[str, Any]) -> dict[str, Any]:
@@ -48,7 +69,7 @@ DASHBOARD_DOCUMENT = vol.All(
     vol.Schema(
         {
             vol.Required("id"): DASHBOARD_ID,
-            vol.Required("version"): vol.Coerce(int),
+            vol.Required("version"): _strict_document_version,
             vol.Required("items"): vol.All(list, vol.Length(max=RESPONSIVE_CANVAS_V2_MAX_ITEMS)),
         },
         extra=vol.ALLOW_EXTRA,
@@ -60,7 +81,7 @@ REVISION_ENVELOPE = vol.Schema(
         vol.Required("document"): DASHBOARD_DOCUMENT,
         vol.Required("revision"): REVISION_ID,
         vol.Optional("parentRevision"): vol.Any(None, REVISION_ID),
-        vol.Required("updatedAt"): vol.Coerce(int),
+        vol.Required("updatedAt"): _strict_updated_at,
         vol.Required("clientId"): CLIENT_ID,
     },
     extra=vol.ALLOW_EXTRA,
@@ -86,7 +107,10 @@ def _send_write_version_error(
 
 
 def _validate_stored_document(value: Any, expected_dashboard_id: str) -> dict[str, Any] | None:
-    if value is None:
+    if not isinstance(value, dict):
+        return None
+    version = value.get("version")
+    if not isinstance(version, int) or isinstance(version, bool):
         return None
     try:
         document = validate_dashboard_document(
@@ -120,7 +144,12 @@ def _validate_stored_revision(value: Any, expected_dashboard_id: str) -> dict[st
             return None
         if parent_revision == revision:
             return None
-    if not isinstance(updated_at, int) or isinstance(updated_at, bool) or updated_at < 0:
+    if (
+        not isinstance(updated_at, int)
+        or isinstance(updated_at, bool)
+        or updated_at < 0
+        or updated_at > _MAX_SAFE_INTEGER
+    ):
         return None
     if not isinstance(client_id, str) or not client_id or len(client_id) > 128:
         return None
@@ -208,7 +237,11 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         if not _document_write_enabled(document):
             _send_write_version_error(connection, msg["id"], document)
             return
-        await storage.save(document)
+        try:
+            await storage.save(document)
+        except ValueError as err:
+            connection.send_error(msg["id"], "invalid_document", str(err))
+            return
         connection.send_result(msg["id"], None)
 
     @websocket_api.require_admin
@@ -274,13 +307,6 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         if not _document_write_enabled(document):
             _send_write_version_error(connection, msg["id"], document)
             return
-        if envelope.get("updatedAt", -1) < 0:
-            connection.send_error(
-                msg["id"],
-                "invalid_revision",
-                "Revision updatedAt must be non-negative.",
-            )
-            return
         if envelope.get("parentRevision") != expected_revision:
             connection.send_error(
                 msg["id"],
@@ -295,7 +321,11 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
                 "A saved revision must differ from its parent revision.",
             )
             return
-        saved, remote = await storage.save_revision(envelope, expected_revision)
+        try:
+            saved, remote = await storage.save_revision(envelope, expected_revision)
+        except ValueError as err:
+            connection.send_error(msg["id"], "invalid_revision", str(err))
+            return
         if saved:
             saved_envelope = _validate_stored_revision(remote, document["id"])
             if saved_envelope is None:
@@ -320,6 +350,13 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
                 msg["id"],
                 "invalid_stored_revision",
                 "Stored remote FRAKON Dashboard revision failed validation.",
+            )
+            return
+        if remote_envelope["document"].get("version") != document.get("version"):
+            connection.send_error(
+                msg["id"],
+                "revision_version_conflict",
+                "Stored remote dashboard revision uses another document version.",
             )
             return
         connection.send_result(msg["id"], {"status": "conflict", "remote": remote_envelope})
