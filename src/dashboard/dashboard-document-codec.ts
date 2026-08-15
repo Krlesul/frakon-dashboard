@@ -35,16 +35,24 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function isIntegerNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && Number.isInteger(value);
+}
+
 function isPositiveNumber(value: unknown): value is number {
   return isFiniteNumber(value) && value > 0;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return isIntegerNumber(value) && value > 0;
 }
 
 function optionalFiniteNumber(value: unknown): boolean {
   return value === undefined || isFiniteNumber(value);
 }
 
-function optionalPositiveNumber(value: unknown): boolean {
-  return value === undefined || isPositiveNumber(value);
+function optionalPositiveInteger(value: unknown): boolean {
+  return value === undefined || isPositiveInteger(value);
 }
 
 function optionalBoolean(value: unknown): boolean {
@@ -59,22 +67,31 @@ function isV1Item(value: unknown, columns: number): value is FrakonGridItem {
   if (!isRecord(value)) return false;
   if (!isIdentifier(value.id, 128)) return false;
   if (!isRecord(value.card) || typeof value.card.type !== 'string' || value.card.type.length === 0) return false;
-  if (!isFiniteNumber(value.x) || value.x < 0) return false;
-  if (!isFiniteNumber(value.y) || value.y < 0) return false;
-  if (!isPositiveNumber(value.w) || !isPositiveNumber(value.h)) return false;
+  if (!isIntegerNumber(value.x) || value.x < 0) return false;
+  if (!isIntegerNumber(value.y) || value.y < 0) return false;
+  if (!isPositiveInteger(value.w) || !isPositiveInteger(value.h)) return false;
   if (value.x + value.w > columns) return false;
-  if (!optionalPositiveNumber(value.minW)
-    || !optionalPositiveNumber(value.minH)
-    || !optionalPositiveNumber(value.maxW)
-    || !optionalPositiveNumber(value.maxH)) return false;
+  if (!optionalPositiveInteger(value.minW)
+    || !optionalPositiveInteger(value.minH)
+    || !optionalPositiveInteger(value.maxW)
+    || !optionalPositiveInteger(value.maxH)) return false;
 
   const minW = value.minW;
   const minH = value.minH;
   const maxW = value.maxW;
   const maxH = value.maxH;
-  if (isPositiveNumber(minW) && isPositiveNumber(maxW) && minW > maxW) return false;
-  if (isPositiveNumber(minH) && isPositiveNumber(maxH) && minH > maxH) return false;
+  if (isPositiveInteger(minW) && minW > columns) return false;
+  if (isPositiveInteger(maxW) && maxW > columns) return false;
+  if (isPositiveInteger(minW) && isPositiveInteger(maxW) && minW > maxW) return false;
+  if (isPositiveInteger(minH) && isPositiveInteger(maxH) && minH > maxH) return false;
   return optionalBoolean(value.locked) && optionalBoolean(value.hidden);
+}
+
+function v1ItemsOverlap(first: FrakonGridItem, second: FrakonGridItem): boolean {
+  return first.x < second.x + second.w
+    && first.x + first.w > second.x
+    && first.y < second.y + second.h
+    && first.y + first.h > second.y;
 }
 
 function validConstraints(value: unknown, itemIds: Set<string>): boolean {
@@ -103,16 +120,22 @@ export function isDashboardDocumentV1(value: unknown): value is FrakonDashboardD
   if (typeof value.breakpoint !== 'string' || !BREAKPOINTS.has(value.breakpoint)) return false;
 
   const columns = value.columns;
-  if (!isPositiveNumber(columns)) return false;
-  if (!isPositiveNumber(value.rowHeight)) return false;
-  if (!isFiniteNumber(value.gap) || value.gap < 0) return false;
+  if (!isPositiveInteger(columns)) return false;
+  if (!isPositiveInteger(value.rowHeight)) return false;
+  if (!isIntegerNumber(value.gap) || value.gap < 0) return false;
   if (!Array.isArray(value.items) || value.items.length > MAX_ITEMS) return false;
   if (!value.items.every((item) => isV1Item(item, columns))) return false;
 
+  const items = value.items as FrakonGridItem[];
   const itemIds = new Set<string>();
-  for (const item of value.items) {
+  for (const item of items) {
     if (itemIds.has(item.id)) return false;
     itemIds.add(item.id);
+  }
+  for (let index = 0; index < items.length; index += 1) {
+    for (let other = index + 1; other < items.length; other += 1) {
+      if (v1ItemsOverlap(items[index], items[other])) return false;
+    }
   }
   return validConstraints(value.constraints, itemIds);
 }
