@@ -1,7 +1,8 @@
 import { isDashboardDocumentV1 } from './dashboard-document-codec';
-import { normalizeDashboard, type FrakonDashboardDocument } from './layout-model';
+import type { FrakonDashboardDocument } from './layout-model';
 
 const STORAGE_PREFIX = 'frakon-dashboard:';
+const INVALID_DOCUMENT_MESSAGE = 'Invalid or non-canonical FRAKON dashboard document.';
 
 export interface DashboardStorageAdapter {
   readonly kind: string;
@@ -14,6 +15,21 @@ export interface DashboardStorageTransport {
   request<T>(command: string, payload: Record<string, unknown>): Promise<T>;
 }
 
+function validatedDocument(
+  value: unknown,
+  expectedId?: string,
+): FrakonDashboardDocument | undefined {
+  if (!isDashboardDocumentV1(value)) return undefined;
+  if (expectedId !== undefined && value.id !== expectedId) return undefined;
+  return structuredClone(value);
+}
+
+function requireValidDocument(document: FrakonDashboardDocument): FrakonDashboardDocument {
+  const validated = validatedDocument(document);
+  if (!validated) throw new Error(INVALID_DOCUMENT_MESSAGE);
+  return validated;
+}
+
 export class LocalStorageDashboardAdapter implements DashboardStorageAdapter {
   readonly kind = 'local-storage';
 
@@ -23,17 +39,15 @@ export class LocalStorageDashboardAdapter implements DashboardStorageAdapter {
     const raw = this.storage?.getItem(`${STORAGE_PREFIX}${id}`);
     if (!raw) return undefined;
     try {
-      const parsed: unknown = JSON.parse(raw);
-      return isDashboardDocumentV1(parsed) && parsed.id === id
-        ? normalizeDashboard(parsed)
-        : undefined;
+      return validatedDocument(JSON.parse(raw) as unknown, id);
     } catch {
       return undefined;
     }
   }
 
   async save(document: FrakonDashboardDocument): Promise<void> {
-    this.storage?.setItem(`${STORAGE_PREFIX}${document.id}`, JSON.stringify(normalizeDashboard(document)));
+    const exact = requireValidDocument(document);
+    this.storage?.setItem(`${STORAGE_PREFIX}${exact.id}`, JSON.stringify(exact));
   }
 
   async remove(id: string): Promise<void> {
@@ -46,12 +60,12 @@ export class MemoryDashboardStorageAdapter implements DashboardStorageAdapter {
   private readonly documents = new Map<string, FrakonDashboardDocument>();
 
   async load(id: string): Promise<FrakonDashboardDocument | undefined> {
-    const document = this.documents.get(id);
-    return document ? structuredClone(document) : undefined;
+    return validatedDocument(this.documents.get(id), id);
   }
 
   async save(document: FrakonDashboardDocument): Promise<void> {
-    this.documents.set(document.id, structuredClone(normalizeDashboard(document)));
+    const exact = requireValidDocument(document);
+    this.documents.set(exact.id, exact);
   }
 
   async remove(id: string): Promise<void> {
@@ -69,13 +83,12 @@ export class RemoteDashboardStorageAdapter implements DashboardStorageAdapter {
 
   async load(id: string): Promise<FrakonDashboardDocument | undefined> {
     const document = await this.transport.request<unknown>(`${this.namespace}/load`, { dashboard_id: id });
-    return isDashboardDocumentV1(document) && document.id === id
-      ? normalizeDashboard(document)
-      : undefined;
+    return validatedDocument(document, id);
   }
 
   async save(document: FrakonDashboardDocument): Promise<void> {
-    await this.transport.request(`${this.namespace}/save`, { document: normalizeDashboard(document) });
+    const exact = requireValidDocument(document);
+    await this.transport.request(`${this.namespace}/save`, { document: exact });
   }
 
   async remove(id: string): Promise<void> {
