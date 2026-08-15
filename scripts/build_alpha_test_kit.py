@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -28,13 +29,18 @@ if missing:
 if not VERSION:
     raise SystemExit("package.json version is missing")
 
+integration_sha256 = sha256(FILES["frakon_dashboard.zip"].read_bytes()).hexdigest()
+frontend_sha256 = sha256(FILES["frakon-dashboard.js"].read_bytes()).hexdigest()
+
 manifest = {
     "format": 1,
     "product": "FRAKON Dashboard",
     "version": VERSION,
     "sourceCommit": SOURCE_COMMIT,
     "integrationArchive": "frakon_dashboard.zip",
+    "integrationSha256": integration_sha256,
     "frontendBundle": "frakon-dashboard.js",
+    "frontendSha256": frontend_sha256,
     "installPath": "/config/custom_components/frakon_dashboard",
     "frontendResource": f"/frakon-dashboard/frakon-dashboard.js?v={VERSION}",
     "testGuide": "home-assistant-alpha-test.md",
@@ -46,16 +52,20 @@ manifest = {
 readme = f"""FRAKON Dashboard {VERSION} — Home Assistant Alpha Test Kit
 
 Source commit: {SOURCE_COMMIT}
+Integration ZIP SHA-256: {integration_sha256}
+Frontend SHA-256: {frontend_sha256}
 
 1. Read alpha-migration.md when upgrading an older development install.
 2. Read home-assistant-alpha-test.md before installation.
-3. Extract frakon_dashboard.zip into the Home Assistant config directory.
-4. Restart Home Assistant and add the FRAKON Dashboard integration.
-5. From this test-kit directory run:
+3. Record source commit and both SHA-256 values in the report template.
+4. Extract frakon_dashboard.zip into the Home Assistant config directory.
+5. Restart Home Assistant and add the FRAKON Dashboard integration.
+6. From this test-kit directory run:
 
    python verify_home_assistant_install.py /path/to/home-assistant/config
 
-6. Record results in home-assistant-alpha-test-report-template.md.
+7. Confirm the self-check frontend SHA-256 equals the value above.
+8. Record results in home-assistant-alpha-test-report-template.md.
 
 Do not copy frakon-dashboard.js to /config/www for the current bundled integration model.
 The standalone JavaScript file is included only for artifact identity/debugging.
