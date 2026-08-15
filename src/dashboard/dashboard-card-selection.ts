@@ -26,8 +26,12 @@ export function dashboardPointerMoveSelection(
   item: FrakonGridItem,
   items: FrakonGridItem[],
 ): string[] {
-  if (item.locked) return [];
-  const available = new Set(items.filter((candidate) => !candidate.locked).map((candidate) => candidate.id));
+  if (item.locked || item.hidden) return [];
+  const available = new Set(
+    items
+      .filter((candidate) => !candidate.locked && !candidate.hidden)
+      .map((candidate) => candidate.id),
+  );
   if (!selection.ids.includes(item.id)) return [item.id];
   return selection.ids.filter((id) => available.has(id));
 }
