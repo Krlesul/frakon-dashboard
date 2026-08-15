@@ -64,6 +64,7 @@ The output must include the same source commit and the same frontend SHA-256 as 
 
 ```text
 Dashboard document validator: OK
+Responsive bundle validator: OK
 Czech config flow: OK
 ```
 
@@ -77,9 +78,9 @@ Alpha Test Kit manifest
 → bundled frontend bytes
 ```
 
-The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/`.
+The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/` and verifies that the installed normal and responsive validation boundaries are wired to the packaged validators.
 
-If any version, source commit or SHA-256 differs, stop functional testing and correct installation/cache/resource state first.
+If any version, source commit, SHA-256 or validator marker differs, stop functional testing and correct installation/cache/resource state first.
 
 ## 3. Record the environment
 
@@ -219,7 +220,10 @@ For stable v1 server-backed storage verify:
 - a one-sided layer reorder survives conflict merge
 - incompatible concurrent layer reorders surface an explicit `itemOrder` conflict
 - selecting Local/Remote for `itemOrder` changes only layer order, not item geometry
+- independently valid Local/Remote edits that would combine into an invalid/overlapping document surface an explicit conflict instead of a clean merge
 - malformed remote or revision payloads are rejected rather than silently normalized into corrupt state
+- a valid payload stored under/requested as another dashboard ID is rejected rather than substituted
+- explicit `constraints: null` is rejected; omitted `constraints` remains valid
 
 ## 9. Responsive server validation / write lock
 
@@ -231,9 +235,14 @@ Responsive Canvas v2 writes remain intentionally locked in this alpha. Verify:
 - Save Readiness reports `write-disabled`
 - normal responsive Save remains disabled
 - server Dry Run accepts a valid current-revision candidate without storage mutation
-- stale-base Dry Run reports conflict
+- malformed responsive candidates are rejected, including missing `card.type`, invalid `layout.snap`, invalid frame/min-max geometry, persisted `hidden`, dangling/invalid constraints and explicit `constraints: null`
+- `updatedAt` and `contractVersion` are strict integers: fractional, boolean and string values are rejected rather than coerced
+- revision timestamps outside the JavaScript safe-integer range are rejected
+- a responsive stored/conflict envelope whose bundle ID does not match the requested dashboard ID is rejected
+- enabled responsive constraint dependency cycles are rejected
+- stale-base Dry Run reports conflict only with a validated, ID-matched remote envelope
 - direct responsive Save and Remove are rejected with `unsupported_responsive_write`
-- responsive storage remains unchanged after rejected writes
+- responsive storage remains unchanged after rejected writes and Dry Run
 - Home Assistant logs contain sanitized audit metadata only
 
 Do not modify the writable-kind allowlist to make this section pass.
@@ -248,6 +257,7 @@ Review and record:
 - WebSocket errors
 - build/version/hash mismatch diagnostics
 - storage/revision/conflict errors
+- validation errors from the negative v1/v2 cases above
 - unexpected Home Assistant warnings/errors
 
 Attach screenshots/recordings for the stable dashboard, breakpoint matrix, Automatic Designer, Canvas v2, build identity/self-check and final console state.
@@ -260,8 +270,9 @@ Issue #11 can be closed only when:
 
 - the tested Alpha Test Kit came from a successful CI run for the tested commit
 - kit manifest, installed integration/frontend and runtime build identities match
-- install self-check passes with expected source commit + frontend SHA-256 + document validator
+- install self-check passes with expected source commit + frontend SHA-256 + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
 - mandatory stable Dashboard, Automatic Designer, Canvas v2, storage/conflict and responsive checks were executed
+- strict non-coercing normal/responsive validation boundaries passed the required negative cases
 - responsive write lock remained intact
 - browser console and Home Assistant logs were reviewed
 - required screenshots/evidence were recorded
