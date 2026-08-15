@@ -311,6 +311,10 @@ def validate_dashboard_document(
     version = document.get("version")
     if not isinstance(version, int) or isinstance(version, bool) or version not in readable_versions:
         raise DashboardDocumentValidationError(f"Unsupported dashboard document version: {version}.")
+    if "constraints" in document and document["constraints"] is None:
+        raise DashboardDocumentValidationError(
+            "constraints must be omitted or provided as a list; explicit null is not valid."
+        )
     if version == 1:
         _validate_v1(document, max_items, max_constraints)
     elif version == 2:
