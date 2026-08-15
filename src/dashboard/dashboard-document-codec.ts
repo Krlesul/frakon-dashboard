@@ -58,7 +58,7 @@ function isIdentifier(value: unknown, maxLength: number): value is string {
 function isV1Item(value: unknown, columns: number): value is FrakonGridItem {
   if (!isRecord(value)) return false;
   if (!isIdentifier(value.id, 128)) return false;
-  if (!isRecord(value.card) || !isIdentifier(value.card.type, Number.MAX_SAFE_INTEGER)) return false;
+  if (!isRecord(value.card) || typeof value.card.type !== 'string' || value.card.type.length === 0) return false;
   if (!isFiniteNumber(value.x) || value.x < 0) return false;
   if (!isFiniteNumber(value.y) || value.y < 0) return false;
   if (!isPositiveNumber(value.w) || !isPositiveNumber(value.h)) return false;
@@ -67,8 +67,13 @@ function isV1Item(value: unknown, columns: number): value is FrakonGridItem {
     || !optionalPositiveNumber(value.minH)
     || !optionalPositiveNumber(value.maxW)
     || !optionalPositiveNumber(value.maxH)) return false;
-  if (isPositiveNumber(value.minW) && isPositiveNumber(value.maxW) && value.minW > value.maxW) return false;
-  if (isPositiveNumber(value.minH) && isPositiveNumber(value.maxH) && value.minH > value.maxH) return false;
+
+  const minW = value.minW;
+  const minH = value.minH;
+  const maxW = value.maxW;
+  const maxH = value.maxH;
+  if (isPositiveNumber(minW) && isPositiveNumber(maxW) && minW > maxW) return false;
+  if (isPositiveNumber(minH) && isPositiveNumber(maxH) && minH > maxH) return false;
   return optionalBoolean(value.locked) && optionalBoolean(value.hidden);
 }
 
@@ -96,11 +101,13 @@ export function isDashboardDocumentV1(value: unknown): value is FrakonDashboardD
   if (!isIdentifier(value.id, 128)) return false;
   if (typeof value.title !== 'string') return false;
   if (typeof value.breakpoint !== 'string' || !BREAKPOINTS.has(value.breakpoint)) return false;
-  if (!isPositiveNumber(value.columns)) return false;
+
+  const columns = value.columns;
+  if (!isPositiveNumber(columns)) return false;
   if (!isPositiveNumber(value.rowHeight)) return false;
   if (!isFiniteNumber(value.gap) || value.gap < 0) return false;
   if (!Array.isArray(value.items) || value.items.length > MAX_ITEMS) return false;
-  if (!value.items.every((item) => isV1Item(item, value.columns as number))) return false;
+  if (!value.items.every((item) => isV1Item(item, columns))) return false;
 
   const itemIds = new Set<string>();
   for (const item of value.items) {
