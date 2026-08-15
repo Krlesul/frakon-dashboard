@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,7 @@ required = {
     f"{PREFIX}build_websocket.py",
     f"{PREFIX}config_flow.py",
     f"{PREFIX}const.py",
+    f"{PREFIX}document_validation.py",
     f"{PREFIX}frontend.py",
     f"{PREFIX}frontend/frakon-dashboard.js",
     f"{PREFIX}manifest.json",
@@ -80,6 +82,18 @@ with ZipFile(ZIP_PATH) as archive:
     frontend = archive.read(f"{PREFIX}frontend/frakon-dashboard.js")
     if len(frontend) < 10_000:
         raise SystemExit(f"Packaged frontend bundle is unexpectedly small: {len(frontend)} bytes")
+    frontend_digest = sha256(frontend).hexdigest()
+    if build_info.get("frontendSha256") != frontend_digest:
+        raise SystemExit(
+            "Packaged build-info.json frontendSha256 does not match packaged frontend bytes"
+        )
+    if frontend != (ROOT / "dist" / "frakon-dashboard.js").read_bytes():
+        raise SystemExit("Packaged frontend differs from dist/frakon-dashboard.js")
+
+    validator_source = archive.read(f"{PREFIX}document_validation.py")
+    if b"validate_dashboard_document" not in validator_source:
+        raise SystemExit("Packaged document validator is missing validate_dashboard_document")
+
     missing_markers = sorted(marker.decode() for marker in required_frontend_markers if marker not in frontend)
     if missing_markers:
         raise SystemExit("Packaged frontend is missing FRAKON card registrations:\n- " + "\n- ".join(missing_markers))
