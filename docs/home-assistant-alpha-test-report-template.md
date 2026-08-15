@@ -28,6 +28,7 @@ Identity gate:
 - ☐ Installed `brand/icon.png` verified as 256×256 PNG
 - ☐ Installed `brand/icon@2x.png` verified as 512×512 PNG
 - ☐ FRAKON integration icon visually checked where the HA version supports local custom-integration brand assets
+- ☐ `Dashboard serialized-byte guard: OK` reported
 - ☐ `Dashboard document validator: OK` reported
 - ☐ `Responsive bundle validator: OK` reported
 - ☐ Runtime build badge identifies the same build
@@ -66,6 +67,7 @@ If any identity item differs, stop functional testing and fix installation/cache
 - ☐ Install self-check reports `OK`
 - ☐ Self-check frontend SHA-256 matches kit manifest
 - ☐ Home Assistant brand assets report `OK`
+- ☐ Dashboard serialized-byte guard reports `OK`
 - ☐ Dashboard document validator reports `OK`
 - ☐ Responsive bundle validator reports `OK`
 - ☐ Runtime build badge matches package identity
@@ -188,6 +190,11 @@ Evidence / notes:
 - ☐ Malformed revision/conflict envelope is rejected
 - ☐ Wrong-dashboard document/revision substitution is rejected
 - ☐ Explicit `constraints: null` is rejected while omitted `constraints` remains valid
+- ☐ Valid controlled payload at exactly **2,000,000 UTF-8 JSON bytes** is accepted
+- ☐ Same payload at **2,000,001 bytes** is rejected without storage mutation
+- ☐ Multibyte UTF-8 payload below 2,000,000 characters but above **2,000,000 bytes** is rejected
+
+Byte-limit response / stored-revision evidence:
 
 Evidence / notes:
 
@@ -207,6 +214,7 @@ Evidence / notes:
 - ☐ Dangling/invalid responsive constraint is rejected
 - ☐ Explicit responsive `constraints: null` is rejected
 - ☐ Enabled responsive constraint dependency cycle is rejected
+- ☐ Responsive bundle/document above **2,000,000 UTF-8 JSON bytes** is rejected without mutation
 - ☐ Fractional `contractVersion` is rejected rather than coerced
 - ☐ Boolean/string `contractVersion` is rejected rather than coerced
 - ☐ Fractional `updatedAt` is rejected rather than coerced
@@ -250,6 +258,7 @@ Relevant log excerpts / timestamps:
 | Canvas v2 | | |
 | Build badge | | |
 | Install self-check identity | | |
+| 2,000,000-byte boundary | | Exact byte-limit acceptance/rejection evidence |
 | Responsive validation/write lock | | |
 | Console | | |
 
@@ -267,6 +276,7 @@ For every reproducible defect create a separate GitHub issue with reproduction s
 - ☐ Alpha Test Kit / installed frontend / runtime identities match
 - ☐ Home Assistant brand asset dimensions/self-check passed
 - ☐ FRAKON integration icon visually checked where supported
+- ☐ Dashboard serialized-byte guard identity/exact-boundary/UTF-8 cases passed
 - ☐ Dashboard document validator identity/negative cases passed
 - ☐ Responsive bundle validator identity/negative cases passed
 - ☐ Strict non-coercing persistence metadata checks passed
