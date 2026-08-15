@@ -5,10 +5,10 @@ FRAKON Dashboard Studio can generate multiple deterministic, collision-free layo
 ## Product strategies
 
 - `priority-first` — important cards receive more space and are placed earlier.
-- `comfortable` — regular visual breathing room with fair representation across semantic groups.
+- `balanced` — regular visual weight with fair representation across semantic groups.
 - `compact` — cards are reduced toward their minimum useful size.
 - `focus` — the highest-priority card becomes a hero card.
-- `balanced` remains accepted as a compatibility alias for the previous comfortable behavior, but new proposal cycles use `comfortable`.
+- `comfortable` is accepted as a compatibility alias for balanced sizing/group fairness, while the canonical proposal cycle uses `balanced`.
 
 Every click on **Next proposal** advances the variant index. The strategy cycles and, after a full cycle, the ordering rotates to provide another valid composition.
 
@@ -30,7 +30,7 @@ layout_group: outdoor
 
 Studio exposes both values in **Automatic Designer** when exactly one card is selected. Clearing either field restores automatic scoring/grouping.
 
-Priority-oriented modes keep related semantic groups together. Comfortable mode deliberately interleaves groups so a large domain such as sensors cannot monopolise the first screen.
+Priority-oriented modes keep related semantic groups together. Balanced mode deliberately interleaves groups so a large domain such as sensors cannot monopolise the first screen.
 
 Locked cards keep their exact position and size. Hidden cards are also treated as fixed geometry in the canonical layout, so revealing a previously hidden card cannot expose a layout that auto-layout silently invalidated.
 
