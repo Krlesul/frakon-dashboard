@@ -11,7 +11,7 @@ export interface FrakonCameraCardConfig extends LovelaceCardConfig {
 }
 
 const DEFAULT_ASPECT_RATIO = '16 / 9';
-const ALLOWED_ASPECT_RATIOS = new Set(['16 / 9', '4 / 3', '1 / 1', '21 / 9']);
+const SAFE_ASPECT_RATIO_RE = /^\s*(?:\d+(?:\.\d+)?)(?:\s*\/\s*(?:\d+(?:\.\d+)?))?\s*$/;
 
 @customElement('frakon-camera-card')
 export class FrakonCameraCard extends LitElement {
@@ -31,8 +31,14 @@ export class FrakonCameraCard extends LitElement {
 
   setConfig(config: FrakonCameraCardConfig): void {
     if (!config.entity?.startsWith('camera.')) throw new Error('FRAKON Camera Card requires a camera entity.');
-    const aspectRatio = config.aspect_ratio ?? DEFAULT_ASPECT_RATIO;
-    if (!ALLOWED_ASPECT_RATIOS.has(aspectRatio)) throw new Error('FRAKON Camera Card aspect_ratio is not supported.');
+    const aspectRatio = (config.aspect_ratio ?? DEFAULT_ASPECT_RATIO).trim();
+    if (!SAFE_ASPECT_RATIO_RE.test(aspectRatio)) {
+      throw new Error('FRAKON Camera Card aspect_ratio must be a positive numeric ratio such as 16 / 9.');
+    }
+    const parts = aspectRatio.split('/').map((value) => Number(value.trim()));
+    if (parts.some((value) => !Number.isFinite(value) || value <= 0)) {
+      throw new Error('FRAKON Camera Card aspect_ratio values must be greater than zero.');
+    }
     this.config = { ...config, aspect_ratio: aspectRatio, show_state: config.show_state ?? true };
   }
 
