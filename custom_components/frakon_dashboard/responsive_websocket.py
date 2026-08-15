@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 from typing import Any
 
 import voluptuous as vol
@@ -23,77 +22,63 @@ from .const import (
     RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
     WRITABLE_RESPONSIVE_BUNDLE_KINDS,
 )
+from .document_validation import DashboardDocumentValidationError, validate_dashboard_document
 from .responsive_constraint_validation import validate_responsive_constraints
 from .responsive_storage import FrakonResponsiveDashboardStorage
 
 _LOGGER = logging.getLogger(__name__)
+_MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
 DASHBOARD_ID = vol.All(str, vol.Length(min=1, max=128))
 REVISION_ID = vol.All(str, vol.Length(min=1, max=256))
 CLIENT_ID = vol.All(str, vol.Length(min=1, max=128))
-UPDATED_AT = vol.All(vol.Coerce(int), vol.Range(min=0))
 BREAKPOINTS = ("mobile", "tablet", "desktop", "wide")
 EXPECTED_REVISION = vol.Any(None, REVISION_ID)
 
 
-def _finite_number(value: Any, *, name: str, positive: bool = False, non_negative: bool = False) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
-        raise vol.Invalid(f"{name} must be a finite number.")
-    number = float(value)
-    if positive and number <= 0:
-        raise vol.Invalid(f"{name} must be positive.")
-    if non_negative and number < 0:
-        raise vol.Invalid(f"{name} must be non-negative.")
-    return number
+def _strict_integer(value: Any) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise vol.Invalid("value must be an integer")
+    return value
 
 
-def _validate_frame(frame: Any, *, item_id: str) -> None:
-    if not isinstance(frame, dict):
-        raise vol.Invalid(f"Responsive item {item_id} requires a frame object.")
-    _finite_number(frame.get("x"), name=f"Responsive item {item_id} frame.x", non_negative=True)
-    _finite_number(frame.get("y"), name=f"Responsive item {item_id} frame.y", non_negative=True)
-    _finite_number(frame.get("width"), name=f"Responsive item {item_id} frame.width", positive=True)
-    _finite_number(frame.get("height"), name=f"Responsive item {item_id} frame.height", positive=True)
+def _strict_updated_at(value: Any) -> int:
+    timestamp = _strict_integer(value)
+    if timestamp < 0 or timestamp > _MAX_SAFE_INTEGER:
+        raise vol.Invalid("updatedAt must be a non-negative safe integer")
+    return timestamp
+
+
+def _strict_contract_version(value: Any) -> int:
+    contract_version = _strict_integer(value)
+    if contract_version < 0 or contract_version > _MAX_SAFE_INTEGER:
+        raise vol.Invalid("contractVersion must be a non-negative safe integer")
+    return contract_version
 
 
 def _validate_canvas_document(document: dict[str, Any], dashboard_id: str, breakpoint: str) -> int:
-    if document.get("version") != 2:
-        raise vol.Invalid("Responsive canvas bundles only accept dashboard document version 2.")
-    if document.get("id") != dashboard_id:
+    try:
+        validated = validate_dashboard_document(
+            document,
+            {2},
+            max_items=RESPONSIVE_CANVAS_V2_MAX_ITEMS,
+            max_constraints=RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+        )
+    except DashboardDocumentValidationError as err:
+        raise vol.Invalid(str(err)) from err
+
+    if validated.get("id") != dashboard_id:
         raise vol.Invalid("Responsive breakpoint dashboard id must match the bundle id.")
-    if document.get("breakpoint") != breakpoint:
+    if validated.get("breakpoint") != breakpoint:
         raise vol.Invalid("Responsive breakpoint document.breakpoint must match its bundle key.")
 
-    items = document.get("items")
-    if not isinstance(items, list) or len(items) > RESPONSIVE_CANVAS_V2_MAX_ITEMS:
-        raise vol.Invalid(
-            f"Responsive breakpoint items must be a list with at most {RESPONSIVE_CANVAS_V2_MAX_ITEMS} entries."
-        )
-    seen_ids: set[str] = set()
-    for item in items:
-        if not isinstance(item, dict):
-            raise vol.Invalid(f"Responsive breakpoint {breakpoint} items must be objects.")
-        item_id = item.get("id")
-        if not isinstance(item_id, str) or not item_id:
-            raise vol.Invalid(f"Responsive breakpoint {breakpoint} item requires a non-empty id.")
-        if item_id in seen_ids:
-            raise vol.Invalid(f"Responsive breakpoint {breakpoint} contains duplicate item id {item_id}.")
-        seen_ids.add(item_id)
-        _validate_frame(item.get("frame"), item_id=item_id)
-
+    items = validated["items"]
     validate_responsive_constraints(
-        document.get("constraints", []),
-        item_ids=seen_ids,
+        validated.get("constraints", []),
+        item_ids={item["id"] for item in items},
         breakpoint=breakpoint,
         max_constraints=RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
     )
-
-    layout = document.get("layout")
-    if not isinstance(layout, dict) or layout.get("mode") != "canvas":
-        raise vol.Invalid("Responsive breakpoint requires layout.mode=canvas.")
-    _finite_number(layout.get("width"), name="Responsive breakpoint layout.width", positive=True)
-    _finite_number(layout.get("minHeight"), name="Responsive breakpoint layout.minHeight", positive=True)
-
     return len(items)
 
 
@@ -142,6 +127,49 @@ def _validate_revision_envelope(envelope: dict[str, Any]) -> dict[str, Any]:
     return envelope
 
 
+RESPONSIVE_BUNDLE = vol.All(
+    vol.Schema(
+        {
+            vol.Required("kind"): vol.In(READABLE_RESPONSIVE_BUNDLE_KINDS),
+            vol.Required("id"): DASHBOARD_ID,
+            vol.Required("title"): vol.All(str, vol.Length(max=256)),
+            vol.Required("defaultBreakpoint"): vol.In(BREAKPOINTS),
+            vol.Required("documents"): dict,
+        },
+        extra=vol.ALLOW_EXTRA,
+    ),
+    _validate_bundle,
+)
+
+RESPONSIVE_REVISION_ENVELOPE = vol.All(
+    vol.Schema(
+        {
+            vol.Required("document"): RESPONSIVE_BUNDLE,
+            vol.Required("revision"): REVISION_ID,
+            vol.Optional("parentRevision"): vol.Any(None, REVISION_ID),
+            vol.Required("updatedAt"): _strict_updated_at,
+            vol.Required("clientId"): CLIENT_ID,
+        },
+        extra=vol.ALLOW_EXTRA,
+    ),
+    _validate_revision_envelope,
+)
+
+
+def _validate_stored_responsive_revision(
+    value: Any,
+    expected_dashboard_id: str,
+) -> dict[str, Any] | None:
+    try:
+        envelope = RESPONSIVE_REVISION_ENVELOPE(value)
+    except (vol.Invalid, TypeError, ValueError):
+        return None
+    document = envelope.get("document")
+    if not isinstance(document, dict) or document.get("id") != expected_dashboard_id:
+        return None
+    return envelope
+
+
 def _audit_blocked_persistence(
     *,
     operation: str,
@@ -177,35 +205,6 @@ def _send_write_disabled(
         "unsupported_responsive_write",
         f"Responsive dashboard bundle kind {RESPONSIVE_CANVAS_V2_KIND} is readable but not enabled for server-side writes.",
     )
-
-
-RESPONSIVE_BUNDLE = vol.All(
-    vol.Schema(
-        {
-            vol.Required("kind"): vol.In(READABLE_RESPONSIVE_BUNDLE_KINDS),
-            vol.Required("id"): DASHBOARD_ID,
-            vol.Required("title"): vol.All(str, vol.Length(max=256)),
-            vol.Required("defaultBreakpoint"): vol.In(BREAKPOINTS),
-            vol.Required("documents"): dict,
-        },
-        extra=vol.ALLOW_EXTRA,
-    ),
-    _validate_bundle,
-)
-
-RESPONSIVE_REVISION_ENVELOPE = vol.All(
-    vol.Schema(
-        {
-            vol.Required("document"): RESPONSIVE_BUNDLE,
-            vol.Required("revision"): REVISION_ID,
-            vol.Optional("parentRevision"): vol.Any(None, REVISION_ID),
-            vol.Required("updatedAt"): UPDATED_AT,
-            vol.Required("clientId"): CLIENT_ID,
-        },
-        extra=vol.ALLOW_EXTRA,
-    ),
-    _validate_revision_envelope,
-)
 
 
 def _validate_candidate_lineage(
@@ -247,14 +246,18 @@ def register_responsive_commands(
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        envelope = await storage.load_revision(msg["dashboard_id"])
+        dashboard_id = msg["dashboard_id"]
+        envelope = await storage.load_revision(dashboard_id)
         if envelope is None:
             connection.send_result(msg["id"], None)
             return
-        try:
-            validated = RESPONSIVE_REVISION_ENVELOPE(envelope)
-        except vol.Invalid as err:
-            connection.send_error(msg["id"], "invalid_responsive_bundle", str(err))
+        validated = _validate_stored_responsive_revision(envelope, dashboard_id)
+        if validated is None:
+            connection.send_error(
+                msg["id"],
+                "invalid_responsive_bundle",
+                "Stored FRAKON responsive dashboard revision failed validation.",
+            )
             return
         connection.send_result(msg["id"], validated)
 
@@ -263,7 +266,7 @@ def register_responsive_commands(
     @websocket_api.websocket_command(
         {
             vol.Required("type"): RESPONSIVE_CANVAS_V2_DRY_RUN_ENDPOINT,
-            vol.Required("contractVersion"): vol.Coerce(int),
+            vol.Required("contractVersion"): _strict_contract_version,
             vol.Required("envelope"): RESPONSIVE_REVISION_ENVELOPE,
             vol.Optional("expectedRevision", default=None): EXPECTED_REVISION,
         }
@@ -290,6 +293,16 @@ def register_responsive_commands(
             return
 
         remote = await storage.load_revision(dashboard_id)
+        if remote is not None:
+            validated_remote = _validate_stored_responsive_revision(remote, dashboard_id)
+            if validated_remote is None:
+                connection.send_error(
+                    msg["id"],
+                    "invalid_stored_revision",
+                    "Stored FRAKON responsive dashboard revision failed validation.",
+                )
+                return
+            remote = validated_remote
         remote_revision = remote.get("revision") if remote else None
         if remote_revision != expected_revision:
             connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
@@ -309,7 +322,7 @@ def register_responsive_commands(
     @websocket_api.websocket_command(
         {
             vol.Required("type"): RESPONSIVE_CANVAS_V2_SAVE_ENDPOINT,
-            vol.Required("contractVersion"): vol.Coerce(int),
+            vol.Required("contractVersion"): _strict_contract_version,
             vol.Required("envelope"): RESPONSIVE_REVISION_ENVELOPE,
             vol.Optional("expectedRevision", default=None): EXPECTED_REVISION,
         }
@@ -355,7 +368,15 @@ def register_responsive_commands(
 
         saved, remote = await storage.save_revision(envelope, expected_revision)
         if saved:
-            connection.send_result(msg["id"], {"status": "saved", "envelope": remote})
+            saved_envelope = _validate_stored_responsive_revision(remote, dashboard_id)
+            if saved_envelope is None:
+                connection.send_error(
+                    msg["id"],
+                    "invalid_saved_revision",
+                    "Saved FRAKON responsive dashboard revision failed validation.",
+                )
+                return
+            connection.send_result(msg["id"], {"status": "saved", "envelope": saved_envelope})
             return
         if not remote:
             connection.send_error(
@@ -364,14 +385,22 @@ def register_responsive_commands(
                 "Responsive dashboard was removed while this client held an older revision.",
             )
             return
-        connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
+        remote_envelope = _validate_stored_responsive_revision(remote, dashboard_id)
+        if remote_envelope is None:
+            connection.send_error(
+                msg["id"],
+                "invalid_stored_revision",
+                "Stored remote FRAKON responsive dashboard revision failed validation.",
+            )
+            return
+        connection.send_result(msg["id"], {"status": "conflict", "remote": remote_envelope})
 
     @websocket_api.require_admin
     @websocket_api.async_response
     @websocket_api.websocket_command(
         {
             vol.Required("type"): RESPONSIVE_CANVAS_V2_REMOVE_ENDPOINT,
-            vol.Required("contractVersion"): vol.Coerce(int),
+            vol.Required("contractVersion"): _strict_contract_version,
             vol.Required("dashboard_id"): DASHBOARD_ID,
             vol.Optional("expectedRevision", default=None): EXPECTED_REVISION,
         }
@@ -410,7 +439,15 @@ def register_responsive_commands(
         if removed:
             connection.send_result(msg["id"], {"status": "removed"})
             return
-        connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
+        remote_envelope = _validate_stored_responsive_revision(remote, dashboard_id)
+        if remote_envelope is None:
+            connection.send_error(
+                msg["id"],
+                "invalid_stored_revision",
+                "Stored FRAKON responsive dashboard revision failed validation.",
+            )
+            return
+        connection.send_result(msg["id"], {"status": "conflict", "remote": remote_envelope})
 
     websocket_api.async_register_command(hass, handle_load_responsive_revision)
     websocket_api.async_register_command(hass, handle_dry_run_responsive_revision)
