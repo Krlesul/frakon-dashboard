@@ -29,6 +29,10 @@ import {
 import { resolveDashboardSurfaces, resolveGridItemSurface } from '../../../src/dashboard/surface-style-resolver';
 import type { FrakonConstraintDocumentChangedDetail } from './constraint-inspector';
 import type {
+  FrakonLayersDocumentChangedDetail,
+  FrakonLayersSelectionChangedDetail,
+} from './layers-panel';
+import type {
   FrakonStudioSelectionChangedDetail,
   FrakonStudioViewportChangedDetail,
 } from './studio-canvas';
@@ -36,6 +40,7 @@ import type { FrakonStudioDocumentChangedDetail } from './surface-inspector';
 import './constraint-inspector';
 import './constraint-preview-bridge';
 import './guideline-overlay';
+import './layers-panel';
 import './studio-canvas';
 import './surface-inspector';
 
@@ -243,11 +248,22 @@ export class FrakonDashboardStudio extends LitElement {
     this.emitChanged();
   }
 
+  private onLayersSelectionChanged(event: CustomEvent<FrakonLayersSelectionChangedDetail>): void {
+    if (this.resizing || this.moving) return;
+    this.selection = event.detail.selection;
+    this.emitChanged();
+  }
+
   private onViewportChanged(event: CustomEvent<FrakonStudioViewportChangedDetail>): void {
     this.viewportZoom = event.detail.viewport.zoom;
   }
 
   private onDocumentChanged(event: CustomEvent<FrakonStudioDocumentChangedDetail>): void {
+    this.document = event.detail.document;
+    this.emitChanged();
+  }
+
+  private onLayersDocumentChanged(event: CustomEvent<FrakonLayersDocumentChangedDetail>): void {
     this.document = event.detail.document;
     this.emitChanged();
   }
@@ -352,7 +368,7 @@ export class FrakonDashboardStudio extends LitElement {
       y: item.y * document.rowHeight,
       width: item.w * COLUMN_WIDTH - document.gap,
       height: item.h * document.rowHeight - document.gap,
-      locked: item.locked,
+      locked: item.locked || item.hidden,
     };
   }
 
@@ -362,19 +378,32 @@ export class FrakonDashboardStudio extends LitElement {
 
   private selectedTransforms(document: FrakonDashboardDocument): GroupTransformItem[] {
     const ids = new Set(this.selection.ids);
-    return document.items.filter((item) => ids.has(item.id)).map((item) => this.itemToTransform(item, document));
+    return document.items
+      .filter((item) => ids.has(item.id) && !item.hidden)
+      .map((item) => this.itemToTransform(item, document));
+  }
+
+  private movableSelectionForPointer(item: FrakonGridItem): string[] {
+    if (!this.document || item.hidden || item.locked) return [];
+    if (!this.selection.ids.includes(item.id)) return [item.id];
+    const byId = new Map(this.document.items.map((candidate) => [candidate.id, candidate]));
+    return this.selection.ids.filter((id) => {
+      const candidate = byId.get(id);
+      return candidate && !candidate.locked && !candidate.hidden;
+    });
   }
 
   private beginMove(event: PointerEvent, item: FrakonGridItem): void {
-    if (!this.document || event.button !== 0 || this.resizing || item.locked) return;
+    if (!this.document || event.button !== 0 || this.resizing || item.locked || item.hidden) return;
     if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
 
+    const selectedIds = this.movableSelectionForPointer(item);
+    if (!selectedIds.length) return;
     event.preventDefault();
     event.stopPropagation();
 
-    const selectedIds = this.selection.ids.includes(item.id) ? [...this.selection.ids] : [item.id];
     if (!this.selection.ids.includes(item.id)) {
-      this.selection = { ids: selectedIds, anchorId: item.id };
+      this.selection = { ids: [item.id], anchorId: item.id };
     }
 
     this.moveSession = {
@@ -411,8 +440,9 @@ export class FrakonDashboardStudio extends LitElement {
       gridY: document.rowHeight,
     });
 
+    const hiddenIds = new Set(document.items.filter((item) => item.hidden).map((item) => item.id));
     const guideSnap = computeSmartGuidelines(
-      gridPreview.items,
+      gridPreview.items.filter((item) => !hiddenIds.has(item.id)),
       session.selectedIds,
       GUIDE_THRESHOLD_SCREEN_PX / zoom,
     );
@@ -429,7 +459,7 @@ export class FrakonDashboardStudio extends LitElement {
       ...document,
       items: document.items.map((item) => {
         const moved = byId.get(item.id);
-        if (!moved || item.locked) return item;
+        if (!moved || item.locked || item.hidden) return structuredClone(item);
         return {
           ...item,
           x: Math.max(0, Math.round(moved.x / COLUMN_WIDTH)),
@@ -503,7 +533,7 @@ export class FrakonDashboardStudio extends LitElement {
       ...document,
       items: document.items.map((item) => {
         const transformed = byId.get(item.id);
-        if (!transformed || item.locked) return structuredClone(item);
+        if (!transformed || item.locked || item.hidden) return structuredClone(item);
         return clampGridItem({
           ...item,
           x: Math.round(transformed.x / COLUMN_WIDTH),
@@ -566,14 +596,19 @@ export class FrakonDashboardStudio extends LitElement {
   }
 
   private renderItems(document: FrakonDashboardDocument) {
-    if (document.items.length === 0) {
-      return html`<div class="empty"><strong>Empty dashboard</strong><p>Add cards to begin composing the FRAKON interface.</p></div>`;
+    const visibleItems = document.items.filter((item) => !item.hidden);
+    if (visibleItems.length === 0) {
+      const label = document.items.length === 0 ? 'Empty dashboard' : 'All layers are hidden';
+      const description = document.items.length === 0
+        ? 'Add cards to begin composing the FRAKON interface.'
+        : 'Use the Layers panel to show a hidden card.';
+      return html`<div class="empty"><strong>${label}</strong><p>${description}</p></div>`;
     }
 
     const rowHeight = document.rowHeight;
     const collisions = new Set(this.collisionIds);
     const selected = new Set(this.selection.ids);
-    return document.items.map((item) => {
+    return visibleItems.map((item) => {
       const style = resolveGridItemSurface(document, item);
       const surfaceCss = cssRecordToString(surfaceStyleToCss(style));
       const placement = [
@@ -633,6 +668,12 @@ export class FrakonDashboardStudio extends LitElement {
         </div>
         <aside class="inspector-pane">
           <div class="inspector-stack">
+            <frakon-layers-panel
+              .document=${document}
+              .selection=${this.selection}
+              @frakon-layers-document-changed=${this.onLayersDocumentChanged}
+              @frakon-layers-selection-changed=${this.onLayersSelectionChanged}
+            ></frakon-layers-panel>
             <frakon-surface-inspector
               .document=${document}
               .selection=${this.selection}
