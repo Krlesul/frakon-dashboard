@@ -129,7 +129,14 @@ export class DashboardAutoLayoutSession {
     variant: number,
     columns: ResponsiveColumns = defaultResponsiveColumns,
   ): DashboardAutoLayoutPreview {
-    const projected = documentForBreakpoint(this.original, breakpoint, columns);
+    // Responsive design previews must preserve hidden geometry as a fixed
+    // obstacle. Runtime projection remains hidden-filtered by default.
+    const projected = documentForBreakpoint(
+      this.original,
+      breakpoint,
+      columns,
+      { includeHidden: true },
+    );
     return this.previewDocument(projected, Math.max(0, Math.floor(variant)));
   }
 
