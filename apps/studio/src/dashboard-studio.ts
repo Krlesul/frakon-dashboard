@@ -9,13 +9,17 @@ import {
   type ResizeHandle,
 } from '../../../packages/studio-engine/src/resize';
 import type { SelectionState } from '../../../packages/studio-engine/src/selection';
+import { solveDashboardConstraints } from '../../../src/dashboard/constraint-solver';
 import type { FrakonDashboardDocument, FrakonGridItem } from '../../../src/dashboard/layout-model';
 import { resolveDashboardSurfaces, resolveGridItemSurface } from '../../../src/dashboard/surface-style-resolver';
+import type { FrakonConstraintDocumentChangedDetail } from './constraint-inspector';
 import type {
   FrakonStudioSelectionChangedDetail,
   FrakonStudioViewportChangedDetail,
 } from './studio-canvas';
 import type { FrakonStudioDocumentChangedDetail } from './surface-inspector';
+import './constraint-inspector';
+import './constraint-preview-bridge';
 import './studio-canvas';
 import './surface-inspector';
 
@@ -52,6 +56,7 @@ export class FrakonDashboardStudio extends LitElement {
   @state() private resizing = false;
   @state() private moving = false;
   @state() private collisionIds: string[] = [];
+  @state() private constraintPreviewVisible = true;
 
   private resizeSession?: ResizeSession;
   private moveSession?: MoveSession;
@@ -78,6 +83,28 @@ export class FrakonDashboardStudio extends LitElement {
       overflow:auto;
       padding-right:2px;
     }
+    .inspector-stack { display:grid; gap:14px; }
+    .constraint-toolbar {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 12px;
+      border:1px solid rgb(255 255 255 / 10%);
+      border-radius:14px;
+      background:rgb(255 255 255 / 4%);
+      font-size:12px;
+    }
+    .constraint-toolbar button {
+      border:1px solid rgb(105 167 255 / 34%);
+      border-radius:9px;
+      padding:7px 10px;
+      color:inherit;
+      background:rgb(105 167 255 / 13%);
+      cursor:pointer;
+      font:inherit;
+    }
+    .constraint-toolbar button[aria-pressed='true'] { background:rgb(105 167 255 / 25%); }
     .item {
       position:absolute;
       box-sizing:border-box;
@@ -181,6 +208,11 @@ export class FrakonDashboardStudio extends LitElement {
   }
 
   private onDocumentChanged(event: CustomEvent<FrakonStudioDocumentChangedDetail>): void {
+    this.document = event.detail.document;
+    this.emitChanged();
+  }
+
+  private onConstraintDocumentChanged(event: CustomEvent<FrakonConstraintDocumentChangedDetail>): void {
     this.document = event.detail.document;
     this.emitChanged();
   }
@@ -414,6 +446,8 @@ export class FrakonDashboardStudio extends LitElement {
     const document = this.document;
     if (!document) return html`<p>No dashboard document loaded.</p>`;
     const dashboardCss = cssRecordToString(surfaceStyleToCss(resolveDashboardSurfaces(document).dashboard));
+    const constraints = document.constraints ?? [];
+    const constraintPreview = constraints.length > 0 ? solveDashboardConstraints(document).document : document;
 
     return html`
       <section class="studio-shell">
@@ -425,13 +459,33 @@ export class FrakonDashboardStudio extends LitElement {
             ${this.renderItems(document)}
             ${this.renderSelectionBox(document)}
           </frakon-studio-canvas>
+          <frakon-constraint-preview-bridge
+            .source=${document}
+            .preview=${constraintPreview}
+            .visible=${this.constraintPreviewVisible && constraints.length > 0}
+          ></frakon-constraint-preview-bridge>
         </div>
         <aside class="inspector-pane">
-          <frakon-surface-inspector
-            .document=${document}
-            .selection=${this.selection}
-            @frakon-studio-document-changed=${this.onDocumentChanged}
-          ></frakon-surface-inspector>
+          <div class="inspector-stack">
+            <frakon-surface-inspector
+              .document=${document}
+              .selection=${this.selection}
+              @frakon-studio-document-changed=${this.onDocumentChanged}
+            ></frakon-surface-inspector>
+            <div class="constraint-toolbar">
+              <span>Constraint ghost preview</span>
+              <button
+                aria-pressed=${String(this.constraintPreviewVisible)}
+                ?disabled=${constraints.length === 0}
+                @click=${() => { this.constraintPreviewVisible = !this.constraintPreviewVisible; }}
+              >${this.constraintPreviewVisible ? 'Visible' : 'Hidden'}</button>
+            </div>
+            <frakon-constraint-inspector
+              .document=${document}
+              .selection=${this.selection}
+              @frakon-constraint-document-changed=${this.onConstraintDocumentChanged}
+            ></frakon-constraint-inspector>
+          </div>
         </aside>
       </section>
     `;
