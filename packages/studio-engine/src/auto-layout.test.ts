@@ -21,7 +21,7 @@ function overlap(a: AutoLayoutItem, b: AutoLayoutItem): boolean {
 describe('automatic layout proposals', () => {
   it('cycles through four distinct product strategies', () => {
     expect([0, 1, 2, 3, 4].map(strategyForVariant)).toEqual([
-      'priority-first', 'comfortable', 'compact', 'focus', 'priority-first',
+      'priority-first', 'balanced', 'compact', 'focus', 'priority-first',
     ]);
   });
 
@@ -37,17 +37,17 @@ describe('automatic layout proposals', () => {
     ]);
   });
 
-  it('interleaves semantic groups in comfortable mode for fair first-screen representation', () => {
+  it('interleaves semantic groups in balanced mode for fair first-screen representation', () => {
     const grouped: AutoLayoutItem[] = [
       { id: 'security-high', x: 0, y: 0, w: 2, h: 2, priority: 100, semanticGroup: 'security' },
       { id: 'security-low', x: 0, y: 0, w: 2, h: 2, priority: 60, semanticGroup: 'security' },
       { id: 'energy-high', x: 0, y: 0, w: 2, h: 2, priority: 80, semanticGroup: 'energy' },
       { id: 'energy-low', x: 0, y: 0, w: 2, h: 2, priority: 40, semanticGroup: 'energy' },
     ];
-    expect(orderAutoLayoutItems(grouped, 'comfortable').map((item) => item.id)).toEqual([
+    expect(orderAutoLayoutItems(grouped, 'balanced').map((item) => item.id)).toEqual([
       'security-high', 'energy-high', 'security-low', 'energy-low',
     ]);
-    expect(orderAutoLayoutItems(grouped, 'balanced')).toEqual(orderAutoLayoutItems(grouped, 'comfortable'));
+    expect(orderAutoLayoutItems(grouped, 'comfortable')).toEqual(orderAutoLayoutItems(grouped, 'balanced'));
   });
 
   it('produces deterministic proposals for the same input', () => {
