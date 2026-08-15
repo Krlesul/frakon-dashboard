@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from .const import (
@@ -9,7 +8,11 @@ from .const import (
     RESPONSIVE_CANVAS_V2_MAX_ITEMS,
     RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
 )
-from .document_validation import DashboardDocumentValidationError, validate_dashboard_document
+from .document_validation import (
+    DashboardDocumentValidationError,
+    dashboard_serialized_bytes,
+    validate_dashboard_document,
+)
 
 BREAKPOINTS = ("mobile", "tablet", "desktop", "wide")
 _MAX_SAFE_INTEGER = 9_007_199_254_740_991
@@ -102,6 +105,7 @@ def validate_responsive_bundle(bundle: Any) -> dict[str, Any]:
                 {2},
                 max_items=RESPONSIVE_CANVAS_V2_MAX_ITEMS,
                 max_constraints=RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+                max_serialized_bytes=RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES,
             )
         except DashboardDocumentValidationError as err:
             raise ResponsiveBundleValidationError(str(err)) from err
@@ -125,14 +129,11 @@ def validate_responsive_bundle(bundle: Any) -> dict[str, Any]:
                 f"Responsive canvas bundle may contain at most {RESPONSIVE_CANVAS_V2_MAX_ITEMS} items across all breakpoints."
             )
 
-    try:
-        serialized_bytes = len(
-            json.dumps(bundle, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        )
-    except (TypeError, ValueError) as err:
+    serialized_bytes = dashboard_serialized_bytes(bundle)
+    if serialized_bytes is None:
         raise ResponsiveBundleValidationError(
-            "Responsive canvas bundle must be JSON serializable."
-        ) from err
+            "Responsive canvas bundle must be safely JSON serializable."
+        )
     if serialized_bytes > RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES:
         raise ResponsiveBundleValidationError(
             f"Responsive canvas bundle exceeds the {RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES} byte storage limit."
