@@ -10,6 +10,9 @@ export interface FrakonCameraCardConfig extends LovelaceCardConfig {
   show_state?: boolean;
 }
 
+const DEFAULT_ASPECT_RATIO = '16 / 9';
+const ALLOWED_ASPECT_RATIOS = new Set(['16 / 9', '4 / 3', '1 / 1', '21 / 9']);
+
 @customElement('frakon-camera-card')
 export class FrakonCameraCard extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
@@ -28,10 +31,16 @@ export class FrakonCameraCard extends LitElement {
 
   setConfig(config: FrakonCameraCardConfig): void {
     if (!config.entity?.startsWith('camera.')) throw new Error('FRAKON Camera Card requires a camera entity.');
-    this.config = { aspect_ratio: '16 / 9', show_state: true, ...config };
+    const aspectRatio = config.aspect_ratio ?? DEFAULT_ASPECT_RATIO;
+    if (!ALLOWED_ASPECT_RATIOS.has(aspectRatio)) throw new Error('FRAKON Camera Card aspect_ratio is not supported.');
+    this.config = { ...config, aspect_ratio: aspectRatio, show_state: config.show_state ?? true };
   }
 
   getCardSize(): number { return 5; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-camera-card-editor'); }
+  static getStubConfig(): FrakonCameraCardConfig {
+    return { type: 'custom:frakon-camera-card', entity: 'camera.example', aspect_ratio: DEFAULT_ASPECT_RATIO, show_state: true };
+  }
 
   render() {
     if (!this.hass || !this.config) return nothing;
