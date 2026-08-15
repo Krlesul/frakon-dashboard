@@ -35,6 +35,7 @@ function duplicateFits(
     x: item.x + dx,
     y: item.y + dy,
     locked: false,
+    hidden: false,
   }));
   if (duplicates.some((item) => item.x < 0 || item.y < 0 || item.x + item.w > document.columns)) return undefined;
   if (findCollisions([...document.items, ...duplicates]).length > 0) return undefined;
@@ -75,6 +76,7 @@ function duplicateSelection(
       x: item.x,
       y: item.y + dy,
       locked: false,
+      hidden: false,
     }));
   }
 
