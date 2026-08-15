@@ -110,11 +110,22 @@ with ZipFile(ZIP_PATH) as archive:
         raise SystemExit("Packaged frontend differs from dist/frakon-dashboard.js")
 
     validator_source = archive.read(f"{PREFIX}document_validation.py")
-    if b"validate_dashboard_document" not in validator_source:
-        raise SystemExit("Packaged document validator is missing validate_dashboard_document")
+    for marker in (
+        b"validate_dashboard_document",
+        b"DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
+        b"dashboard_serialized_bytes",
+        b"max_serialized_bytes: int = DASHBOARD_MAX_SERIALIZED_BYTES",
+    ):
+        if marker not in validator_source:
+            raise SystemExit(f"Packaged document validator is missing {marker.decode()}")
     responsive_validator_source = archive.read(f"{PREFIX}responsive_bundle_validation.py")
-    if b"validate_responsive_revision_envelope" not in responsive_validator_source:
-        raise SystemExit("Packaged responsive validator is missing validate_responsive_revision_envelope")
+    for marker in (
+        b"validate_responsive_revision_envelope",
+        b"dashboard_serialized_bytes",
+        b"max_serialized_bytes=RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES",
+    ):
+        if marker not in responsive_validator_source:
+            raise SystemExit(f"Packaged responsive validator is missing {marker.decode()}")
 
     missing_markers = sorted(marker.decode() for marker in required_frontend_markers if marker not in frontend)
     if missing_markers:
