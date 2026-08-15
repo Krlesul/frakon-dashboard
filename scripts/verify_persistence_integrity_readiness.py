@@ -146,8 +146,8 @@ require(
 require(
     "custom_components/frakon_dashboard/responsive_storage.py",
     "validate_responsive_revision_envelope",
-    "expected_dashboard_id=key",
-    "parentRevision must match expectedRevision",
+    "_validated_envelope(value, key)",
+    "parentRevision must match expected_revision",
 )
 require(
     "custom_components/frakon_dashboard/responsive_websocket.py",
