@@ -5,7 +5,9 @@ import './cards/sensor/sensor-card';
 import './cards/binary-sensor/binary-sensor-card';
 import './cards/action/action-card';
 import './cards/fan/fan-card';
+import './cards/fan/fan-card-editor';
 import './cards/cover/cover-card';
+import './cards/cover/cover-card-editor';
 import './cards/climate/climate-card';
 import './cards/climate/climate-card-editor';
 import './cards/room/room-card';
@@ -15,7 +17,9 @@ import './cards/media/media-player-card-editor';
 import './cards/vehicle/vehicle-card';
 import './cards/energy/energy-card';
 import './cards/switch/switch-card';
+import './cards/switch/switch-card-editor';
 import './cards/lock/lock-card';
+import './cards/lock/lock-card-editor';
 import './dashboard/dashboard-card';
 import './dashboard/dashboard-card-editor';
 import './dashboard/canvas-dashboard-card';
@@ -42,16 +46,16 @@ window.customCards.push(
   { type: 'frakon-sensor-card', name: 'FRAKON Sensor Card', description: 'Premium multilingual measurement and status card.', preview: true },
   { type: 'frakon-binary-sensor-card', name: 'FRAKON Binary Sensor Card', description: 'Door, window, motion, smoke, moisture and safety state card.', preview: true },
   { type: 'frakon-action-card', name: 'FRAKON Action Card', description: 'Press a button, run a script or activate a scene.', preview: true },
-  { type: 'frakon-fan-card', name: 'FRAKON Fan Card', description: 'Fan power and percentage speed control.', preview: true },
-  { type: 'frakon-cover-card', name: 'FRAKON Cover Card', description: 'Premium cover control with position feedback.', preview: true },
+  { type: 'frakon-fan-card', name: 'FRAKON Fan Card', description: 'Fan power, percentage speed control and visual editor.', preview: true },
+  { type: 'frakon-cover-card', name: 'FRAKON Cover Card', description: 'Premium cover control with position feedback and visual editor.', preview: true },
   { type: 'frakon-climate-card', name: 'FRAKON Climate Card', description: 'Premium climate control with current and target temperature plus visual editor.', preview: true },
   { type: 'frakon-room-card', name: 'FRAKON Room Card', description: 'Room overview with climate and grouped lights.', preview: true },
   { type: 'frakon-camera-card', name: 'FRAKON Camera Card', description: 'Camera preview with status overlay.', preview: true },
   { type: 'frakon-media-player-card', name: 'FRAKON Media Player Card', description: 'Media playback, volume controls and visual editor.', preview: true },
   { type: 'frakon-vehicle-card', name: 'FRAKON Vehicle Card', description: 'Vehicle battery, range and charging overview.', preview: true },
   { type: 'frakon-energy-card', name: 'FRAKON Energy Card', description: 'Power, energy and price overview for Home Assistant.', preview: true },
-  { type: 'frakon-switch-card', name: 'FRAKON Switch Card', description: 'Direct Home Assistant switch control.', preview: true },
-  { type: 'frakon-lock-card', name: 'FRAKON Lock Card', description: 'Lock and unlock control with state feedback.', preview: true },
+  { type: 'frakon-switch-card', name: 'FRAKON Switch Card', description: 'Direct Home Assistant switch control with visual editor.', preview: true },
+  { type: 'frakon-lock-card', name: 'FRAKON Lock Card', description: 'Lock and unlock control with state feedback, confirmation safety and visual editor.', preview: true },
   { type: 'frakon-dashboard-card', name: 'FRAKON Dashboard Card', description: 'Responsive visual editor with palette, forms, history and configurable persistence.', preview: true },
   { type: 'frakon-canvas-dashboard-card', name: 'FRAKON Canvas Dashboard (Experimental)', description: 'Experimental free-pixel canvas editor with collision-safe v1-compatible commits.', preview: true },
 );
