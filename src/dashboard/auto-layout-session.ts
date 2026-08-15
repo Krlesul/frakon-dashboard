@@ -57,7 +57,7 @@ function toAutoLayoutItem(
     y: item.y,
     w: item.w,
     h: item.h,
-    locked: item.locked,
+    locked: item.locked || item.hidden,
     priority: metadata.priority,
     semanticGroup: metadata.semanticGroup,
     preferredWidth: metadata.preferredWidth,
