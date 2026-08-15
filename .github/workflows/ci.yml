@@ -23,6 +23,7 @@ jobs:
       - run: python -m compileall -q custom_components/frakon_dashboard
       - run: python scripts/verify_integration_relative_imports.py
       - run: python scripts/verify_build_info_provider.py
+      - run: python scripts/verify_dashboard_document_validation.py
       - run: python scripts/verify_responsive_write_lock.py
       - run: python scripts/verify_alpha_release_readiness.py
       - run: npm install
@@ -35,10 +36,20 @@ jobs:
       - run: python scripts/verify_alpha_test_kit.py
       - name: Simulate Home Assistant install from alpha test kit
         run: |
-          rm -rf /tmp/frakon-ha-config /tmp/frakon-alpha-kit
+          rm -rf /tmp/frakon-ha-config /tmp/frakon-alpha-kit /tmp/frakon-dashboard.frontend.good.js
           mkdir -p /tmp/frakon-ha-config /tmp/frakon-alpha-kit
           unzip -q dist/frakon-dashboard-alpha-test-kit.zip -d /tmp/frakon-alpha-kit
           unzip -q /tmp/frakon-alpha-kit/frakon_dashboard.zip -d /tmp/frakon-ha-config
+          python /tmp/frakon-alpha-kit/verify_home_assistant_install.py /tmp/frakon-ha-config
+
+          FRONTEND=/tmp/frakon-ha-config/custom_components/frakon_dashboard/frontend/frakon-dashboard.js
+          cp "$FRONTEND" /tmp/frakon-dashboard.frontend.good.js
+          printf '\n// CI identity tamper probe\n' >> "$FRONTEND"
+          if python /tmp/frakon-alpha-kit/verify_home_assistant_install.py /tmp/frakon-ha-config; then
+            echo "ERROR: install self-check accepted a tampered frontend bundle"
+            exit 1
+          fi
+          mv /tmp/frakon-dashboard.frontend.good.js "$FRONTEND"
           python /tmp/frakon-alpha-kit/verify_home_assistant_install.py /tmp/frakon-ha-config
       - uses: actions/upload-artifact@v7
         with:
