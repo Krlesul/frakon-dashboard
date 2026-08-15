@@ -8,6 +8,7 @@ export interface AutoLayoutItem {
   h: number;
   locked?: boolean;
   priority?: number;
+  semanticGroup?: string;
   preferredWidth?: number;
   preferredHeight?: number;
   minWidth?: number;
@@ -108,6 +109,43 @@ function rotate<T>(items: T[], amount: number): T[] {
   return [...items.slice(normalized), ...items.slice(0, normalized)];
 }
 
+function semanticGroupKey(item: AutoLayoutItem): string {
+  const configured = item.semanticGroup?.trim();
+  return configured ? configured : `__single:${item.id}`;
+}
+
+function semanticOrder(items: AutoLayoutItem[], strategy: AutoLayoutStrategy): AutoLayoutItem[] {
+  const sorted = [...items].sort((a, b) => normalizedPriority(b) - normalizedPriority(a) || a.id.localeCompare(b.id));
+  const groups = new Map<string, AutoLayoutItem[]>();
+  for (const item of sorted) {
+    const key = semanticGroupKey(item);
+    const queue = groups.get(key) ?? [];
+    queue.push(item);
+    groups.set(key, queue);
+  }
+
+  const orderedGroups = [...groups.entries()].sort(([firstKey, first], [secondKey, second]) => {
+    const priorityDelta = normalizedPriority(second[0]) - normalizedPriority(first[0]);
+    return priorityDelta || firstKey.localeCompare(secondKey);
+  });
+
+  if (strategy !== 'balanced') {
+    return orderedGroups.flatMap(([, group]) => group);
+  }
+
+  // Balanced mode deliberately interleaves semantic groups. This prevents one
+  // large domain (for example sensors) from monopolising the first viewport.
+  const queues = orderedGroups.map(([, group]) => [...group]);
+  const result: AutoLayoutItem[] = [];
+  while (queues.some((queue) => queue.length > 0)) {
+    for (const queue of queues) {
+      const item = queue.shift();
+      if (item) result.push(item);
+    }
+  }
+  return result;
+}
+
 export function strategyForVariant(variant: number): AutoLayoutStrategy {
   return STRATEGIES[((Math.max(0, Math.floor(variant)) % STRATEGIES.length) + STRATEGIES.length) % STRATEGIES.length];
 }
@@ -129,10 +167,9 @@ export function generateAutoLayoutProposal(
       h: Math.max(1, Math.round(item.h)),
     }));
 
-  const movable = items
-    .filter((item) => !item.locked)
-    .sort((a, b) => normalizedPriority(b) - normalizedPriority(a) || a.id.localeCompare(b.id));
-  const ordered = rotate(movable, Math.floor(variant / STRATEGIES.length));
+  const movable = items.filter((item) => !item.locked);
+  const fairOrdered = semanticOrder(movable, strategy);
+  const ordered = rotate(fairOrdered, Math.floor(variant / STRATEGIES.length));
   const placed = [...locked];
 
   ordered.forEach((source, rank) => {
