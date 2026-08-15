@@ -28,13 +28,9 @@ export interface RevisionedDashboardStorageOptions<
 }
 
 /**
- * Revision-aware remote storage client. The Home Assistant endpoint must reject
- * a save when expectedRevision does not match the currently stored revision and
- * return the current remote envelope in that case.
- *
- * Version-1 behavior remains permissive by default. Callers that instantiate
- * this class for a broader document union should provide canPersist so newer
- * document versions cannot be written before their feature gate is enabled.
+ * Revision-aware remote storage client. Every remote envelope is validated at
+ * the client boundary and bound to the dashboard id requested/saved so corrupt
+ * storage cannot substitute one dashboard for another.
  */
 export class RevisionedDashboardStorage<
   TDocument extends FrakonDashboardAnyDocument = FrakonDashboardDocument,
@@ -58,7 +54,7 @@ export class RevisionedDashboardStorage<
       { dashboard_id: id },
     );
     if (response === undefined || response === null) return undefined;
-    if (!isDashboardRevisionEnvelope(response)) {
+    if (!isDashboardRevisionEnvelope(response, id)) {
       throw new Error('Home Assistant returned an invalid dashboard revision envelope.');
     }
     return structuredClone(response) as DashboardRevisionEnvelope<TDocument>;
@@ -89,19 +85,22 @@ export class RevisionedDashboardStorage<
     }
     const result = response as Record<string, unknown>;
     if (result.status === 'saved') {
-      if (!isDashboardRevisionEnvelope(result.envelope)) {
+      const savedEnvelope = result.envelope;
+      if (!isDashboardRevisionEnvelope(savedEnvelope, document.id)) {
         throw new Error('Home Assistant returned an invalid saved revision envelope.');
       }
       return {
         status: 'saved',
-        envelope: structuredClone(result.envelope) as DashboardRevisionEnvelope<TDocument>,
+        envelope: structuredClone(savedEnvelope) as DashboardRevisionEnvelope<TDocument>,
       };
     }
-    if (result.status !== 'conflict' || !isDashboardRevisionEnvelope(result.remote)) {
+
+    const remoteCandidate = result.remote;
+    if (result.status !== 'conflict' || !isDashboardRevisionEnvelope(remoteCandidate, document.id)) {
       throw new Error('Home Assistant returned an invalid revision conflict response.');
     }
 
-    const remote = structuredClone(result.remote) as DashboardRevisionEnvelope<TDocument>;
+    const remote = structuredClone(remoteCandidate) as DashboardRevisionEnvelope<TDocument>;
     return {
       status: 'conflict',
       comparison: compareDashboardRevisions(local, remote),
@@ -116,16 +115,28 @@ export class RevisionedDashboardStorage<
   }
 }
 
-function isDashboardRevisionEnvelope(value: unknown): value is DashboardRevisionEnvelope<FrakonDashboardAnyDocument> {
+function isDashboardRevisionEnvelope(
+  value: unknown,
+  expectedDocumentId?: string,
+): value is DashboardRevisionEnvelope<FrakonDashboardAnyDocument> {
   if (!value || typeof value !== 'object') return false;
   const envelope = value as Record<string, unknown>;
   if (!isDashboardDocument(envelope.document)) return false;
-  if (typeof envelope.revision !== 'string' || !envelope.revision) return false;
-  if (envelope.parentRevision !== undefined
-    && envelope.parentRevision !== null
-    && (typeof envelope.parentRevision !== 'string' || !envelope.parentRevision)) return false;
-  if (typeof envelope.updatedAt !== 'number' || !Number.isFinite(envelope.updatedAt) || envelope.updatedAt < 0) return false;
-  if (typeof envelope.clientId !== 'string' || !envelope.clientId) return false;
+  if (expectedDocumentId !== undefined && envelope.document.id !== expectedDocumentId) return false;
+
+  const revision = envelope.revision;
+  if (typeof revision !== 'string' || !revision || revision.length > 256) return false;
+
+  const parentRevision = envelope.parentRevision;
+  if (parentRevision !== undefined && parentRevision !== null) {
+    if (typeof parentRevision !== 'string' || !parentRevision || parentRevision.length > 256) return false;
+    if (parentRevision === revision) return false;
+  }
+
+  if (typeof envelope.updatedAt !== 'number'
+    || !Number.isSafeInteger(envelope.updatedAt)
+    || envelope.updatedAt < 0) return false;
+  if (typeof envelope.clientId !== 'string' || !envelope.clientId || envelope.clientId.length > 128) return false;
   return true;
 }
 
