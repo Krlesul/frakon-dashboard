@@ -71,7 +71,26 @@ describe('grid dashboard clipboard', () => {
     }));
   });
 
-  it('preserves hidden state for cut-style clipboard payloads while still unlocking pasted items', () => {
+  it('infers cut-style paste after source ids were removed and preserves hidden state', () => {
+    const source = doc();
+    const payload = copyDashboardGridSelection(source, ['hidden']);
+    const afterCut: FrakonDashboardDocument = {
+      ...source,
+      items: source.items.filter((item) => item.id !== 'hidden'),
+      constraints: source.constraints?.filter(
+        (constraint) => constraint.sourceId !== 'hidden' && constraint.targetId !== 'hidden',
+      ),
+    };
+
+    const result = pasteDashboardGridClipboard(afterCut, payload);
+    expect(result.status).toBe('committed');
+    expect(result.document.items.find((item) => item.id === 'hidden-copy')).toMatchObject({
+      hidden: true,
+      locked: false,
+    });
+  });
+
+  it('supports an explicit preserve-hidden override for non-standard clipboard callers', () => {
     const source = doc();
     const payload = copyDashboardGridSelection(source, ['hidden'], { preserveHiddenOnPaste: true });
     expect(payload?.preserveHiddenOnPaste).toBe(true);
