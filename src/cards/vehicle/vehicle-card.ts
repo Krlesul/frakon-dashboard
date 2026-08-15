@@ -30,10 +30,17 @@ export class FrakonVehicleCard extends LitElement {
 
   setConfig(config: FrakonVehicleCardConfig): void {
     if (!config.entity) throw new Error('FRAKON Vehicle Card requires a battery entity.');
-    this.config = config;
+    if (config.charging_switch_entity && !/^(switch|input_boolean)\./.test(config.charging_switch_entity)) {
+      throw new Error('FRAKON Vehicle Card charging_switch_entity must be switch.* or input_boolean.*.');
+    }
+    this.config = { ...config };
   }
 
   getCardSize(): number { return 4; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-vehicle-card-editor'); }
+  static getStubConfig(): FrakonVehicleCardConfig {
+    return { type: 'custom:frakon-vehicle-card', entity: 'sensor.vehicle_battery' };
+  }
 
   private stateValue(entityId?: string): string {
     if (!entityId || !this.hass?.states[entityId]) return '—';
