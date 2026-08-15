@@ -70,12 +70,21 @@ function firstFreePosition(item: FrakonGridItem, placed: FrakonGridItem[], colum
   return { x: 0, y: placed.reduce((maximum, existing) => Math.max(maximum, existing.y + existing.h), 0) };
 }
 
+/**
+ * Resolve collisions without changing serialized layer order. Locked and
+ * hidden cards are fixed obstacles: background compaction must not change a
+ * hidden layer's reserved location before the user explicitly shows it.
+ */
 export function compactItems(items: FrakonGridItem[], columns: number): FrakonGridItem[] {
   const clamped = items.map((item) => clampGridItem(item, columns));
-  const locked = clamped.filter((item) => item.locked).sort((a, b) => a.y - b.y || a.x - b.x);
-  const movable = clamped.filter((item) => !item.locked).sort((a, b) => a.y - b.y || a.x - b.x);
-  const placed = [...locked];
-  const resolved = new Map<string, FrakonGridItem>(locked.map((item) => [item.id, item]));
+  const fixed = clamped
+    .filter((item) => item.locked || item.hidden)
+    .sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id));
+  const movable = clamped
+    .filter((item) => !item.locked && !item.hidden)
+    .sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id));
+  const placed = [...fixed];
+  const resolved = new Map<string, FrakonGridItem>(fixed.map((item) => [item.id, item]));
 
   for (const item of movable) {
     const position = firstFreePosition(item, placed, columns);
@@ -84,6 +93,8 @@ export function compactItems(items: FrakonGridItem[], columns: number): FrakonGr
     resolved.set(item.id, next);
   }
 
+  // items[] is also the persisted z-order, so geometry solving maps positions
+  // back onto the canonical source order instead of sorting the array.
   return clamped.map((item) => resolved.get(item.id) ?? item);
 }
 
@@ -127,7 +138,9 @@ export function updateGridItem(
 ): FrakonDashboardDocument {
   return normalizeDashboard({
     ...document,
-    items: document.items.map((item) => item.id === id && !item.locked ? { ...item, ...patch } : item),
+    items: document.items.map((item) => (
+      item.id === id && !item.locked && !item.hidden ? { ...item, ...patch } : item
+    )),
   });
 }
 
