@@ -282,8 +282,6 @@ function validCanvasLayout(value: unknown): value is FrakonCanvasLayout {
 function validCanvasItem(value: unknown, canvasWidth: number): value is FrakonCanvasItem {
   if (!record(value)) return false;
   if (!identifier(value.id, 128)) return false;
-  // v2 has no persisted hidden-layer contract yet. Reject the field entirely
-  // instead of accepting a value that runtime rendering would ignore/reveal.
   if ('hidden' in value) return false;
   if (!record(value.card) || typeof value.card.type !== 'string' || !value.card.type) return false;
   if (!record(value.frame)) return false;
@@ -301,8 +299,17 @@ function validCanvasItem(value: unknown, canvasWidth: number): value is FrakonCa
   const minHeight = value.minHeight;
   const maxWidth = value.maxWidth;
   const maxHeight = value.maxHeight;
+  if (positiveNumber(minWidth) && minWidth > canvasWidth) return false;
+  if (positiveNumber(maxWidth) && maxWidth > canvasWidth) return false;
   if (positiveNumber(minWidth) && positiveNumber(maxWidth) && minWidth > maxWidth) return false;
   if (positiveNumber(minHeight) && positiveNumber(maxHeight) && minHeight > maxHeight) return false;
+
+  const effectiveMinWidth = positiveNumber(minWidth) ? minWidth : 1;
+  const effectiveMaxWidth = positiveNumber(maxWidth) ? maxWidth : canvasWidth;
+  const effectiveMinHeight = positiveNumber(minHeight) ? minHeight : 1;
+  const effectiveMaxHeight = positiveNumber(maxHeight) ? maxHeight : Number.MAX_SAFE_INTEGER;
+  if (value.frame.width < effectiveMinWidth || value.frame.width > effectiveMaxWidth) return false;
+  if (value.frame.height < effectiveMinHeight || value.frame.height > effectiveMaxHeight) return false;
   return true;
 }
 
