@@ -14,7 +14,8 @@ At the time this checklist was updated:
 - `README.md`: present
 - root `hacs.json`: present
 - integration manifest: `custom_components/frakon_dashboard/manifest.json`
-- local Home Assistant brand assets: present under `custom_components/frakon_dashboard/brand/`
+- manifest integration type: `service`
+- local Home Assistant/HACS brand assets: present under `custom_components/frakon_dashboard/brand/`
 - hassfest workflow: present
 - HACS validation workflow: **staged as manual-only** in `.github/workflows/hacs.yml`
 
@@ -33,7 +34,7 @@ Before public HACS publication:
   - `lovelace`
   - `dashboard`
   - `smart-home`
-  - `typescript`
+  - `frakon`
 - [ ] confirm the default branch contains the intended public release state
 
 Do not make the repository public merely to satisfy automated validation before the project is ready for public review.
@@ -50,7 +51,7 @@ All runtime files required by the Home Assistant integration must be contained t
 
 ## 3. Home Assistant manifest
 
-`custom_components/frakon_dashboard/manifest.json` must include at least:
+`custom_components/frakon_dashboard/manifest.json` must include the HACS identity keys and the explicit FRAKON runtime contract:
 
 - `domain`
 - `name`
@@ -58,8 +59,12 @@ All runtime files required by the Home Assistant integration must be contained t
 - `documentation`
 - `issue_tracker`
 - `codeowners`
+- `integration_type: service`
+- `config_flow: true`
+- `single_config_entry: true`
+- dependencies `http` + `lovelace`
 
-FRAKON also keeps `config_flow`, `dependencies`, `iot_class` and `single_config_entry` explicitly declared.
+The source manifest, HACS ZIP, Alpha Test Kit and installed integration are all checked for this contract. Keep `scripts/verify_manifest_contract.py` green before release work.
 
 ## 4. Brand assets
 
@@ -70,13 +75,14 @@ custom_components/frakon_dashboard/brand/icon.png
 custom_components/frakon_dashboard/brand/icon@2x.png
 ```
 
-HACS checks an integration's local `brand/` directory first and requires at least `icon.png`; only when that is absent does it fall back to the central Home Assistant Brands repository.
+These local assets satisfy the current HACS custom-integration repository brand requirement. Default HACS catalog inclusion is a separate process and its current inclusion checks may additionally require the integration to exist in `home-assistant/brands`; verify that requirement again immediately before a default-catalog submission.
 
 Release invariants:
 
 - [x] `icon.png` is a PNG and exactly 256×256
 - [x] `icon@2x.png` is a PNG and exactly 512×512
 - [x] source assets are checked by `scripts/verify_brand_assets.py`
+- [x] brand packaging/documentation chain is checked by `scripts/verify_brand_release_chain.py`
 - [x] HACS ZIP verification checks both packaged files and dimensions
 - [x] Alpha Test Kit verification checks both packaged files and dimensions
 - [x] installed Home Assistant self-check verifies both installed assets
@@ -127,7 +133,7 @@ Publication checklist:
 - [ ] enable push / pull_request / daily schedule triggers for publication maintenance
 - [ ] HACS validation Action passes without errors or ignored publication checks
 
-Do not ignore the `brands`, `description`, `issues` or `topics` checks just to obtain a green result. Fix the repository metadata instead.
+Do not ignore the `description`, `issues` or `topics` checks just to obtain a green result. Fix the repository metadata instead.
 
 ## 6. Required automated validation
 
@@ -136,8 +142,11 @@ Before a public release candidate is announced, require successful execution of:
 - [ ] FRAKON CI
 - [ ] hassfest
 - [ ] HACS validation Action
+- [ ] `scripts/verify_manifest_contract.py`
 - [ ] `scripts/verify_brand_assets.py`
+- [ ] `scripts/verify_brand_release_chain.py`
 - [ ] `scripts/verify_dashboard_document_validation.py`
+- [ ] `scripts/verify_document_size_parity.py`
 - [ ] `scripts/verify_responsive_bundle_validation.py`
 - [ ] `scripts/verify_responsive_write_lock.py`
 - [ ] `scripts/verify_persistence_integrity_readiness.py`
@@ -170,6 +179,7 @@ Before submitting it:
 - [ ] HACS Action passes without ignored publication checks
 - [ ] hassfest passes
 - [ ] at least one appropriate GitHub Release exists
+- [ ] verify the latest `home-assistant/brands` requirement for default inclusion and satisfy it if required
 - [ ] submit the repository according to the current HACS default-repository process
 
 ## Separation from Alpha issue #11
