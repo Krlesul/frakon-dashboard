@@ -51,7 +51,7 @@ describe('layout model v2', () => {
     });
   });
 
-  it('drops constraints that reference items absent from the canvas document', () => {
+  it('drops constraints that reference items absent from the canvas document during explicit normalization', () => {
     const normalized = normalizeDashboardV2({
       version: 2,
       id: 'home',
@@ -70,9 +70,44 @@ describe('layout model v2', () => {
     expect(normalized.constraints?.map((constraint) => constraint.id)).toEqual(['valid']);
   });
 
-  it('recognizes only version 2 canvas documents at the schema boundary', () => {
-    expect(isDashboardDocumentV2(migrateDashboardV1ToV2(v1, 430))).toBe(true);
+  it('recognizes only complete valid version 2 canvas documents at the schema boundary', () => {
+    const valid = migrateDashboardV1ToV2(v1, 430);
+    expect(isDashboardDocumentV2(valid)).toBe(true);
     expect(isDashboardDocumentV2(v1)).toBe(false);
     expect(isDashboardDocumentV2({ version: 2, id: 'x', title: 'x', layout: { mode: 'grid' }, items: [] })).toBe(false);
+    expect(isDashboardDocumentV2({ version: 2, id: 'x', title: 'x', breakpoint: 'desktop', layout: { mode: 'canvas' }, items: [] })).toBe(false);
+  });
+
+  it('rejects malformed frames, duplicate ids and invalid card payloads at the v2 schema boundary', () => {
+    const valid = migrateDashboardV1ToV2(v1, 430);
+
+    const invalidFrame = structuredClone(valid) as unknown as { items: Array<{ frame: Record<string, unknown> }> };
+    invalidFrame.items[0].frame.width = 0;
+    expect(isDashboardDocumentV2(invalidFrame)).toBe(false);
+
+    const duplicate = structuredClone(valid);
+    duplicate.items.push(structuredClone(duplicate.items[0]));
+    expect(isDashboardDocumentV2(duplicate)).toBe(false);
+
+    const badCard = structuredClone(valid) as unknown as { items: Array<{ card: Record<string, unknown> }> };
+    badCard.items[0].card = {};
+    expect(isDashboardDocumentV2(badCard)).toBe(false);
+  });
+
+  it('rejects dangling, duplicate and self-referential constraints at the v2 schema boundary', () => {
+    const dangling = migrateDashboardV1ToV2(v1, 430);
+    dangling.constraints = [{ id: 'bad', kind: 'below', sourceId: 'a', targetId: 'missing' }];
+    expect(isDashboardDocumentV2(dangling)).toBe(false);
+
+    const duplicate = migrateDashboardV1ToV2(v1, 430);
+    duplicate.constraints = [
+      { id: 'same', kind: 'below', sourceId: 'a', targetId: 'b' },
+      { id: 'same', kind: 'right-of', sourceId: 'a', targetId: 'b' },
+    ];
+    expect(isDashboardDocumentV2(duplicate)).toBe(false);
+
+    const self = migrateDashboardV1ToV2(v1, 430);
+    self.constraints = [{ id: 'self', kind: 'below', sourceId: 'a', targetId: 'a' }];
+    expect(isDashboardDocumentV2(self)).toBe(false);
   });
 });
