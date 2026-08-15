@@ -12,20 +12,26 @@ export interface DashboardSyncQueue {
   delete(id: string): Promise<void>;
 }
 
+const INVALID_DOCUMENT_MESSAGE = 'Invalid or non-canonical FRAKON dashboard document.';
+const INVALID_OPERATION_MESSAGE = 'Invalid FRAKON dashboard sync operation.';
+
 export class MemoryDashboardSyncQueue implements DashboardSyncQueue {
   private readonly operations = new Map<string, DashboardSyncOperation>();
 
   async list(): Promise<DashboardSyncOperation[]> {
     return [...this.operations.values()]
+      .filter(isDashboardSyncOperation)
       .map((operation) => structuredClone(operation))
       .sort((a, b) => a.queuedAt - b.queuedAt);
   }
 
   async put(operation: DashboardSyncOperation): Promise<void> {
-    this.operations.set(operation.id, structuredClone(operation));
+    const exact = requireSyncOperation(operation);
+    this.operations.set(exact.id, exact);
   }
 
   async delete(id: string): Promise<void> {
+    requireIdentifier(id);
     this.operations.delete(id);
   }
 }
@@ -42,24 +48,30 @@ export class LocalStorageDashboardSyncQueue implements DashboardSyncQueue {
     try {
       const parsed = JSON.parse(raw) as unknown;
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter(isDashboardSyncOperation).sort((a, b) => a.queuedAt - b.queuedAt);
+      return parsed
+        .filter(isDashboardSyncOperation)
+        .map((operation) => structuredClone(operation))
+        .sort((a, b) => a.queuedAt - b.queuedAt);
     } catch {
       return [];
     }
   }
 
   async put(operation: DashboardSyncOperation): Promise<void> {
+    const exact = requireSyncOperation(operation);
     const operations = new Map((await this.list()).map((entry) => [entry.id, entry]));
-    operations.set(operation.id, structuredClone(operation));
+    operations.set(exact.id, exact);
     this.write([...operations.values()]);
   }
 
   async delete(id: string): Promise<void> {
+    requireIdentifier(id);
     this.write((await this.list()).filter((operation) => operation.id !== id));
   }
 
   private write(operations: DashboardSyncOperation[]): void {
-    this.storage?.setItem(this.key, JSON.stringify(operations));
+    const exact = operations.map((operation) => requireSyncOperation(operation));
+    this.storage?.setItem(this.key, JSON.stringify(exact));
   }
 }
 
@@ -95,30 +107,36 @@ export class ResilientDashboardStorageAdapter implements DashboardStorageAdapter
   }
 
   async load(id: string): Promise<FrakonDashboardDocument | undefined> {
+    requireIdentifier(id);
     try {
       const document = await this.primary.load(id);
       this.patchState({ mode: 'primary', error: undefined });
-      if (document) await this.fallback.save(document);
-      return document ?? this.fallback.load(id);
+      if (document) {
+        const exact = requireDashboardDocument(document, id);
+        await this.fallback.save(exact);
+        return structuredClone(exact);
+      }
+      return this.loadFallback(id);
     } catch (error) {
       this.patchState({ mode: 'fallback', error: toError(error) });
-      return this.fallback.load(id);
+      return this.loadFallback(id);
     } finally {
       await this.refreshPending();
     }
   }
 
   async save(document: FrakonDashboardDocument): Promise<void> {
-    await this.fallback.save(document);
+    const exact = requireDashboardDocument(document);
+    await this.fallback.save(exact);
     try {
-      await this.primary.save(document);
-      await this.queue.delete(document.id);
+      await this.primary.save(exact);
+      await this.queue.delete(exact.id);
       this.patchState({ mode: 'primary', error: undefined });
     } catch (error) {
       await this.queue.put({
         kind: 'save',
-        id: document.id,
-        document: structuredClone(document),
+        id: exact.id,
+        document: structuredClone(exact),
         queuedAt: Date.now(),
       });
       this.patchState({ mode: 'fallback', error: toError(error) });
@@ -128,6 +146,7 @@ export class ResilientDashboardStorageAdapter implements DashboardStorageAdapter
   }
 
   async remove(id: string): Promise<void> {
+    requireIdentifier(id);
     await this.fallback.remove(id);
     try {
       await this.primary.remove(id);
@@ -152,7 +171,8 @@ export class ResilientDashboardStorageAdapter implements DashboardStorageAdapter
   private async runSynchronization(): Promise<void> {
     this.patchState({ syncing: true, error: undefined });
     try {
-      for (const operation of await this.queue.list()) {
+      for (const candidate of await this.queue.list()) {
+        const operation = requireSyncOperation(candidate);
         if (operation.kind === 'save') await this.primary.save(operation.document);
         else await this.primary.remove(operation.id);
         await this.queue.delete(operation.id);
@@ -166,8 +186,14 @@ export class ResilientDashboardStorageAdapter implements DashboardStorageAdapter
     }
   }
 
+  private async loadFallback(id: string): Promise<FrakonDashboardDocument | undefined> {
+    const document = await this.fallback.load(id);
+    return document ? requireDashboardDocument(document, id) : undefined;
+  }
+
   private async refreshPending(): Promise<void> {
-    this.patchState({ pending: (await this.queue.list()).length });
+    const operations = await this.queue.list();
+    this.patchState({ pending: operations.filter(isDashboardSyncOperation).length });
   }
 
   private patchState(patch: Partial<ResilientDashboardStorageState>): void {
@@ -180,11 +206,37 @@ function isDashboardSyncOperation(value: unknown): value is DashboardSyncOperati
   if (!value || typeof value !== 'object') return false;
   const operation = value as Record<string, unknown>;
   if (operation.kind !== 'save' && operation.kind !== 'remove') return false;
-  if (typeof operation.id !== 'string' || !operation.id) return false;
-  if (typeof operation.queuedAt !== 'number' || !Number.isFinite(operation.queuedAt)) return false;
+  if (typeof operation.id !== 'string' || !validIdentifier(operation.id)) return false;
+  if (typeof operation.queuedAt !== 'number'
+    || !Number.isSafeInteger(operation.queuedAt)
+    || operation.queuedAt < 0) return false;
   if (operation.kind === 'remove') return true;
   if (!isDashboardDocumentV1(operation.document)) return false;
   return operation.document.id === operation.id;
+}
+
+function requireSyncOperation(value: unknown): DashboardSyncOperation {
+  if (!isDashboardSyncOperation(value)) throw new Error(INVALID_OPERATION_MESSAGE);
+  return structuredClone(value);
+}
+
+function requireDashboardDocument(
+  value: unknown,
+  expectedId?: string,
+): FrakonDashboardDocument {
+  if (!isDashboardDocumentV1(value)
+    || (expectedId !== undefined && value.id !== expectedId)) {
+    throw new Error(INVALID_DOCUMENT_MESSAGE);
+  }
+  return structuredClone(value);
+}
+
+function validIdentifier(value: string): boolean {
+  return value.length > 0 && value.length <= 128;
+}
+
+function requireIdentifier(value: string): void {
+  if (!validIdentifier(value)) throw new Error('Dashboard id must be a non-empty string up to 128 characters.');
 }
 
 function toError(error: unknown): Error {
