@@ -24,7 +24,9 @@ export class LocalStorageDashboardAdapter implements DashboardStorageAdapter {
     if (!raw) return undefined;
     try {
       const parsed: unknown = JSON.parse(raw);
-      return isDashboardDocumentV1(parsed) ? normalizeDashboard(parsed) : undefined;
+      return isDashboardDocumentV1(parsed) && parsed.id === id
+        ? normalizeDashboard(parsed)
+        : undefined;
     } catch {
       return undefined;
     }
@@ -67,7 +69,9 @@ export class RemoteDashboardStorageAdapter implements DashboardStorageAdapter {
 
   async load(id: string): Promise<FrakonDashboardDocument | undefined> {
     const document = await this.transport.request<unknown>(`${this.namespace}/load`, { dashboard_id: id });
-    return isDashboardDocumentV1(document) ? normalizeDashboard(document) : undefined;
+    return isDashboardDocumentV1(document) && document.id === id
+      ? normalizeDashboard(document)
+      : undefined;
   }
 
   async save(document: FrakonDashboardDocument): Promise<void> {
