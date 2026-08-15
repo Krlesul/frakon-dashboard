@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import argparse
+from hashlib import sha256
 import json
 from pathlib import Path
 import re
 import sys
 
-EXPECTED_VERSION = "0.16.0-alpha.1"
 DOMAIN = "frakon_dashboard"
 REQUIRED_FILES = (
     "__init__.py",
@@ -18,6 +18,7 @@ REQUIRED_FILES = (
     "build_websocket.py",
     "config_flow.py",
     "const.py",
+    "document_validation.py",
     "frontend.py",
     "manifest.json",
     "responsive_storage.py",
@@ -90,24 +91,36 @@ def main() -> int:
 
     if manifest.get("domain") != DOMAIN:
         fail(f"manifest domain is {manifest.get('domain')!r}, expected {DOMAIN!r}")
-    if manifest.get("version") != EXPECTED_VERSION:
-        fail(f"manifest version is {manifest.get('version')!r}, expected {EXPECTED_VERSION!r}")
+    installed_version = manifest.get("version")
+    if not isinstance(installed_version, str) or not installed_version.strip():
+        fail(f"manifest version is missing or invalid: {installed_version!r}")
+    installed_version = installed_version.strip()
     if manifest.get("config_flow") is not True:
         fail("manifest config_flow must be true")
 
     const_source = (integration / "const.py").read_text(encoding="utf-8")
     version_match = re.search(r'^INTEGRATION_VERSION\s*=\s*["\']([^"\']+)["\']', const_source, re.MULTILINE)
     runtime_version = version_match.group(1) if version_match else None
-    if runtime_version != EXPECTED_VERSION:
-        fail(f"runtime integration version is {runtime_version!r}, expected {EXPECTED_VERSION!r}")
+    if runtime_version != installed_version:
+        fail(
+            "runtime integration version does not match manifest: "
+            f"{runtime_version!r} != {installed_version!r}"
+        )
 
     build_info = read_json(integration / "build-info.json", "build-info.json")
-    source_commit = build_info.get("sourceCommit") if isinstance(build_info, dict) else None
+    if not isinstance(build_info, dict):
+        fail("build-info.json must contain an object")
+    source_commit = build_info.get("sourceCommit")
     if not isinstance(source_commit, str) or not source_commit.strip():
         fail("build-info.json is missing sourceCommit")
     source_commit = source_commit.strip()
     if not re.fullmatch(r"[0-9a-fA-F]{7,64}", source_commit):
         fail(f"sourceCommit must identify a verified source revision, got {source_commit!r}")
+
+    expected_frontend_sha = build_info.get("frontendSha256")
+    if not isinstance(expected_frontend_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", expected_frontend_sha):
+        fail(f"build-info.json frontendSha256 is missing or invalid: {expected_frontend_sha!r}")
+    expected_frontend_sha = expected_frontend_sha.lower()
 
     cs_translation = read_json(integration / "translations" / "cs.json", "Czech translation")
     if nested(cs_translation, "title") != "FRAKON Dashboard":
@@ -118,6 +131,15 @@ def main() -> int:
     cs_abort = nested(cs_translation, "config", "abort", "already_configured")
     if not isinstance(cs_abort, str) or not cs_abort.strip():
         fail("Czech already-configured message is missing")
+
+    validator_source = (integration / "document_validation.py").read_text(encoding="utf-8")
+    for marker in ("validate_dashboard_document", "Duplicate dashboard item id", "references an unknown item"):
+        if marker not in validator_source:
+            fail(f"dashboard document validator is missing marker {marker!r}")
+
+    websocket_source = (integration / "websocket.py").read_text(encoding="utf-8")
+    if "validate_dashboard_document" not in websocket_source:
+        fail("websocket boundary is not wired to dashboard document validation")
 
     frontend_helper = (integration / "frontend.py").read_text(encoding="utf-8")
     if "?v={INTEGRATION_VERSION}" not in frontend_helper:
@@ -132,19 +154,28 @@ def main() -> int:
     size = frontend.stat().st_size
     if size < 10_000:
         fail(f"frontend bundle looks unexpectedly small: {size} bytes")
+    actual_frontend_sha = sha256(frontend.read_bytes()).hexdigest()
+    if actual_frontend_sha != expected_frontend_sha:
+        fail(
+            "installed frontend SHA-256 does not match build-info.json: "
+            f"{actual_frontend_sha} != {expected_frontend_sha}"
+        )
+
     source = frontend.read_text(encoding="utf-8", errors="ignore")
     for marker in FRONTEND_REGISTRATION_MARKERS:
         if marker not in source:
             fail(f"frontend bundle is missing registration marker {marker!r}")
 
-    resource_url = f"/frakon-dashboard/frakon-dashboard.js?v={EXPECTED_VERSION}"
+    resource_url = f"/frakon-dashboard/frakon-dashboard.js?v={installed_version}"
     print("FRAKON Dashboard install self-check: OK")
     print(f"config: {root}")
     print(f"integration: {integration}")
-    print(f"version: {EXPECTED_VERSION}")
+    print(f"version: {installed_version}")
     print(f"source commit: {source_commit}")
     print(f"frontend bytes: {size}")
+    print(f"frontend SHA-256: {actual_frontend_sha}")
     print(f"verified frontend registrations: {len(FRONTEND_REGISTRATION_MARKERS)}")
+    print("Dashboard document validator: OK")
     print("Czech config flow: OK")
     print(f"resource URL: {resource_url}")
     return 0
