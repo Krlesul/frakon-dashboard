@@ -47,8 +47,9 @@ Then:
 1. restart Home Assistant,
 2. open **Settings → Devices & services → Add integration**,
 3. add **FRAKON Dashboard**,
-4. confirm the versioned module is registered/loaded,
-5. from the extracted Alpha Test Kit directory run:
+4. confirm the packaged FRAKON integration icon is shown when the installed Home Assistant version supports local custom-integration brand assets,
+5. confirm the versioned module is registered/loaded,
+6. from the extracted Alpha Test Kit directory run:
 
 ```bash
 python verify_home_assistant_install.py /path/to/home-assistant/config
@@ -63,24 +64,27 @@ FRAKON Dashboard install self-check: OK
 The output must include the same source commit and the same frontend SHA-256 as `alpha-test-kit.json`. It must also report:
 
 ```text
+Home Assistant brand assets: OK
 Dashboard document validator: OK
 Responsive bundle validator: OK
 Czech config flow: OK
 ```
+
+`Home Assistant brand assets: OK` proves the installed integration contains valid PNG assets at `brand/icon.png` (256×256) and `brand/icon@2x.png` (512×512), rather than merely relying on repository metadata.
 
 The test-kit verifier has already proven the chain:
 
 ```text
 Alpha Test Kit manifest
 → integration ZIP SHA-256
-→ Home Assistant manifest
+→ Home Assistant manifest + brand assets
 → build-info.json sourceCommit + frontendSha256
 → bundled frontend bytes
 ```
 
-The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/` and verifies that the installed normal and responsive validation boundaries are wired to the packaged validators.
+The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/`, validating both installed brand PNGs and verifying that the installed normal and responsive validation boundaries are wired to the packaged validators.
 
-If any version, source commit, SHA-256 or validator marker differs, stop functional testing and correct installation/cache/resource state first.
+If any version, source commit, SHA-256, brand or validator marker differs, stop functional testing and correct installation/cache/resource state first.
 
 ## 3. Record the environment
 
@@ -260,7 +264,7 @@ Review and record:
 - validation errors from the negative v1/v2 cases above
 - unexpected Home Assistant warnings/errors
 
-Attach screenshots/recordings for the stable dashboard, breakpoint matrix, Automatic Designer, Canvas v2, build identity/self-check and final console state.
+Attach screenshots/recordings for the FRAKON integration icon, stable dashboard, breakpoint matrix, Automatic Designer, Canvas v2, build identity/self-check and final console state.
 
 For every reproducible defect, create a separate issue with exact source commit, kit SHA-256 values, environment, reproduction steps, expected/actual result and evidence.
 
@@ -270,7 +274,8 @@ Issue #11 can be closed only when:
 
 - the tested Alpha Test Kit came from a successful CI run for the tested commit
 - kit manifest, installed integration/frontend and runtime build identities match
-- install self-check passes with expected source commit + frontend SHA-256 + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
+- install self-check passes with expected source commit + frontend SHA-256 + `Home Assistant brand assets: OK` + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
+- packaged FRAKON brand assets have the required dimensions and the integration icon is visually checked where the Home Assistant version supports local custom-integration brand assets
 - mandatory stable Dashboard, Automatic Designer, Canvas v2, storage/conflict and responsive checks were executed
 - strict non-coercing normal/responsive validation boundaries passed the required negative cases
 - responsive write lock remained intact
