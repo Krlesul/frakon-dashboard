@@ -33,6 +33,7 @@ The current Home Assistant alpha includes:
 - Dashboard / Card defaults / Selection surface styling
 - responsive persistence diagnostics and Alpha Readiness status
 - server build identity and frontend/backend mismatch detection
+- explicit Home Assistant single-entry `service` integration contract
 - revision-aware multi-device synchronization and optimistic concurrency
 - isolated responsive bundle storage
 - breakpoint-aware Local / Remote conflict resolution
@@ -40,6 +41,8 @@ The current Home Assistant alpha includes:
 - exact-candidate validation receipts before responsive persistence
 - real-server proof that Dry Run left responsive storage unchanged
 - strict normal/responsive persistence validation with no silent stored-layout normalization
+- shared **2,000,000 UTF-8 JSON byte** persistence ceiling across TypeScript v1/v2, Python document validation and responsive bundles
+- exact-boundary, one-byte-over and multibyte UTF-8 size-limit contract fixtures
 - packaged Home Assistant brand icons with source/package/install dimension checks
 - HACS-style integration ZIP packaging with bundled frontend
 - self-contained Alpha Test Kit generation and verification
@@ -131,7 +134,18 @@ Short version:
 4. Restart Home Assistant.
 5. Add **FRAKON Dashboard** from **Settings → Devices & services → Add integration**.
 6. In Lovelace storage mode the integration registers or repairs its bundled JavaScript module resource automatically.
-7. Run the kit's `verify_home_assistant_install.py` against the installed Home Assistant config and require the build/hash, brand, normal-validator and responsive-validator checks to pass.
+7. Run the kit's `verify_home_assistant_install.py` against the installed Home Assistant config and require these identity/safety markers to pass:
+
+```text
+Home Assistant manifest contract: OK
+Home Assistant brand assets: OK
+Dashboard serialized-byte guard: OK
+Dashboard document validator: OK
+Responsive bundle validator: OK
+Czech config flow: OK
+```
+
+The manifest contract requires the installed integration to remain a single-entry `service` integration with the expected Home Assistant dependencies and repository identity. The serialized-byte guard requires the installed backend to carry the same 2,000,000-byte persistence ceiling as the frontend guards.
 
 Do **not** separately copy the current bundled frontend into `/config/www`. The integration serves its own versioned frontend resource from:
 
@@ -149,6 +163,18 @@ custom_components/frakon_dashboard/brand/icon@2x.png
 ```
 
 The self-check verifies them as valid 256×256 and 512×512 PNGs respectively.
+
+## Persistence contract
+
+Stable v1 and Canvas v2 persistence boundaries are fail-closed. Accepted documents are preserved exactly instead of being silently clamped, compacted or reordered. Client and server validation share a **2,000,000 UTF-8 JSON byte** ceiling.
+
+CI verifies:
+
+- an otherwise-valid controlled document exactly at 2,000,000 serialized bytes is accepted
+- the same document at 2,000,001 bytes is rejected
+- multibyte UTF-8 text is counted by encoded bytes, not character count
+- normal and responsive package/install boundaries contain the same byte-limit contract
+- rejected oversized server writes do not become valid through coercion or normalization
 
 ## Native Canvas v2 persistence safety
 
@@ -169,7 +195,7 @@ frakon/dashboard/remove_responsive_revision
 
 The server currently advertises responsive read support but **does not advertise responsive write support**. The writable responsive kind allowlist remains empty.
 
-The Dry Run endpoint is admin-only and goes through the same responsive bundle, frame, constraint, quota and revision-envelope validation as Save, but it contains no storage mutation call. The editor additionally reads persisted responsive data before and after Dry Run and reports whether the store remained unchanged.
+The Dry Run endpoint is admin-only and goes through the same responsive bundle, frame, constraint, quota, serialized-byte and revision-envelope validation as Save, but it contains no storage mutation call. The editor additionally reads persisted responsive data before and after Dry Run and reports whether the store remained unchanged.
 
 Before an eventual write unlock, CI also verifies:
 
@@ -181,6 +207,7 @@ Before an eventual write unlock, CI also verifies:
 - resolved conflicts are dry-run validated before persistence
 - successful Save projects the clean revision state back into the parent Canvas card
 - responsive stored/conflict envelopes stay bound to the requested dashboard ID
+- responsive bundle/document payloads above 2,000,000 UTF-8 JSON bytes are rejected
 - persistence metadata is rejected rather than coerced
 
 ## Build identity
@@ -271,8 +298,11 @@ The repository CI is designed to run:
 - Python syntax validation
 - integration relative-import verification
 - build-info provider verification
+- Home Assistant manifest contract/release-chain verification
 - Home Assistant brand PNG validation
+- Home Assistant brand package/install release-chain verification
 - strict v1/v2 document validation contract
+- cross-language dashboard serialized-byte parity verification
 - responsive bundle validation contract
 - responsive write-lock and Dry Run invariants
 - persistence-integrity readiness checks
@@ -294,13 +324,14 @@ A HACS repository validation workflow is staged at `.github/workflows/hacs.yml` 
 docs/hacs-publication.md
 ```
 
-and GitHub issue #12.
+and GitHub issue #12. Custom-repository HACS publication and optional default HACS catalog inclusion are separate gates; local FRAKON `brand/` assets are already packaged for the custom-integration path, while any later default-catalog brands requirement must be rechecked immediately before submission.
 
 ## Current alpha limitations
 
 - Responsive Canvas v2 server writes are deliberately disabled pending real-device tests.
 - Real-device testing across multiple Home Assistant browsers/devices is still required before the responsive write gate is opened.
 - The repository is currently private, so it cannot yet be used through HACS; public HACS publication is a separate post-alpha gate.
+- Repository topics are intentionally not finalized until the public HACS publication gate.
 - The staged HACS Action is manual-only until repository visibility/topics and public-release metadata are intentionally enabled.
 - The experimental Canvas should not yet be the sole production control surface for safety-critical functions.
 - Automatic importance scoring does not yet provide the complete planned live contextual AI model.
