@@ -1,6 +1,7 @@
 import type { SurfaceStyle } from '../../packages/design-system/src/surface-style';
 import type { LayoutConstraint } from '../../packages/studio-engine/src/constraints';
 import { projectDashboardGridToCanvas } from './dashboard-canvas-placement';
+import { dashboardWithinSerializedByteLimit } from './dashboard-document-limits';
 import type { FrakonBreakpoint, FrakonDashboardDocument, FrakonGridItem } from './layout-model';
 
 export interface FrakonCanvasFrame {
@@ -269,7 +270,8 @@ export function isDashboardDocumentV2(value: unknown): value is FrakonDashboardD
     if (itemIds.has(item.id)) return false;
     itemIds.add(item.id);
   }
-  return validConstraints(value.constraints, itemIds);
+  return validConstraints(value.constraints, itemIds)
+    && dashboardWithinSerializedByteLimit(value);
 }
 
 function validCanvasLayout(value: unknown): value is FrakonCanvasLayout {
