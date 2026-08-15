@@ -94,6 +94,24 @@ describe('layout model v2', () => {
     expect(isDashboardDocumentV2(badCard)).toBe(false);
   });
 
+  it('rejects non-canonical min/max bounds that normalization would otherwise change', () => {
+    const belowMinWidth = migrateDashboardV1ToV2(v1, 430);
+    belowMinWidth.items[0].minWidth = belowMinWidth.items[0].frame.width + 1;
+    expect(isDashboardDocumentV2(belowMinWidth)).toBe(false);
+
+    const aboveMaxHeight = migrateDashboardV1ToV2(v1, 430);
+    aboveMaxHeight.items[0].maxHeight = aboveMaxHeight.items[0].frame.height - 1;
+    expect(isDashboardDocumentV2(aboveMaxHeight)).toBe(false);
+
+    const minOutsideCanvas = migrateDashboardV1ToV2(v1, 430);
+    minOutsideCanvas.items[0].minWidth = minOutsideCanvas.layout.width + 1;
+    expect(isDashboardDocumentV2(minOutsideCanvas)).toBe(false);
+
+    const maxOutsideCanvas = migrateDashboardV1ToV2(v1, 430);
+    maxOutsideCanvas.items[0].maxWidth = maxOutsideCanvas.layout.width + 1;
+    expect(isDashboardDocumentV2(maxOutsideCanvas)).toBe(false);
+  });
+
   it('rejects any persisted hidden field until native v2 hidden-layer semantics exist', () => {
     const hiddenTrue = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
     hiddenTrue.items[0].hidden = true;
