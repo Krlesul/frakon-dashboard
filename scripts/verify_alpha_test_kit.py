@@ -19,14 +19,9 @@ FRONTEND = DIST / "frakon-dashboard.js"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 REQUIRED = {
-    "README.txt",
-    "alpha-test-kit.json",
-    "frakon_dashboard.zip",
-    "frakon-dashboard.js",
-    "verify_home_assistant_install.py",
-    "home-assistant-alpha-test.md",
-    "home-assistant-alpha-test-report-template.md",
-    "alpha-migration.md",
+    "README.txt", "alpha-test-kit.json", "frakon_dashboard.zip", "frakon-dashboard.js",
+    "verify_home_assistant_install.py", "home-assistant-alpha-test.md",
+    "home-assistant-alpha-test-report-template.md", "alpha-migration.md",
 }
 
 
@@ -96,19 +91,13 @@ with zipfile.ZipFile(KIT) as archive:
         responsive_constraint_validator_path = f"{prefix}responsive_constraint_validation.py"
         responsive_storage_path = f"{prefix}responsive_storage.py"
         responsive_websocket_path = f"{prefix}responsive_websocket.py"
+        frontend_helper_path = f"{prefix}frontend.py"
         bundled_frontend_path = f"{prefix}frontend/frakon-dashboard.js"
         integration_names = set(integration_archive.namelist())
         for required_path in (
-            brand_icon_path,
-            brand_icon_2x_path,
-            build_info_path,
-            manifest_path,
-            validator_path,
-            responsive_validator_path,
-            responsive_constraint_validator_path,
-            responsive_storage_path,
-            responsive_websocket_path,
-            bundled_frontend_path,
+            brand_icon_path, brand_icon_2x_path, build_info_path, manifest_path, validator_path,
+            responsive_validator_path, responsive_constraint_validator_path, responsive_storage_path,
+            responsive_websocket_path, frontend_helper_path, bundled_frontend_path,
         ):
             if required_path not in integration_names:
                 raise SystemExit(f"Embedded integration archive is missing {required_path}")
@@ -120,6 +109,7 @@ with zipfile.ZipFile(KIT) as archive:
         responsive_validator_source = integration_archive.read(responsive_validator_path)
         responsive_storage_source = integration_archive.read(responsive_storage_path)
         responsive_websocket_source = integration_archive.read(responsive_websocket_path)
+        frontend_helper_source = integration_archive.read(frontend_helper_path)
         bundled_frontend = integration_archive.read(bundled_frontend_path)
 
     if png_dimensions(brand_icon, "Embedded brand/icon.png") != (256, 256):
@@ -130,6 +120,8 @@ with zipfile.ZipFile(KIT) as archive:
         raise SystemExit("Embedded Home Assistant manifest identity does not match the Alpha Test Kit")
     if ha_manifest.get("integration_type") != "service":
         raise SystemExit("Embedded Home Assistant manifest must declare integration_type=service")
+    if ha_manifest.get("iot_class") != "calculated":
+        raise SystemExit("Embedded Home Assistant manifest must declare iot_class=calculated")
     if ha_manifest.get("config_flow") is not True or ha_manifest.get("single_config_entry") is not True:
         raise SystemExit("Embedded Home Assistant manifest config entry contract is invalid")
     if set(ha_manifest.get("dependencies", [])) != {"http", "lovelace"}:
@@ -141,16 +133,13 @@ with zipfile.ZipFile(KIT) as archive:
     if bundled_frontend != frontend_bytes:
         raise SystemExit("Embedded integration frontend differs from Alpha Test Kit frontend bundle")
     for marker in (
-        b"validate_dashboard_document",
-        b"DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
-        b"dashboard_serialized_bytes",
-        b"max_serialized_bytes: int = DASHBOARD_MAX_SERIALIZED_BYTES",
+        b"validate_dashboard_document", b"DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
+        b"dashboard_serialized_bytes", b"max_serialized_bytes: int = DASHBOARD_MAX_SERIALIZED_BYTES",
     ):
         if marker not in validator_source:
             raise SystemExit(f"Embedded integration document validator is missing {marker.decode()}")
     for marker in (
-        b"validate_responsive_revision_envelope",
-        b"dashboard_serialized_bytes",
+        b"validate_responsive_revision_envelope", b"dashboard_serialized_bytes",
         b"max_serialized_bytes=RESPONSIVE_CANVAS_V2_MAX_SERIALIZED_BYTES",
     ):
         if marker not in responsive_validator_source:
@@ -161,6 +150,11 @@ with zipfile.ZipFile(KIT) as archive:
         raise SystemExit("Embedded integration responsive WebSocket is not wired to the shared validator")
     if b"vol.Coerce(int)" in responsive_websocket_source:
         raise SystemExit("Embedded responsive WebSocket still coerces integer persistence metadata")
+    if b"LOVELACE_DATA" in frontend_helper_source:
+        raise SystemExit("Embedded frontend helper is incompatible with the declared HA 2025.1 minimum")
+    for marker in (b"DOMAIN as LOVELACE_DOMAIN", b"def _lovelace_resource_state", b"await collection.async_get_info()"):
+        if marker not in frontend_helper_source:
+            raise SystemExit(f"Embedded frontend helper is missing HA minimum compatibility marker {marker.decode()}")
 
     test_guide = archive.read("home-assistant-alpha-test.md").decode("utf-8")
     report = archive.read("home-assistant-alpha-test-report-template.md").decode("utf-8")
@@ -172,6 +166,8 @@ with zipfile.ZipFile(KIT) as archive:
         ("test guide", test_guide, "/config/custom_components/frakon_dashboard"),
         ("test guide", test_guide, "custom:frakon-dashboard-card"),
         ("test guide", test_guide, "Home Assistant manifest contract: OK"),
+        ("test guide", test_guide, "Home Assistant minimum compatibility: OK (2025.1.0+)"),
+        ("test guide", test_guide, "iot_class=calculated"),
         ("test guide", test_guide, "Dashboard serialized-byte guard: OK"),
         ("test guide", test_guide, "2,000,000"),
         ("test guide", test_guide, "Responsive bundle validator: OK"),
@@ -180,6 +176,8 @@ with zipfile.ZipFile(KIT) as archive:
         ("test guide", test_guide, "requested dashboard ID"),
         ("report template", report, "## Final alpha decision"),
         ("report template", report, "Home Assistant manifest contract: OK"),
+        ("report template", report, "Home Assistant minimum compatibility: OK (2025.1.0+)"),
+        ("report template", report, "iot_class: calculated"),
         ("report template", report, "Dashboard serialized-byte guard: OK"),
         ("report template", report, "2,000,000"),
         ("report template", report, "Responsive bundle validator: OK"),
@@ -189,6 +187,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("migration guide", migration, "## 9. Rollback"),
         ("self-check", self_check, "frontend SHA-256"),
         ("self-check", self_check, "Home Assistant manifest contract: OK"),
+        ("self-check", self_check, "Home Assistant minimum compatibility: OK (2025.1.0+)"),
         ("self-check", self_check, "Home Assistant brand assets: OK"),
         ("self-check", self_check, "Dashboard serialized-byte guard: OK"),
         ("self-check", self_check, "Dashboard document validator: OK"),
@@ -198,6 +197,8 @@ with zipfile.ZipFile(KIT) as archive:
         ("README", readme, "Frontend SHA-256"),
         ("README", readme, "python verify_home_assistant_install.py"),
         ("README", readme, "Home Assistant manifest contract: OK"),
+        ("README", readme, "Home Assistant minimum compatibility: OK (2025.1.0+)"),
+        ("README", readme, "iot_class=calculated"),
         ("README", readme, "Home Assistant brand assets: OK"),
         ("README", readme, "Dashboard serialized-byte guard: OK"),
         ("README", readme, "Dashboard document validator: OK"),
