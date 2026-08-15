@@ -17,6 +17,22 @@ const TYPE_PRIORITIES: Record<string, number> = {
   'custom:frakon-card': 35,
 };
 
+const TYPE_GROUPS: Record<string, string> = {
+  'custom:frakon-camera-card': 'security',
+  'custom:frakon-binary-sensor-card': 'security',
+  'custom:frakon-lock-card': 'security',
+  'custom:frakon-climate-card': 'comfort',
+  'custom:frakon-room-card': 'comfort',
+  'custom:frakon-cover-card': 'comfort',
+  'custom:frakon-light-card': 'lighting',
+  'custom:frakon-switch-card': 'lighting',
+  'custom:frakon-energy-card': 'energy',
+  'custom:frakon-vehicle-card': 'energy',
+  'custom:frakon-media-player-card': 'media',
+  'custom:frakon-sensor-card': 'status',
+  'custom:frakon-action-card': 'actions',
+};
+
 function cardType(item: FrakonGridItem): string {
   return typeof item.card.type === 'string' ? item.card.type : '';
 }
@@ -28,9 +44,16 @@ function configuredPriority(item: FrakonGridItem): number | undefined {
     : undefined;
 }
 
+function configuredGroup(item: FrakonGridItem): string | undefined {
+  const value = item.card.layout_group;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
 export function scoreDashboardItemPriority(item: FrakonGridItem): DashboardPriorityScore {
   const type = cardType(item);
   const manual = configuredPriority(item);
+  const manualGroup = configuredGroup(item);
+  const semanticGroup = manualGroup ?? TYPE_GROUPS[type];
   const reasons: string[] = [];
   let priority = TYPE_PRIORITIES[type] ?? 25;
 
@@ -40,6 +63,12 @@ export function scoreDashboardItemPriority(item: FrakonGridItem): DashboardPrior
   if (manual !== undefined) {
     priority = manual;
     reasons.push(`manual priority overrides the base score with ${manual}`);
+  }
+
+  if (semanticGroup) {
+    reasons.push(manualGroup
+      ? `manual layout group ${semanticGroup} overrides semantic grouping`
+      : `card type maps to semantic group ${semanticGroup}`);
   }
 
   if (item.locked) {
@@ -57,6 +86,7 @@ export function scoreDashboardItemPriority(item: FrakonGridItem): DashboardPrior
 
   return {
     priority,
+    semanticGroup,
     preferredWidth,
     preferredHeight,
     minWidth: item.minW,
