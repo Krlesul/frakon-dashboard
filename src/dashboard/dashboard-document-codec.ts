@@ -1,3 +1,4 @@
+import { dashboardWithinSerializedByteLimit } from './dashboard-document-limits';
 import { normalizeDashboard, type FrakonDashboardDocument, type FrakonGridItem } from './layout-model';
 import {
   isDashboardDocumentV2,
@@ -141,7 +142,8 @@ export function isDashboardDocumentV1(value: unknown): value is FrakonDashboardD
       if (v1ItemsOverlap(items[index], items[other])) return false;
     }
   }
-  return validConstraints(value.constraints, itemIds);
+  return validConstraints(value.constraints, itemIds)
+    && dashboardWithinSerializedByteLimit(value);
 }
 
 /** Explicit editor/migration normalizer. Persistence codecs do not call it. */
