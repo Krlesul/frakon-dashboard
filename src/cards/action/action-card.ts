@@ -32,6 +32,10 @@ export class FrakonActionCard extends LitElement {
   }
 
   getCardSize(): number { return 3; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-action-card-editor'); }
+  static getStubConfig(): FrakonActionCardConfig {
+    return { type: 'custom:frakon-action-card', entity: 'script.example', show_state: false };
+  }
 
   private async run(): Promise<void> {
     if (!this.hass || !this.config || this.running) return;
