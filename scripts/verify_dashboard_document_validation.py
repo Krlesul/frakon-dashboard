@@ -20,6 +20,8 @@ def load_validator() -> ModuleType:
 
 validation = load_validator()
 validate = validation.validate_dashboard_document
+serialized_bytes = validation.dashboard_serialized_bytes
+MAX_SERIALIZED_BYTES = validation.DASHBOARD_MAX_SERIALIZED_BYTES
 ValidationError = validation.DashboardDocumentValidationError
 
 
@@ -187,6 +189,32 @@ expect_invalid(payload, "v2 maxWidth outside canvas")
 payload = valid_v2()
 payload["constraints"] = None
 expect_invalid(payload, "explicit null v2 constraints")
+
+# The server boundary must enforce the same 2,000,000-byte UTF-8 persistence
+# ceiling as the TypeScript v1/v2 guards. Build an exact ASCII boundary so
+# off-by-one changes fail deterministically.
+payload = valid_v1()
+payload["title"] = ""
+base_size = serialized_bytes(payload)
+if not isinstance(base_size, int) or base_size <= 0:
+    raise SystemExit("Cannot compute canonical dashboard serialized size")
+payload["title"] = "x" * (MAX_SERIALIZED_BYTES - base_size)
+if serialized_bytes(payload) != MAX_SERIALIZED_BYTES:
+    raise SystemExit("Dashboard byte-limit fixture did not land exactly on the configured boundary")
+if validate(payload, {1, 2}) != payload:
+    raise SystemExit("Validator rejected a dashboard exactly at the serialized-byte limit")
+payload["title"] += "x"
+expect_invalid(payload, "dashboard one byte above serialized limit")
+
+# Prove the limit counts UTF-8 bytes rather than Python characters.
+payload = valid_v2()
+payload["title"] = "€" * 700_000
+size = serialized_bytes(payload)
+if not isinstance(size, int) or size <= MAX_SERIALIZED_BYTES:
+    raise SystemExit("Unicode byte-limit fixture is not larger than the configured byte ceiling")
+if len(payload["title"]) >= MAX_SERIALIZED_BYTES:
+    raise SystemExit("Unicode byte-limit fixture no longer proves byte-vs-character accounting")
+expect_invalid(payload, "multibyte UTF-8 dashboard above serialized limit")
 
 try:
     validate(valid_v1(), {2})
