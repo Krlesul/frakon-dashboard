@@ -187,14 +187,33 @@ function gridSpanToPixelHeight(span: number | undefined, rowHeight: number, gap:
   return safeSpan * rowHeight + Math.max(0, safeSpan - 1) * gap;
 }
 
+function migrationVisibleDocument(document: FrakonDashboardDocument): FrakonDashboardDocument {
+  const items = document.items.filter((item) => item.hidden !== true);
+  const ids = new Set(items.map((item) => item.id));
+  return {
+    ...document,
+    items,
+    constraints: document.constraints?.filter(
+      (constraint) => ids.has(constraint.sourceId) && ids.has(constraint.targetId),
+    ),
+  };
+}
+
+/**
+ * Build a read-only v2 migration candidate. The current v2 schema does not yet
+ * encode hidden state, so hidden v1 layers are deliberately omitted rather than
+ * being exposed as visible cards. Migration previews are never persistence-safe
+ * until native hidden-layer semantics and the v2 write gate are explicitly enabled.
+ */
 export function migrateDashboardV1ToV2(
   document: FrakonDashboardDocument,
   canvasWidth: number,
 ): FrakonDashboardDocumentV2 {
-  const projection = projectDashboardGridToCanvas(document, canvasWidth);
+  const migrationDocument = migrationVisibleDocument(document);
+  const projection = projectDashboardGridToCanvas(migrationDocument, canvasWidth);
   const projectedById = new Map(projection.items.map((item) => [item.id, item]));
 
-  const items: FrakonCanvasItem[] = document.items.map((item: FrakonGridItem) => {
+  const items: FrakonCanvasItem[] = migrationDocument.items.map((item: FrakonGridItem) => {
     const projected = projectedById.get(item.id);
     if (!projected) throw new Error(`Missing canvas projection for item ${item.id}.`);
     return {
@@ -206,10 +225,10 @@ export function migrateDashboardV1ToV2(
         width: projected.width,
         height: projected.height,
       },
-      minWidth: gridSpanToPixelWidth(item.minW, projection.columnWidth, document.gap),
-      minHeight: gridSpanToPixelHeight(item.minH, document.rowHeight, document.gap),
-      maxWidth: gridSpanToPixelWidth(item.maxW, projection.columnWidth, document.gap),
-      maxHeight: gridSpanToPixelHeight(item.maxH, document.rowHeight, document.gap),
+      minWidth: gridSpanToPixelWidth(item.minW, projection.columnWidth, migrationDocument.gap),
+      minHeight: gridSpanToPixelHeight(item.minH, migrationDocument.rowHeight, migrationDocument.gap),
+      maxWidth: gridSpanToPixelWidth(item.maxW, projection.columnWidth, migrationDocument.gap),
+      maxHeight: gridSpanToPixelHeight(item.maxH, migrationDocument.rowHeight, migrationDocument.gap),
       locked: item.locked,
       surface: item.surface ? structuredClone(item.surface) : undefined,
     };
@@ -217,18 +236,18 @@ export function migrateDashboardV1ToV2(
 
   return normalizeDashboardV2({
     version: 2,
-    id: document.id,
-    title: document.title,
-    breakpoint: document.breakpoint,
+    id: migrationDocument.id,
+    title: migrationDocument.title,
+    breakpoint: migrationDocument.breakpoint,
     layout: {
       mode: 'canvas',
       width: Math.max(1, canvasWidth),
-      minHeight: projectedMinHeight(document, canvasWidth),
-      snap: { enabled: true, size: Math.max(1, document.gap || 8) },
+      minHeight: projectedMinHeight(migrationDocument, canvasWidth),
+      snap: { enabled: true, size: Math.max(1, migrationDocument.gap || 8) },
     },
-    surface: document.surface ? structuredClone(document.surface) : undefined,
-    cardSurface: document.cardSurface ? structuredClone(document.cardSurface) : undefined,
-    constraints: document.constraints?.map((constraint) => structuredClone(constraint)),
+    surface: migrationDocument.surface ? structuredClone(migrationDocument.surface) : undefined,
+    cardSurface: migrationDocument.cardSurface ? structuredClone(migrationDocument.cardSurface) : undefined,
+    constraints: migrationDocument.constraints?.map((constraint) => structuredClone(constraint)),
     items,
   });
 }
