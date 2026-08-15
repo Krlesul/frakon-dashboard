@@ -116,10 +116,10 @@ export class RevisionedDashboardStorage<
     };
   }
 
-  remove(id: string, expectedRevision?: string): Promise<void> {
+  async remove(id: string, expectedRevision?: string): Promise<void> {
     requireIdentifier(id, 'dashboard id', 128);
     if (expectedRevision !== undefined) requireIdentifier(expectedRevision, 'expected revision', 256);
-    return this.transport.request<void>(`${this.namespace}/remove_revision`, {
+    await this.transport.request<void>(`${this.namespace}/remove_revision`, {
       dashboard_id: id,
       expectedRevision,
     });
