@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nudgeDashboardSelection } from './dashboard-keyboard-nudge';
+import { keyboardNudgeDelta, nudgeDashboardSelection } from './dashboard-keyboard-nudge';
 import type { FrakonDashboardDocument } from './layout-model';
 
 const document: FrakonDashboardDocument = {
@@ -18,6 +18,13 @@ const document: FrakonDashboardDocument = {
 };
 
 describe('dashboard keyboard nudge', () => {
+  it('maps arrow keys to one-cell movement and Shift-sized movement', () => {
+    expect(keyboardNudgeDelta('ArrowLeft')).toEqual({ x: -1, y: 0 });
+    expect(keyboardNudgeDelta('ArrowDown')).toEqual({ x: 0, y: 1 });
+    expect(keyboardNudgeDelta('ArrowRight', true)).toEqual({ x: 5, y: 0 });
+    expect(keyboardNudgeDelta('x')).toBeUndefined();
+  });
+
   it('moves a selected item by grid units', () => {
     const result = nudgeDashboardSelection(document, ['a'], { x: 1, y: 1 });
     expect(result.status).toBe('moved');
