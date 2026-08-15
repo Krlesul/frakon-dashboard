@@ -65,6 +65,47 @@ describe('dashboard document codec', () => {
     expect(failureReason(JSON.stringify(invalidWidth))).toBe('invalid-document');
   });
 
+  it('rejects non-positive or out-of-grid v1 geometry before normalization can move it', () => {
+    const negative = structuredClone(v1);
+    negative.items[0].x = -1;
+    expect(failureReason(JSON.stringify(negative))).toBe('invalid-document');
+
+    const zeroWidth = structuredClone(v1);
+    zeroWidth.items[0].w = 0;
+    expect(failureReason(JSON.stringify(zeroWidth))).toBe('invalid-document');
+
+    const outside = structuredClone(v1);
+    outside.items[0].x = 3;
+    outside.items[0].w = 2;
+    expect(failureReason(JSON.stringify(outside))).toBe('invalid-document');
+  });
+
+  it('rejects invalid optional size limits with the same policy as the Home Assistant boundary', () => {
+    const nullMin = structuredClone(v1) as unknown as { items: Array<Record<string, unknown>> };
+    nullMin.items[0].minW = null;
+    expect(failureReason(JSON.stringify(nullMin))).toBe('invalid-document');
+
+    const inverted = structuredClone(v1);
+    inverted.items[0].minW = 3;
+    inverted.items[0].maxW = 2;
+    expect(failureReason(JSON.stringify(inverted))).toBe('invalid-document');
+  });
+
+  it('rejects overlong dashboard, item and constraint identities', () => {
+    const dashboardId = structuredClone(v1);
+    dashboardId.id = 'd'.repeat(129);
+    expect(failureReason(JSON.stringify(dashboardId))).toBe('invalid-document');
+
+    const itemId = structuredClone(v1);
+    itemId.items[0].id = 'i'.repeat(129);
+    expect(failureReason(JSON.stringify(itemId))).toBe('invalid-document');
+
+    const constraintId = structuredClone(v1);
+    if (!constraintId.constraints?.[0]) throw new Error('Missing test constraint.');
+    constraintId.constraints[0].id = 'c'.repeat(257);
+    expect(failureReason(JSON.stringify(constraintId))).toBe('invalid-document');
+  });
+
   it('rejects duplicate item ids instead of silently creating ambiguous layer identity', () => {
     const duplicate = structuredClone(v1);
     duplicate.items.push({ ...structuredClone(duplicate.items[0]) });
