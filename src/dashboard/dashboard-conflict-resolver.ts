@@ -1,5 +1,5 @@
 import type { FrakonDashboardAnyDocument } from './dashboard-document-codec';
-import type { FrakonCanvasItem, FrakonDashboardDocumentV2 } from './layout-model-v2';
+import type { FrakonDashboardDocumentV2 } from './layout-model-v2';
 import type { FrakonDashboardDocument } from './layout-model';
 
 export interface DashboardMergeConflict {
@@ -188,10 +188,7 @@ function mergeMissingOrderIds(order: string[], sequence: string[], allowed: Set<
     }
 
     if (previous) {
-      const previousIndex = order.indexOf(previous);
-      const nextIndex = next ? order.indexOf(next) : -1;
-      const insertionIndex = nextIndex > previousIndex ? previousIndex + 1 : previousIndex + 1;
-      order.splice(insertionIndex, 0, id);
+      order.splice(order.indexOf(previous) + 1, 0, id);
     } else if (next) {
       order.splice(order.indexOf(next), 0, id);
     } else {
