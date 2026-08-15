@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDashboardRevision } from './dashboard-revision';
 import { RevisionedDashboardSyncController } from './revisioned-dashboard-sync-controller';
 import type { RevisionedDashboardSaveResult, RevisionedDashboardStorage } from './revisioned-dashboard-storage';
+import { migrateDashboardV1ToV2 } from './layout-model-v2';
 import type { FrakonDashboardDocument } from './layout-model';
 
 const baseDocument: FrakonDashboardDocument = {
@@ -16,7 +17,7 @@ const baseDocument: FrakonDashboardDocument = {
 };
 
 class StorageStub {
-  loaded = createDashboardRevision(baseDocument, 'server', undefined, 10);
+  loaded: unknown = createDashboardRevision(baseDocument, 'server', undefined, 10);
   results: RevisionedDashboardSaveResult[] = [];
   saved: FrakonDashboardDocument[] = [];
 
@@ -42,15 +43,32 @@ describe('RevisionedDashboardSyncController', () => {
 
     await controller.load('home');
 
-    expect(controller.currentState.envelope?.revision).toBe(storage.loaded.revision);
+    const loaded = storage.loaded as { revision: string };
+    expect(controller.currentState.envelope?.revision).toBe(loaded.revision);
     expect(controller.currentState.loading).toBe(false);
+  });
+
+  it('rejects a valid version 2 envelope on the version 1 sync path', async () => {
+    const storage = new StorageStub();
+    const v2 = migrateDashboardV1ToV2(baseDocument, 1200);
+    storage.loaded = createDashboardRevision(v2, 'server', undefined, 10);
+    const controller = new RevisionedDashboardSyncController(
+      storage as unknown as RevisionedDashboardStorage,
+      'tablet',
+    );
+
+    expect(await controller.load('home')).toBeUndefined();
+    expect(controller.currentState.envelope).toBeUndefined();
+    expect(controller.currentState.error?.message).toMatch(/version 1 revision/i);
   });
 
   it('creates a conflict session when a concurrent remote revision is reported', async () => {
     const storage = new StorageStub();
+    const base = createDashboardRevision(baseDocument, 'server', undefined, 10);
+    storage.loaded = base;
     const localDocument = { ...baseDocument, title: 'Local' };
-    const local = createDashboardRevision(localDocument, 'tablet', storage.loaded, 20);
-    const remote = createDashboardRevision({ ...baseDocument, title: 'Remote' }, 'desktop', storage.loaded, 30);
+    const local = createDashboardRevision(localDocument, 'tablet', base, 20);
+    const remote = createDashboardRevision({ ...baseDocument, title: 'Remote' }, 'desktop', base, 30);
     storage.results.push({
       status: 'conflict',
       comparison: { relation: 'conflict', local, remote },
@@ -69,9 +87,11 @@ describe('RevisionedDashboardSyncController', () => {
 
   it('resolves a conflict and clears the conflict state after saving', async () => {
     const storage = new StorageStub();
+    const base = createDashboardRevision(baseDocument, 'server', undefined, 10);
+    storage.loaded = base;
     const localDocument = { ...baseDocument, title: 'Local' };
-    const local = createDashboardRevision(localDocument, 'tablet', storage.loaded, 20);
-    const remote = createDashboardRevision({ ...baseDocument, title: 'Remote' }, 'desktop', storage.loaded, 30);
+    const local = createDashboardRevision(localDocument, 'tablet', base, 20);
+    const remote = createDashboardRevision({ ...baseDocument, title: 'Remote' }, 'desktop', base, 30);
     const resolved = createDashboardRevision(localDocument, 'tablet', remote, 40);
     storage.results.push(
       { status: 'conflict', comparison: { relation: 'conflict', local, remote } },
@@ -94,6 +114,8 @@ describe('RevisionedDashboardSyncController', () => {
 
   it('surfaces a persistence block without fabricating a conflict session', async () => {
     const storage = new StorageStub();
+    const base = createDashboardRevision(baseDocument, 'server', undefined, 10);
+    storage.loaded = base;
     storage.results.push({ status: 'blocked', reason: 'persistence-disabled' });
     const controller = new RevisionedDashboardSyncController(
       storage as unknown as RevisionedDashboardStorage,
