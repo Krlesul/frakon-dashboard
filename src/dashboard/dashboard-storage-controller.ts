@@ -1,4 +1,5 @@
-import { normalizeDashboard, type FrakonDashboardDocument } from './layout-model';
+import { isDashboardDocumentV1 } from './dashboard-document-codec';
+import type { FrakonDashboardDocument } from './layout-model';
 import type { DashboardStorageAdapter } from './dashboard-storage';
 
 export interface DashboardStorageControllerState {
@@ -8,6 +9,8 @@ export interface DashboardStorageControllerState {
 }
 
 export type DashboardStorageControllerListener = (state: DashboardStorageControllerState) => void;
+
+const INVALID_DOCUMENT_MESSAGE = 'Invalid or non-canonical FRAKON dashboard document.';
 
 export class DashboardStorageController {
   private state: DashboardStorageControllerState = { loading: false, saving: false };
@@ -37,10 +40,14 @@ export class DashboardStorageController {
     try {
       const document = await this.adapter.load(id);
       if (generation !== this.loadGeneration) return undefined;
-      // Storage is an identity boundary, not an auto-layout operation. Normalize
-      // scalar bounds and constraint references, but never compact/reposition a
-      // document that has already been accepted by the editor.
-      return document ? normalizeDashboard(document) : undefined;
+      if (!document) return undefined;
+      if (!isDashboardDocumentV1(document) || document.id !== id) {
+        throw new Error(INVALID_DOCUMENT_MESSAGE);
+      }
+      // Storage is an identity boundary, not an auto-layout operation. Once a
+      // document passes the canonical schema guard, return the exact accepted
+      // snapshot instead of normalizing or compacting it again.
+      return structuredClone(document);
     } catch (error) {
       if (generation === this.loadGeneration) this.patchState({ error: toError(error) });
       return undefined;
@@ -51,13 +58,18 @@ export class DashboardStorageController {
 
   save(document: FrakonDashboardDocument): Promise<void> {
     // Exact persistence is required for Undo/Redo, imports, Layers z-order and
-    // Automatic Designer previews: save what the editor committed, not a fresh
-    // compaction of it.
-    const normalized = normalizeDashboard(document);
+    // Automatic Designer previews. Reject a non-canonical snapshot instead of
+    // silently rounding/clamping it into different persisted state.
+    if (!isDashboardDocumentV1(document)) {
+      this.patchState({ saving: false, error: new Error(INVALID_DOCUMENT_MESSAGE) });
+      return Promise.resolve();
+    }
+
+    const exact = structuredClone(document);
     this.patchState({ saving: true, error: undefined });
     this.saveQueue = this.saveQueue
       .catch(() => undefined)
-      .then(() => this.adapter.save(normalized))
+      .then(() => this.adapter.save(exact))
       .catch((error) => {
         this.patchState({ error: toError(error) });
       })
