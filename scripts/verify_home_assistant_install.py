@@ -21,6 +21,8 @@ REQUIRED_FILES = (
     "document_validation.py",
     "frontend.py",
     "manifest.json",
+    "responsive_bundle_validation.py",
+    "responsive_constraint_validation.py",
     "responsive_storage.py",
     "responsive_websocket.py",
     "storage.py",
@@ -133,13 +135,41 @@ def main() -> int:
         fail("Czech already-configured message is missing")
 
     validator_source = (integration / "document_validation.py").read_text(encoding="utf-8")
-    for marker in ("validate_dashboard_document", "Duplicate dashboard item id", "references an unknown item"):
+    for marker in (
+        "validate_dashboard_document",
+        "Duplicate dashboard item id",
+        "references an unknown item",
+        "outside its canonical min/max bounds",
+    ):
         if marker not in validator_source:
             fail(f"dashboard document validator is missing marker {marker!r}")
+
+    responsive_validator_source = (integration / "responsive_bundle_validation.py").read_text(encoding="utf-8")
+    for marker in (
+        "validate_responsive_bundle",
+        "validate_responsive_revision_envelope",
+        "validate_dashboard_document",
+        "enabled constraint dependency cycle",
+    ):
+        if marker not in responsive_validator_source:
+            fail(f"responsive bundle validator is missing marker {marker!r}")
 
     websocket_source = (integration / "websocket.py").read_text(encoding="utf-8")
     if "validate_dashboard_document" not in websocket_source:
         fail("websocket boundary is not wired to dashboard document validation")
+    if "vol.Coerce(int)" in websocket_source:
+        fail("websocket persistence schema must not coerce integer values")
+
+    responsive_websocket_source = (integration / "responsive_websocket.py").read_text(encoding="utf-8")
+    for marker in ("_strict_contract_version", "_strict_updated_at", "validate_dashboard_document"):
+        if marker not in responsive_websocket_source:
+            fail(f"responsive WebSocket validation is missing marker {marker!r}")
+    if "vol.Coerce(int)" in responsive_websocket_source:
+        fail("responsive WebSocket persistence schema must not coerce integer values")
+
+    responsive_storage_source = (integration / "responsive_storage.py").read_text(encoding="utf-8")
+    if "validate_responsive_revision_envelope" not in responsive_storage_source:
+        fail("responsive Home Assistant Store is not wired to the shared responsive validator")
 
     frontend_helper = (integration / "frontend.py").read_text(encoding="utf-8")
     if "?v={INTEGRATION_VERSION}" not in frontend_helper:
@@ -176,6 +206,7 @@ def main() -> int:
     print(f"frontend SHA-256: {actual_frontend_sha}")
     print(f"verified frontend registrations: {len(FRONTEND_REGISTRATION_MARKERS)}")
     print("Dashboard document validator: OK")
+    print("Responsive bundle validator: OK")
     print("Czech config flow: OK")
     print(f"resource URL: {resource_url}")
     return 0
