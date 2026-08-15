@@ -32,9 +32,9 @@ describe('grid dashboard layer actions', () => {
     expect(result.document.items.map((item) => item.id)).toEqual(['b', 'd', 'a', 'locked']);
   });
 
-  it('moves one layer forward without jumping over selected peers', () => {
+  it('moves a contiguous selected group one layer forward as a block', () => {
     const result = applyDashboardGridLayerAction(doc(), ['a', 'b'], 'bring-forward');
-    expect(result.document.items.map((item) => item.id)).toEqual(['a', 'locked', 'b', 'd']);
+    expect(result.document.items.map((item) => item.id)).toEqual(['locked', 'a', 'b', 'd']);
   });
 
   it('moves one layer backward without jumping over selected peers', () => {
