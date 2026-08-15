@@ -77,11 +77,13 @@ interface MoveSession {
 
 const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 const COLUMN_WIDTH = 96;
-const GUIDE_THRESHOLD_SCREEN_PX = 8;
+const DEFAULT_SNAP_THRESHOLD_SCREEN_PX = 8;
+const MAX_SNAP_THRESHOLD_SCREEN_PX = 48;
 
 @customElement('frakon-dashboard-studio')
 export class FrakonDashboardStudio extends LitElement {
   @property({ attribute: false }) document?: FrakonDashboardDocument;
+  @property({ type: Number, attribute: 'snap-threshold' }) snapThresholdScreenPx = DEFAULT_SNAP_THRESHOLD_SCREEN_PX;
   @state() private selection: SelectionState = { ids: [] };
   @state() private viewportZoom = 1;
   @state() private resizing = false;
@@ -128,16 +130,19 @@ export class FrakonDashboardStudio extends LitElement {
       background:rgb(255 255 255 / 4%);
       font-size:12px;
     }
-    .constraint-toolbar button {
+    .constraint-toolbar button,
+    .constraint-toolbar input {
       border:1px solid rgb(105 167 255 / 34%);
       border-radius:9px;
       padding:7px 10px;
       color:inherit;
       background:rgb(105 167 255 / 13%);
-      cursor:pointer;
       font:inherit;
     }
+    .constraint-toolbar button { cursor:pointer; }
+    .constraint-toolbar input { width:58px; box-sizing:border-box; }
     .constraint-toolbar button[aria-pressed='true'] { background:rgb(105 167 255 / 25%); }
+    .snap-help { font-size:10px; opacity:.56; text-align:right; }
     .item {
       position:absolute;
       box-sizing:border-box;
@@ -271,6 +276,12 @@ export class FrakonDashboardStudio extends LitElement {
   private onConstraintDocumentChanged(event: CustomEvent<FrakonConstraintDocumentChangedDetail>): void {
     this.document = event.detail.document;
     this.emitChanged();
+  }
+
+  private updateSnapThreshold(event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    if (!Number.isFinite(value)) return;
+    this.snapThresholdScreenPx = Math.max(0, Math.min(MAX_SNAP_THRESHOLD_SCREEN_PX, Math.round(value)));
   }
 
   private onStudioKeyDown(event: KeyboardEvent): void {
@@ -430,10 +441,14 @@ export class FrakonDashboardStudio extends LitElement {
 
     const zoom = Math.max(0.01, this.viewportZoom);
     const document = session.sourceDocument;
+    const snappingDisabled = event.ctrlKey || event.metaKey;
     const gridPreview = previewMove(session.sourceItems, session.selectedIds, {
       x: (event.clientX - session.startX) / zoom,
       y: (event.clientY - session.startY) / zoom,
-    }, {
+    }, snappingDisabled ? {
+      minX: 0,
+      minY: 0,
+    } : {
       minX: 0,
       minY: 0,
       gridX: COLUMN_WIDTH,
@@ -441,11 +456,13 @@ export class FrakonDashboardStudio extends LitElement {
     });
 
     const hiddenIds = new Set(document.items.filter((item) => item.hidden).map((item) => item.id));
-    const guideSnap = computeSmartGuidelines(
-      gridPreview.items.filter((item) => !hiddenIds.has(item.id)),
-      session.selectedIds,
-      GUIDE_THRESHOLD_SCREEN_PX / zoom,
-    );
+    const guideSnap = snappingDisabled
+      ? { deltaX: 0, deltaY: 0, guidelines: [] as Guideline[] }
+      : computeSmartGuidelines(
+        gridPreview.items.filter((item) => !hiddenIds.has(item.id)),
+        session.selectedIds,
+        Math.max(0, Math.min(MAX_SNAP_THRESHOLD_SCREEN_PX, this.snapThresholdScreenPx)) / zoom,
+      );
     const preview = guideSnap.deltaX || guideSnap.deltaY
       ? previewMove(gridPreview.items, session.selectedIds, {
         x: guideSnap.deltaX,
@@ -682,6 +699,10 @@ export class FrakonDashboardStudio extends LitElement {
               .selection=${this.selection}
               @frakon-studio-document-changed=${this.onDocumentChanged}
             ></frakon-surface-inspector>
+            <div class="constraint-toolbar">
+              <label>Snap threshold <input type="number" min="0" max=${MAX_SNAP_THRESHOLD_SCREEN_PX} step="1" .value=${String(this.snapThresholdScreenPx)} @change=${this.updateSnapThreshold}></label>
+              <span class="snap-help">screen px · hold Ctrl/Cmd while dragging to bypass grid + guides</span>
+            </div>
             <div class="constraint-toolbar">
               <span>Constraint ghost preview</span>
               <button
