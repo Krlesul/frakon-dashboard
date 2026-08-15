@@ -9,9 +9,12 @@ from zipfile import ZipFile
 ROOT = Path(__file__).resolve().parents[1]
 ZIP_PATH = ROOT / "dist" / "frakon_dashboard.zip"
 PREFIX = "custom_components/frakon_dashboard/"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 required = {
     f"{PREFIX}__init__.py",
+    f"{PREFIX}brand/icon.png",
+    f"{PREFIX}brand/icon@2x.png",
     f"{PREFIX}build_info.py",
     f"{PREFIX}build-info.json",
     f"{PREFIX}build_websocket.py",
@@ -54,6 +57,13 @@ required_frontend_markers = {
     b"frakon-canvas-dashboard-card",
 }
 
+
+def png_dimensions(data: bytes, label: str) -> tuple[int, int]:
+    if len(data) < 24 or data[:8] != PNG_SIGNATURE or data[12:16] != b"IHDR":
+        raise SystemExit(f"Packaged {label} is not a valid PNG with an IHDR header")
+    return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+
+
 if not ZIP_PATH.is_file():
     raise SystemExit(f"Missing HACS release archive: {ZIP_PATH}")
 
@@ -62,6 +72,13 @@ with ZipFile(ZIP_PATH) as archive:
     missing = sorted(required - names)
     if missing:
         raise SystemExit("HACS release archive is incomplete:\n- " + "\n- ".join(missing))
+
+    brand_icon = archive.read(f"{PREFIX}brand/icon.png")
+    brand_icon_2x = archive.read(f"{PREFIX}brand/icon@2x.png")
+    if png_dimensions(brand_icon, "brand/icon.png") != (256, 256):
+        raise SystemExit("Packaged brand/icon.png must be exactly 256x256 pixels")
+    if png_dimensions(brand_icon_2x, "brand/icon@2x.png") != (512, 512):
+        raise SystemExit("Packaged brand/icon@2x.png must be exactly 512x512 pixels")
 
     manifest = json.loads(archive.read(f"{PREFIX}manifest.json"))
     package = json.loads((ROOT / "package.json").read_text())
