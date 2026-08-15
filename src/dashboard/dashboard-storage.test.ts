@@ -60,15 +60,19 @@ function memoryStorage(initial: Record<string, string> = {}): Storage {
 }
 
 describe('dashboard storage adapters', () => {
-  it('stores and loads normalized documents without compacting exact geometry or z-order', async () => {
+  it('rejects non-canonical documents instead of normalizing them during save', async () => {
     const storage = new MemoryDashboardStorageAdapter();
-    await storage.save({ ...document, rowHeight: 10, gap: -2 });
+    await expect(storage.save({ ...document, rowHeight: 10 })).rejects.toThrow(/non-canonical/i);
+    await expect(storage.save({ ...document, gap: -2 })).rejects.toThrow(/non-canonical/i);
+    expect(await storage.load('home')).toBeUndefined();
+  });
+
+  it('stores and loads canonical documents without changing geometry, z-order or hidden state', async () => {
+    const storage = new MemoryDashboardStorageAdapter();
+    await storage.save(document);
     const loaded = await storage.load('home');
-    expect(loaded).toMatchObject({ rowHeight: 24, gap: 0 });
-    expect(loaded?.items.map((item) => item.id)).toEqual(['front', 'hidden', 'back']);
-    expect(loaded?.items.find((item) => item.id === 'front')).toMatchObject({ x: 7, y: 5 });
-    expect(loaded?.items.find((item) => item.id === 'hidden')).toMatchObject({ x: 1, y: 3, hidden: true });
-    expect(loaded?.constraints).toEqual(document.constraints);
+    expect(loaded).toEqual(document);
+    expect(loaded).not.toBe(document);
   });
 
   it('returns defensive copies', async () => {
@@ -112,6 +116,24 @@ describe('dashboard storage adapters', () => {
     expect(await storage.load('home')).toBeUndefined();
   });
 
+  it('rejects fractional and overlapping local-storage payloads rather than repairing them', async () => {
+    const backing = memoryStorage({
+      'frakon-dashboard:fractional': JSON.stringify({ ...document, id: 'fractional', rowHeight: 48.5 }),
+      'frakon-dashboard:overlap': JSON.stringify({
+        ...document,
+        id: 'overlap',
+        items: [
+          { ...document.items[0], id: 'a', x: 0, y: 0, w: 3, h: 2 },
+          { ...document.items[1], id: 'b', x: 2, y: 1, w: 3, h: 2 },
+        ],
+        constraints: undefined,
+      }),
+    });
+    const storage = new LocalStorageDashboardAdapter(backing);
+    expect(await storage.load('fractional')).toBeUndefined();
+    expect(await storage.load('overlap')).toBeUndefined();
+  });
+
   it('maps remote operations to Home Assistant-safe transport commands without stripping hidden data', async () => {
     const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
     const transport: DashboardStorageTransport = {
@@ -133,6 +155,19 @@ describe('dashboard storage adapters', () => {
       { command: 'frakon/dashboard/save', payload: { document } },
       { command: 'frakon/dashboard/remove', payload: { dashboard_id: 'home' } },
     ]);
+  });
+
+  it('does not send a malformed remote save request', async () => {
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    const transport: DashboardStorageTransport = {
+      async request<T>(command: string, payload: Record<string, unknown>): Promise<T> {
+        calls.push({ command, payload });
+        return undefined as T;
+      },
+    };
+    const storage = new RemoteDashboardStorageAdapter(transport);
+    await expect(storage.save({ ...document, rowHeight: 10 })).rejects.toThrow(/non-canonical/i);
+    expect(calls).toEqual([]);
   });
 
   it('fails closed when a remote load returns malformed or mismatched version 1 data', async () => {
