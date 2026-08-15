@@ -99,6 +99,10 @@ if validate(valid_v2(), {1, 2}) != valid_v2():
     raise SystemExit("Validator must return a valid v2 payload unchanged")
 
 payload = valid_v1()
+payload["version"] = True
+expect_invalid(payload, "boolean document version")
+
+payload = valid_v1()
 payload["items"].append(dict(payload["items"][0]))
 expect_invalid(payload, "duplicate v1 item id")
 
@@ -163,6 +167,18 @@ expect_invalid(payload, "v2 frame outside canvas")
 payload = valid_v2()
 payload["items"][0]["hidden"] = True
 expect_invalid(payload, "unsupported persisted v2 hidden state")
+
+payload = valid_v2()
+payload["items"][0]["minWidth"] = 400
+expect_invalid(payload, "v2 frame width below minWidth")
+
+payload = valid_v2()
+payload["items"][0]["maxHeight"] = 200
+expect_invalid(payload, "v2 frame height above maxHeight")
+
+payload = valid_v2()
+payload["items"][0]["maxWidth"] = 1300
+expect_invalid(payload, "v2 maxWidth outside canvas")
 
 try:
     validate(valid_v1(), {2})
