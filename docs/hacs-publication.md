@@ -5,7 +5,7 @@ A real Home Assistant alpha can be installed and validated manually while the re
 
 ## Current repository state
 
-At the time this checklist was added:
+At the time this checklist was updated:
 
 - repository visibility: **private**
 - repository description: present
@@ -16,9 +16,9 @@ At the time this checklist was added:
 - integration manifest: `custom_components/frakon_dashboard/manifest.json`
 - local Home Assistant brand assets: present under `custom_components/frakon_dashboard/brand/`
 - hassfest workflow: present
-- dedicated HACS validation Action: **not enabled yet**
+- HACS validation workflow: **staged as manual-only** in `.github/workflows/hacs.yml`
 
-The private visibility and missing topics are deliberate publication gates, not FRAKON Dashboard runtime defects.
+HACS cannot use private GitHub repositories at all. The private visibility and missing topics are deliberate publication gates, not FRAKON Dashboard runtime defects. Do not attempt to validate or distribute the current private repository through HACS; use the verified Alpha Test Kit / manual Home Assistant installation path for issue #11.
 
 ## 1. Repository metadata
 
@@ -70,6 +70,8 @@ custom_components/frakon_dashboard/brand/icon.png
 custom_components/frakon_dashboard/brand/icon@2x.png
 ```
 
+HACS checks an integration's local `brand/` directory first and requires at least `icon.png`; only when that is absent does it fall back to the central Home Assistant Brands repository.
+
 Release invariants:
 
 - [x] `icon.png` is a PNG and exactly 256×256
@@ -82,19 +84,28 @@ Release invariants:
 
 ## 5. HACS validation Action
 
-Enable the official HACS repository validation workflow only when the repository is ready for public validation.
-The workflow should use the current HACS-recommended action and integration category, conceptually:
+The official HACS validation workflow is already staged at:
+
+```text
+.github/workflows/hacs.yml
+```
+
+During Alpha it intentionally exposes only `workflow_dispatch`. Because the repository is private, a HACS validation attempt cannot represent a valid publication result.
+
+Before public validation, expand the workflow to the current HACS-recommended trigger set:
 
 ```yaml
-name: Validate HACS
-
 on:
   push:
   pull_request:
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
+```
 
+The staged job already uses:
+
+```yaml
 permissions: {}
 
 jobs:
@@ -106,6 +117,15 @@ jobs:
         with:
           category: integration
 ```
+
+Publication checklist:
+
+- [x] HACS validation workflow file exists
+- [x] category is `integration`
+- [x] workflow is manual-only while the repository is private
+- [ ] repository is public before interpreting a HACS run as publication evidence
+- [ ] enable push / pull_request / daily schedule triggers for publication maintenance
+- [ ] HACS validation Action passes without errors or ignored publication checks
 
 Do not ignore the `brands`, `description`, `issues` or `topics` checks just to obtain a green result. Fix the repository metadata instead.
 
