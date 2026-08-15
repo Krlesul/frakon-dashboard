@@ -36,6 +36,7 @@ required = {
     "issue_tracker",
     "codeowners",
     "integration_type",
+    "iot_class",
 }
 missing = sorted(required - manifest.keys())
 if missing:
@@ -55,8 +56,8 @@ if manifest.get("single_config_entry") is not True:
     raise SystemExit("FRAKON Dashboard manifest must remain single_config_entry")
 if set(manifest.get("dependencies", [])) != {"http", "lovelace"}:
     raise SystemExit("FRAKON Dashboard manifest dependencies must remain http + lovelace")
-if manifest.get("iot_class") != "local_push":
-    raise SystemExit("FRAKON Dashboard manifest iot_class must remain local_push for the current local WebSocket/resource model")
+if manifest.get("iot_class") != "calculated":
+    raise SystemExit("FRAKON Dashboard manifest iot_class must be calculated because the dashboard service does not communicate with devices on its own")
 if manifest.get("documentation") != "https://github.com/Krlesul/frakon-dashboard":
     raise SystemExit("FRAKON Dashboard manifest documentation URL is invalid")
 if manifest.get("issue_tracker") != "https://github.com/Krlesul/frakon-dashboard/issues":
@@ -67,32 +68,38 @@ if manifest.get("codeowners") != ["@Krlesul"]:
 require(
     "scripts/verify_hacs_release.py",
     'manifest.get("integration_type") != "service"',
+    'manifest.get("iot_class") != "calculated"',
     "Packaged manifest must declare integration_type=service",
 )
 require(
     "scripts/verify_home_assistant_install.py",
     'manifest.get("integration_type") != "service"',
+    'manifest.get("iot_class") != "calculated"',
     'print("Home Assistant manifest contract: OK")',
 )
 require(
     "scripts/verify_alpha_test_kit.py",
     'ha_manifest.get("integration_type") != "service"',
+    'ha_manifest.get("iot_class") != "calculated"',
     "Home Assistant manifest contract: OK",
 )
 require(
     "scripts/build_alpha_test_kit.py",
     "Home Assistant manifest contract: OK",
     "single-entry `service` integration",
+    "iot_class=calculated",
 )
 require(
     "docs/home-assistant-alpha-test.md",
     "Home Assistant manifest contract: OK",
     "single-entry `service` integration",
+    "iot_class=calculated",
 )
 require(
     "docs/home-assistant-alpha-test-report-template.md",
     "Home Assistant manifest contract: OK",
     "integration_type: service",
+    "iot_class: calculated",
 )
 require(
     ".github/workflows/ci.yml",
