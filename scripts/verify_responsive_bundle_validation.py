@@ -127,6 +127,18 @@ payload["documents"]["desktop"]["layout"]["snap"] = {"enabled": True, "size": 0}
 expect_invalid_bundle(payload, "invalid v2 snap settings")
 
 payload = valid_bundle()
+payload["documents"]["desktop"]["items"][0]["minWidth"] = 300
+expect_invalid_bundle(payload, "frame width below canonical minWidth")
+
+payload = valid_bundle()
+payload["documents"]["desktop"]["items"][1]["maxHeight"] = 200
+expect_invalid_bundle(payload, "frame height above canonical maxHeight")
+
+payload = valid_bundle()
+payload["documents"]["desktop"]["items"][0]["maxWidth"] = 1300
+expect_invalid_bundle(payload, "item maxWidth outside canvas")
+
+payload = valid_bundle()
 payload["documents"]["desktop"]["id"] = "other"
 expect_invalid_bundle(payload, "breakpoint dashboard id substitution")
 
