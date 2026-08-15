@@ -29,7 +29,7 @@ export interface AutoLayoutProposal {
   items: AutoLayoutItem[];
 }
 
-const STRATEGIES: AutoLayoutStrategy[] = ['priority-first', 'comfortable', 'compact', 'focus'];
+const STRATEGIES: AutoLayoutStrategy[] = ['priority-first', 'balanced', 'compact', 'focus'];
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, Math.round(value)));
@@ -133,8 +133,8 @@ export function orderAutoLayoutItems(items: AutoLayoutItem[], strategy: AutoLayo
     return orderedGroups.flatMap(([, group]) => group);
   }
 
-  // Comfortable mode deliberately interleaves semantic groups. This prevents
-  // one large domain (for example sensors) from monopolising the first viewport.
+  // Balanced (and its comfortable alias) deliberately interleaves semantic groups.
+  // This prevents one large domain from monopolising the first viewport.
   const queues = orderedGroups.map(([, group]) => [...group]);
   const result: AutoLayoutItem[] = [];
   while (queues.some((queue) => queue.length > 0)) {
