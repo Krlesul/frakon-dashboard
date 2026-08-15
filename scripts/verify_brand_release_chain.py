@@ -32,7 +32,8 @@ require(
     "scripts/verify_hacs_release.py",
     'brand/icon.png',
     'brand/icon@2x.png',
-    'png_dimensions(archive.read',
+    'png_dimensions(brand_icon, "brand/icon.png")',
+    'png_dimensions(brand_icon_2x, "brand/icon@2x.png")',
     '(256, 256)',
     '(512, 512)',
 )
@@ -40,14 +41,15 @@ require(
     "scripts/verify_home_assistant_install.py",
     '"brand/icon.png"',
     '"brand/icon@2x.png"',
+    'def png_dimensions',
     'Home Assistant brand assets: OK',
-    'validate_png_dimensions',
 )
 require(
     "scripts/verify_alpha_test_kit.py",
     'brand_icon_path',
     'brand_icon_2x_path',
-    'png_dimensions(integration_archive.read',
+    'png_dimensions(brand_icon, "Embedded brand/icon.png")',
+    'png_dimensions(brand_icon_2x, "Embedded brand/icon@2x.png")',
     'Home Assistant brand assets: OK',
 )
 require(
