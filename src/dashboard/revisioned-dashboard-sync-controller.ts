@@ -6,7 +6,7 @@ import {
   type DashboardConflictSession,
 } from './dashboard-conflict-coordinator';
 import type { DashboardConflictSelections } from './dashboard-selective-conflict-resolution';
-import type { DashboardRevisionEnvelope } from './dashboard-revision';
+import { isDashboardRevisionEnvelope, type DashboardRevisionEnvelope } from './dashboard-revision';
 import type { FrakonDashboardDocument } from './layout-model';
 import type { RevisionedDashboardStorage } from './revisioned-dashboard-storage';
 
@@ -45,6 +45,9 @@ export class RevisionedDashboardSyncController {
     this.patchState({ loading: true, error: undefined, conflict: undefined });
     try {
       const envelope = await this.storage.load(id);
+      if (envelope && !isDashboardRevisionEnvelope(envelope, id, 1)) {
+        throw new Error('Expected a canonical dashboard version 1 revision envelope.');
+      }
       this.baseEnvelope = envelope;
       this.patchState({ envelope });
       return envelope;
@@ -89,8 +92,13 @@ export class RevisionedDashboardSyncController {
   async resolveConflict(choice: DashboardConflictChoice): Promise<DashboardRevisionEnvelope | undefined> {
     const conflict = this.state.conflict;
     if (!conflict) return this.state.envelope;
-    const resolved = resolveDashboardConflictSession(conflict, choice, this.clientId, this.now());
-    return this.persistResolvedConflict(conflict, resolved);
+    try {
+      const resolved = resolveDashboardConflictSession(conflict, choice, this.clientId, this.now());
+      return await this.persistResolvedConflict(conflict, resolved);
+    } catch (error) {
+      this.patchState({ error: toError(error) });
+      return undefined;
+    }
   }
 
   async resolveConflictSelections(
@@ -113,6 +121,9 @@ export class RevisionedDashboardSyncController {
   ): Promise<DashboardRevisionEnvelope | undefined> {
     this.patchState({ saving: true, error: undefined });
     try {
+      if (!isDashboardRevisionEnvelope(resolved, resolved.document.id, 1)) {
+        throw new Error('Resolved dashboard conflict produced an invalid version 1 revision.');
+      }
       const result = await this.storage.save(resolved.document, conflict.comparison.remote);
       if (result.status === 'blocked') {
         throw new Error('Dashboard persistence became disabled while resolving the conflict.');
@@ -131,8 +142,11 @@ export class RevisionedDashboardSyncController {
   }
 
   private acceptEnvelope(envelope: DashboardRevisionEnvelope): void {
-    this.baseEnvelope = envelope;
-    this.patchState({ envelope, conflict: undefined });
+    if (!isDashboardRevisionEnvelope(envelope, envelope.document.id, 1)) {
+      throw new Error('Cannot accept an invalid version 1 dashboard revision envelope.');
+    }
+    this.baseEnvelope = structuredClone(envelope);
+    this.patchState({ envelope: structuredClone(envelope), conflict: undefined });
   }
 
   private patchState(patch: Partial<RevisionedDashboardSyncState>): void {
