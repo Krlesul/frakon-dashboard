@@ -38,23 +38,11 @@ required = {
 }
 
 required_frontend_markers = {
-    b"frakon-card",
-    b"frakon-sensor-card",
-    b"frakon-room-card",
-    b"frakon-switch-card",
-    b"frakon-action-card",
-    b"frakon-light-card",
-    b"frakon-climate-card",
-    b"frakon-fan-card",
-    b"frakon-binary-sensor-card",
-    b"frakon-cover-card",
-    b"frakon-lock-card",
-    b"frakon-camera-card",
-    b"frakon-media-player-card",
-    b"frakon-energy-card",
-    b"frakon-vehicle-card",
-    b"frakon-dashboard-card",
-    b"frakon-canvas-dashboard-card",
+    b"frakon-card", b"frakon-sensor-card", b"frakon-room-card", b"frakon-switch-card",
+    b"frakon-action-card", b"frakon-light-card", b"frakon-climate-card", b"frakon-fan-card",
+    b"frakon-binary-sensor-card", b"frakon-cover-card", b"frakon-lock-card", b"frakon-camera-card",
+    b"frakon-media-player-card", b"frakon-energy-card", b"frakon-vehicle-card",
+    b"frakon-dashboard-card", b"frakon-canvas-dashboard-card",
 }
 
 
@@ -91,6 +79,8 @@ with ZipFile(ZIP_PATH) as archive:
         raise SystemExit("Packaged manifest domain must be frakon_dashboard")
     if manifest.get("integration_type") != "service":
         raise SystemExit("Packaged manifest must declare integration_type=service")
+    if manifest.get("iot_class") != "calculated":
+        raise SystemExit("Packaged manifest must declare iot_class=calculated")
     if manifest.get("config_flow") is not True or manifest.get("single_config_entry") is not True:
         raise SystemExit("Packaged manifest must keep config_flow and single_config_entry enabled")
     if set(manifest.get("dependencies", [])) != {"http", "lovelace"}:
@@ -111,9 +101,7 @@ with ZipFile(ZIP_PATH) as archive:
         raise SystemExit(f"Packaged frontend bundle is unexpectedly small: {len(frontend)} bytes")
     frontend_digest = sha256(frontend).hexdigest()
     if build_info.get("frontendSha256") != frontend_digest:
-        raise SystemExit(
-            "Packaged build-info.json frontendSha256 does not match packaged frontend bytes"
-        )
+        raise SystemExit("Packaged build-info.json frontendSha256 does not match packaged frontend bytes")
     if frontend != (ROOT / "dist" / "frakon-dashboard.js").read_bytes():
         raise SystemExit("Packaged frontend differs from dist/frakon-dashboard.js")
 
