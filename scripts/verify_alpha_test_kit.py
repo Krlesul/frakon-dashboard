@@ -153,6 +153,9 @@ with zipfile.ZipFile(KIT) as archive:
         ("self-check", self_check, "validate_responsive_revision_envelope"),
         ("README", readme, "Frontend SHA-256"),
         ("README", readme, "python verify_home_assistant_install.py"),
+        ("README", readme, "Dashboard document validator: OK"),
+        ("README", readme, "Responsive bundle validator: OK"),
+        ("README", readme, "writable-kind allowlist"),
     ]
     for label, content, marker in checks:
         if marker not in content:
