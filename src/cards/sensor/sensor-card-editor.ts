@@ -46,13 +46,15 @@ export class FrakonSensorCardEditor extends LitElement {
   render() {
     if (!this.config) return nothing;
     const entities = this.entities();
+    const options = this.config.entity && !entities.includes(this.config.entity)
+      ? [this.config.entity, ...entities]
+      : entities;
     return html`<div class="editor">
       <section class="section">
         <div class="title">Entity</div>
         <label>Sensor
           <select .value=${this.config.entity} @change=${(event:Event) => this.updateConfig('entity', (event.target as HTMLSelectElement).value)}>
-            ${entities.length === 0 && this.config.entity ? html`<option value=${this.config.entity}>${this.config.entity}</option>` : nothing}
-            ${entities.map((entityId) => html`<option value=${entityId}>${entityId}</option>`)}
+            ${options.map((entityId) => html`<option value=${entityId}>${entityId}</option>`)}
           </select>
         </label>
         <label>Name<input type="text" .value=${this.config.name ?? ''} placeholder="Use entity name" @input=${(event:Event) => this.updateConfig('name', (event.target as HTMLInputElement).value || undefined)}></label>
