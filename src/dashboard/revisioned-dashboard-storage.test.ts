@@ -112,6 +112,26 @@ describe('RevisionedDashboardStorage', () => {
     expect(transport.requests[0]?.payload.expectedRevision).toBe(previous.revision);
   });
 
+  it('rejects a non-canonical local document before any revision request is sent', async () => {
+    const transport = new Transport();
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet', now: () => 20 });
+    await expect(storage.save({ ...document, rowHeight: 8 })).rejects.toThrow(/non-canonical/i);
+    expect(transport.requests).toEqual([]);
+  });
+
+  it('rejects an invalid or mismatched previous envelope before transport', async () => {
+    const transport = new Transport();
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet', now: () => 20 });
+    const previous = createDashboardRevision(document, 'server', undefined, 10);
+    const wrongPrevious = {
+      ...previous,
+      document: { ...previous.document, id: 'other' },
+    } as DashboardRevisionEnvelope;
+
+    await expect(storage.save(document, wrongPrevious)).rejects.toThrow(/previous dashboard revision/i);
+    expect(transport.requests).toEqual([]);
+  });
+
   it('rejects a saved response with an invalid envelope instead of accepting corrupt remote state', async () => {
     const transport = new Transport();
     transport.response = {
@@ -126,6 +146,17 @@ describe('RevisionedDashboardStorage', () => {
     const transport = new Transport();
     const substituted = createDashboardRevision({ ...document, id: 'other' }, 'server', undefined, 20);
     transport.response = { status: 'saved', envelope: substituted };
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet', now: () => 20 });
+    await expect(storage.save(document)).rejects.toThrow(/invalid saved revision envelope/i);
+  });
+
+  it('rejects a saved response that substitutes another schema version', async () => {
+    const transport = new Transport();
+    const v2 = migrateDashboardV1ToV2(document, 1200);
+    transport.response = {
+      status: 'saved',
+      envelope: createDashboardRevision(v2, 'server', undefined, 20),
+    };
     const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet', now: () => 20 });
     await expect(storage.save(document)).rejects.toThrow(/invalid saved revision envelope/i);
   });
@@ -167,6 +198,18 @@ describe('RevisionedDashboardStorage', () => {
     await expect(storage.save(document, base)).rejects.toThrow(/invalid revision conflict response/i);
   });
 
+  it('rejects conflict responses that switch schema version', async () => {
+    const transport = new Transport();
+    const base = createDashboardRevision(document, 'server', undefined, 10);
+    const v2 = migrateDashboardV1ToV2(document, 1200);
+    transport.response = {
+      status: 'conflict',
+      remote: createDashboardRevision(v2, 'desktop', undefined, 30),
+    };
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet', now: () => 20 });
+    await expect(storage.save(document, base)).rejects.toThrow(/invalid revision conflict response/i);
+  });
+
   it('uses dashboard_id for revision removal without colliding with the WebSocket message id', async () => {
     const transport = new Transport();
     const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet' });
@@ -175,6 +218,14 @@ describe('RevisionedDashboardStorage', () => {
       command: 'frakon/dashboard/remove_revision',
       payload: { dashboard_id: 'home', expectedRevision: 'rev-1' },
     });
+  });
+
+  it('validates revision removal identifiers before transport', async () => {
+    const transport = new Transport();
+    const storage = new RevisionedDashboardStorage(transport, { clientId: 'tablet' });
+    await expect(storage.remove('', 'rev-1')).rejects.toThrow(/dashboard id/i);
+    await expect(storage.remove('home', '')).rejects.toThrow(/expected revision/i);
+    expect(transport.requests).toEqual([]);
   });
 
   it('blocks version 2 saves before the explicit write capability is enabled', async () => {
