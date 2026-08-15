@@ -3,6 +3,7 @@ import {
   copyDashboardGridSelection,
   pasteDashboardGridClipboard,
 } from './dashboard-grid-clipboard';
+import { applyDashboardGridItemAction } from './dashboard-grid-item-actions';
 import type { FrakonDashboardDocument } from './layout-model';
 
 function doc(): FrakonDashboardDocument {
@@ -88,6 +89,28 @@ describe('grid dashboard clipboard', () => {
       hidden: true,
       locked: false,
     });
+  });
+
+  it('preserves visibility and remaps internal constraints through the exact Studio cut pipeline', () => {
+    const source = doc();
+    const selected = ['a', 'hidden'];
+    const payload = copyDashboardGridSelection(source, selected);
+    expect(payload?.constraints.map((constraint) => constraint.id)).toEqual(['a-above-hidden']);
+
+    const deleted = applyDashboardGridItemAction(source, selected, 'delete');
+    expect(deleted.status).toBe('committed');
+    expect(deleted.document.items.some((item) => item.id === 'a')).toBe(false);
+    expect(deleted.document.items.some((item) => item.id === 'hidden')).toBe(false);
+    expect(deleted.document.constraints.some((constraint) => constraint.id === 'a-above-hidden')).toBe(false);
+
+    const pasted = pasteDashboardGridClipboard(deleted.document, payload);
+    expect(pasted.status).toBe('committed');
+    expect(pasted.document.items.find((item) => item.id === 'a-copy')).toMatchObject({ hidden: false, locked: false });
+    expect(pasted.document.items.find((item) => item.id === 'hidden-copy')).toMatchObject({ hidden: true, locked: false });
+    expect(pasted.document.constraints).toContainEqual(expect.objectContaining({
+      sourceId: 'hidden-copy',
+      targetId: 'a-copy',
+    }));
   });
 
   it('supports an explicit preserve-hidden override for non-standard clipboard callers', () => {
