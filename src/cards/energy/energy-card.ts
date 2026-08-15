@@ -32,10 +32,14 @@ export class FrakonEnergyCard extends LitElement {
 
   setConfig(config: FrakonEnergyCardConfig): void {
     if (!config.entity) throw new Error('FRAKON Energy Card requires a power or energy entity.');
-    this.config = config;
+    this.config = { ...config };
   }
 
   getCardSize(): number { return this.config?.compact ? 3 : 4; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-energy-card-editor'); }
+  static getStubConfig(): FrakonEnergyCardConfig {
+    return { type: 'custom:frakon-energy-card', entity: 'sensor.power', compact: false };
+  }
 
   private value(entityId?: string): string {
     if (!entityId || !this.hass) return '—';
