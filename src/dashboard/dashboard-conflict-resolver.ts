@@ -1,6 +1,6 @@
 import type { FrakonDashboardAnyDocument } from './dashboard-document-codec';
 import type { FrakonCanvasItem, FrakonDashboardDocumentV2 } from './layout-model-v2';
-import type { FrakonDashboardDocument, FrakonGridItem } from './layout-model';
+import type { FrakonDashboardDocument } from './layout-model';
 
 export interface DashboardMergeConflict {
   path: string;
@@ -30,6 +30,14 @@ export function mergeDashboardDocuments<TDocument extends FrakonDashboardAnyDocu
 
 function mergeV1(base: FrakonDashboardDocument, local: FrakonDashboardDocument, remote: FrakonDashboardDocument): DashboardMergeResult<FrakonDashboardDocument> {
   const conflicts: DashboardMergeConflict[] = [];
+  const mergedItems = mergeItems(base.items, local.items, remote.items, conflicts);
+  const itemOrder = mergeItemOrder(
+    base.items.map((item) => item.id),
+    local.items.map((item) => item.id),
+    remote.items.map((item) => item.id),
+    new Set(mergedItems.map((item) => item.id)),
+    conflicts,
+  );
   const document: FrakonDashboardDocument = {
     ...structuredClone(base),
     title: mergeValue('title', base.title, local.title, remote.title, conflicts),
@@ -40,7 +48,7 @@ function mergeV1(base: FrakonDashboardDocument, local: FrakonDashboardDocument, 
     surface: mergeValue('surface', base.surface, local.surface, remote.surface, conflicts),
     cardSurface: mergeValue('cardSurface', base.cardSurface, local.cardSurface, remote.cardSurface, conflicts),
     constraints: mergeValue('constraints', base.constraints, local.constraints, remote.constraints, conflicts),
-    items: mergeItems(base.items, local.items, remote.items, conflicts, sortGridItems),
+    items: orderItems(mergedItems, itemOrder),
   };
   return { document, conflicts, clean: conflicts.length === 0 };
 }
@@ -48,11 +56,11 @@ function mergeV1(base: FrakonDashboardDocument, local: FrakonDashboardDocument, 
 function mergeV2(base: FrakonDashboardDocumentV2, local: FrakonDashboardDocumentV2, remote: FrakonDashboardDocumentV2): DashboardMergeResult<FrakonDashboardDocumentV2> {
   const conflicts: DashboardMergeConflict[] = [];
   const mergedItems = mergeItems(base.items, local.items, remote.items, conflicts);
-  const itemOrder = mergeValue(
-    'itemOrder',
+  const itemOrder = mergeItemOrder(
     base.items.map((item) => item.id),
     local.items.map((item) => item.id),
     remote.items.map((item) => item.id),
+    new Set(mergedItems.map((item) => item.id)),
     conflicts,
   );
   const document: FrakonDashboardDocumentV2 = {
@@ -63,7 +71,7 @@ function mergeV2(base: FrakonDashboardDocumentV2, local: FrakonDashboardDocument
     surface: mergeValue('surface', base.surface, local.surface, remote.surface, conflicts),
     cardSurface: mergeValue('cardSurface', base.cardSurface, local.cardSurface, remote.cardSurface, conflicts),
     constraints: mergeValue('constraints', base.constraints, local.constraints, remote.constraints, conflicts),
-    items: orderCanvasItems(mergedItems, itemOrder),
+    items: orderItems(mergedItems, itemOrder),
   };
   return { document, conflicts, clean: conflicts.length === 0 };
 }
@@ -73,7 +81,6 @@ function mergeItems<TItem extends { id: string }>(
   localItems: TItem[],
   remoteItems: TItem[],
   conflicts: DashboardMergeConflict[],
-  sort?: (left: TItem, right: TItem) => number,
 ): TItem[] {
   const base = new Map(baseItems.map((item) => [item.id, item]));
   const local = new Map(localItems.map((item) => [item.id, item]));
@@ -84,23 +91,124 @@ function mergeItems<TItem extends { id: string }>(
     const item = mergeValue(`items.${id}`, base.get(id), local.get(id), remote.get(id), conflicts);
     if (item) merged.push(item);
   }
-  return sort ? merged.sort(sort) : merged;
+  return merged;
 }
 
-function orderCanvasItems(items: FrakonCanvasItem[], order: string[]): FrakonCanvasItem[] {
-  const rank = new Map(order.map((id, index) => [id, index]));
-  return [...items].sort((left, right) => {
-    const leftRank = rank.get(left.id);
-    const rightRank = rank.get(right.id);
-    if (leftRank !== undefined && rightRank !== undefined) return leftRank - rightRank;
-    if (leftRank !== undefined) return -1;
-    if (rightRank !== undefined) return 1;
-    return 0;
+/**
+ * Layer order is persisted in items[]. Add/remove operations must not be
+ * misclassified as a reorder, while genuinely incompatible concurrent reorders
+ * must become an explicit conflict instead of being silently sorted by geometry.
+ */
+function mergeItemOrder(
+  baseIds: string[],
+  localIds: string[],
+  remoteIds: string[],
+  mergedIds: Set<string>,
+  conflicts: DashboardMergeConflict[],
+): string[] {
+  const baseSet = new Set(baseIds);
+  const localSet = new Set(localIds);
+  const remoteSet = new Set(remoteIds);
+
+  const localBaseOrder = localIds.filter((id) => baseSet.has(id));
+  const remoteBaseOrder = remoteIds.filter((id) => baseSet.has(id));
+  const expectedLocalBaseOrder = baseIds.filter((id) => localSet.has(id));
+  const expectedRemoteBaseOrder = baseIds.filter((id) => remoteSet.has(id));
+  const localReordered = !equal(localBaseOrder, expectedLocalBaseOrder);
+  const remoteReordered = !equal(remoteBaseOrder, expectedRemoteBaseOrder);
+
+  let primary: string[];
+  let secondarySequences: string[][];
+
+  if (localReordered && remoteReordered) {
+    const common = new Set(baseIds.filter((id) => localSet.has(id) && remoteSet.has(id)));
+    const localCommon = localIds.filter((id) => common.has(id));
+    const remoteCommon = remoteIds.filter((id) => common.has(id));
+    if (!equal(localCommon, remoteCommon)) {
+      conflicts.push({
+        path: 'itemOrder',
+        base: structuredClone(baseIds),
+        local: structuredClone(localIds),
+        remote: structuredClone(remoteIds),
+      });
+    }
+    primary = localIds;
+    secondarySequences = [remoteIds];
+  } else if (localReordered) {
+    primary = localIds;
+    secondarySequences = [remoteIds];
+  } else if (remoteReordered) {
+    primary = remoteIds;
+    secondarySequences = [localIds];
+  } else {
+    primary = baseIds;
+    secondarySequences = [localIds, remoteIds];
+  }
+
+  const order = uniqueAllowed(primary, mergedIds);
+  for (const sequence of secondarySequences) mergeMissingOrderIds(order, sequence, mergedIds);
+  // A merged item should always appear in at least one source sequence, but keep
+  // this final guard so malformed inputs cannot silently drop an item.
+  for (const id of mergedIds) if (!order.includes(id)) order.push(id);
+  return order;
+}
+
+function uniqueAllowed(ids: string[], allowed: Set<string>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const id of ids) {
+    if (!allowed.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    result.push(id);
+  }
+  return result;
+}
+
+function mergeMissingOrderIds(order: string[], sequence: string[], allowed: Set<string>): void {
+  for (let index = 0; index < sequence.length; index += 1) {
+    const id = sequence[index];
+    if (!allowed.has(id) || order.includes(id)) continue;
+
+    let previous: string | undefined;
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      const candidate = sequence[cursor];
+      if (allowed.has(candidate) && order.includes(candidate)) {
+        previous = candidate;
+        break;
+      }
+    }
+
+    let next: string | undefined;
+    for (let cursor = index + 1; cursor < sequence.length; cursor += 1) {
+      const candidate = sequence[cursor];
+      if (allowed.has(candidate) && order.includes(candidate)) {
+        next = candidate;
+        break;
+      }
+    }
+
+    if (previous) {
+      const previousIndex = order.indexOf(previous);
+      const nextIndex = next ? order.indexOf(next) : -1;
+      const insertionIndex = nextIndex > previousIndex ? previousIndex + 1 : previousIndex + 1;
+      order.splice(insertionIndex, 0, id);
+    } else if (next) {
+      order.splice(order.indexOf(next), 0, id);
+    } else {
+      order.push(id);
+    }
+  }
+}
+
+function orderItems<TItem extends { id: string }>(items: TItem[], order: string[]): TItem[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const ordered = order.flatMap((id) => {
+    const item = byId.get(id);
+    return item ? [item] : [];
   });
-}
-
-function sortGridItems(left: FrakonGridItem, right: FrakonGridItem): number {
-  return left.y - right.y || left.x - right.x || left.id.localeCompare(right.id);
+  const included = new Set(ordered.map((item) => item.id));
+  for (const item of items) if (!included.has(item.id)) ordered.push(item);
+  return ordered;
 }
 
 function mergeValue<T>(path: string, base: T, local: T, remote: T, conflicts: DashboardMergeConflict[]): T {
