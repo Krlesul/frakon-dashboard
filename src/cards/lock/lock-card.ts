@@ -40,6 +40,10 @@ export class FrakonLockCard extends LitElement {
   }
 
   getCardSize(): number { return 3; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-lock-card-editor'); }
+  static getStubConfig(): FrakonLockCardConfig {
+    return { type: 'custom:frakon-lock-card', entity: 'lock.example', show_state: true, confirm_unlock: true };
+  }
 
   private clearUnlockConfirmation(): void {
     this.unlockArmed = false;
