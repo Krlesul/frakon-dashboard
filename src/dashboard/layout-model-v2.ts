@@ -282,6 +282,9 @@ function validCanvasLayout(value: unknown): value is FrakonCanvasLayout {
 function validCanvasItem(value: unknown, canvasWidth: number): value is FrakonCanvasItem {
   if (!record(value)) return false;
   if (!identifier(value.id, 128)) return false;
+  // v2 has no persisted hidden-layer contract yet. Reject the field entirely
+  // instead of accepting a value that runtime rendering would ignore/reveal.
+  if ('hidden' in value) return false;
   if (!record(value.card) || typeof value.card.type !== 'string' || !value.card.type) return false;
   if (!record(value.frame)) return false;
   if (!finiteNumber(value.frame.x) || value.frame.x < 0) return false;
