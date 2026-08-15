@@ -1,3 +1,4 @@
+import { isDashboardDocumentV1 } from './dashboard-document-codec';
 import type { DashboardMergeConflict, DashboardMergeResult } from './dashboard-conflict-resolver';
 import type { FrakonDashboardDocument, FrakonGridItem } from './layout-model';
 
@@ -27,7 +28,11 @@ export function resolveDashboardConflicts(
     applyConflictValue(document, conflict.path, structuredClone(conflict[side]));
   }
 
-  return { document, unresolved, complete: unresolved.length === 0 };
+  const complete = unresolved.length === 0;
+  if (complete && !isDashboardDocumentV1(document)) {
+    throw new Error('Completed dashboard conflict selections produce a non-canonical version 1 document.');
+  }
+  return { document, unresolved, complete };
 }
 
 function applyConflictValue(document: FrakonDashboardDocument, path: string, value: unknown): void {
@@ -41,8 +46,6 @@ function applyConflictValue(document: FrakonDashboardDocument, path: string, val
     const item = value as FrakonGridItem;
     if (index >= 0) document.items[index] = item;
     else document.items.push(item);
-    // items[] is persisted layer order. Resolving card data/geometry must not
-    // silently convert z-order into a geometry sort.
     return;
   }
 
