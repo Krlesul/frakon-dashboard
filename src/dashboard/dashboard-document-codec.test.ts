@@ -27,7 +27,9 @@ function failureReason(source: string): string | undefined {
 
 describe('dashboard document codec', () => {
   it('round-trips version 1 z-order, hidden state, exact geometry and constraints', () => {
-    const decoded = decodeDashboardDocument(encodeDashboardDocument(v1));
+    const encoded = encodeDashboardDocument(v1);
+    expect(JSON.parse(encoded)).toEqual(v1);
+    const decoded = decodeDashboardDocument(encoded);
     expect(decoded.ok).toBe(true);
     if (!decoded.ok || decoded.document.version !== 1) return;
     expect(decoded.document.items.map((item) => item.id)).toEqual(['front', 'hidden']);
@@ -35,14 +37,34 @@ describe('dashboard document codec', () => {
     expect(decoded.document.constraints).toEqual(v1.constraints);
   });
 
-  it('round-trips normalized version 2 canvas documents', () => {
+  it('round-trips canonical version 2 canvas documents without normalization', () => {
     const v2 = migrateDashboardV1ToV2(v1, 430);
-    const decoded = decodeDashboardDocument(encodeDashboardDocument(v2));
+    const encoded = encodeDashboardDocument(v2);
+    expect(JSON.parse(encoded)).toEqual(v2);
+    const decoded = decodeDashboardDocument(encoded);
     expect(decoded.ok).toBe(true);
     if (decoded.ok) {
+      expect(decoded.document).toEqual(v2);
       expect(decoded.document.version).toBe(2);
       expect(decoded.document.items[0].id).toBe('front');
     }
+  });
+
+  it('fails closed when asked to encode a non-canonical typed v1 document', () => {
+    const invalid = { ...structuredClone(v1), rowHeight: 8 };
+    const before = structuredClone(invalid);
+    expect(() => encodeDashboardDocument(invalid)).toThrow(/invalid or non-canonical/i);
+    expect(invalid).toEqual(before);
+  });
+
+  it('fails closed when asked to encode an unsupported persisted v2 hidden field', () => {
+    const invalid = migrateDashboardV1ToV2(v1, 430) as unknown as ReturnType<typeof migrateDashboardV1ToV2> & {
+      items: Array<Record<string, unknown>>;
+    };
+    invalid.items[0].hidden = false;
+    const before = structuredClone(invalid);
+    expect(() => encodeDashboardDocument(invalid)).toThrow(/invalid or non-canonical/i);
+    expect(invalid).toEqual(before);
   });
 
   it('distinguishes invalid JSON from unsupported versions', () => {
@@ -165,5 +187,15 @@ describe('dashboard document codec', () => {
     const v2 = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
     v2.items[0].hidden = false;
     expect(failureReason(JSON.stringify(v2))).toBe('invalid-document');
+  });
+
+  it('rejects non-canonical Canvas v2 min/max bounds at decode time', () => {
+    const belowMin = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
+    belowMin.items[0].minWidth = 999;
+    expect(failureReason(JSON.stringify(belowMin))).toBe('invalid-document');
+
+    const aboveMax = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
+    aboveMax.items[0].maxHeight = 1;
+    expect(failureReason(JSON.stringify(aboveMax))).toBe('invalid-document');
   });
 });
