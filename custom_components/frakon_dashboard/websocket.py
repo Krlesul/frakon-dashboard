@@ -85,6 +85,48 @@ def _send_write_version_error(
     )
 
 
+def _validate_stored_document(value: Any, expected_dashboard_id: str) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    try:
+        document = validate_dashboard_document(
+            value,
+            READABLE_DOCUMENT_VERSIONS,
+            max_items=RESPONSIVE_CANVAS_V2_MAX_ITEMS,
+            max_constraints=RESPONSIVE_CANVAS_V2_MAX_CONSTRAINTS,
+        )
+    except DashboardDocumentValidationError:
+        return None
+    if document.get("id") != expected_dashboard_id:
+        return None
+    return document
+
+
+def _validate_stored_revision(value: Any, expected_dashboard_id: str) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    document = _validate_stored_document(value.get("document"), expected_dashboard_id)
+    if document is None:
+        return None
+
+    revision = value.get("revision")
+    parent_revision = value.get("parentRevision")
+    updated_at = value.get("updatedAt")
+    client_id = value.get("clientId")
+    if not isinstance(revision, str) or not revision or len(revision) > 256:
+        return None
+    if parent_revision is not None:
+        if not isinstance(parent_revision, str) or not parent_revision or len(parent_revision) > 256:
+            return None
+        if parent_revision == revision:
+            return None
+    if not isinstance(updated_at, int) or isinstance(updated_at, bool) or updated_at < 0:
+        return None
+    if not isinstance(client_id, str) or not client_id or len(client_id) > 128:
+        return None
+    return value
+
+
 def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardStorage) -> None:
     @websocket_api.websocket_command(
         {
@@ -134,7 +176,20 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        connection.send_result(msg["id"], await storage.load(msg["dashboard_id"]))
+        dashboard_id = msg["dashboard_id"]
+        stored = await storage.load(dashboard_id)
+        if stored is None:
+            connection.send_result(msg["id"], None)
+            return
+        document = _validate_stored_document(stored, dashboard_id)
+        if document is None:
+            connection.send_error(
+                msg["id"],
+                "invalid_stored_document",
+                "Stored FRAKON Dashboard data failed validation.",
+            )
+            return
+        connection.send_result(msg["id"], document)
 
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -184,7 +239,20 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        connection.send_result(msg["id"], await storage.load_revision(msg["dashboard_id"]))
+        dashboard_id = msg["dashboard_id"]
+        stored = await storage.load_revision(dashboard_id)
+        if stored is None:
+            connection.send_result(msg["id"], None)
+            return
+        envelope = _validate_stored_revision(stored, dashboard_id)
+        if envelope is None:
+            connection.send_error(
+                msg["id"],
+                "invalid_stored_revision",
+                "Stored FRAKON Dashboard revision failed validation.",
+            )
+            return
+        connection.send_result(msg["id"], envelope)
 
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -206,6 +274,13 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         if not _document_write_enabled(document):
             _send_write_version_error(connection, msg["id"], document)
             return
+        if envelope.get("updatedAt", -1) < 0:
+            connection.send_error(
+                msg["id"],
+                "invalid_revision",
+                "Revision updatedAt must be non-negative.",
+            )
+            return
         if envelope.get("parentRevision") != expected_revision:
             connection.send_error(
                 msg["id"],
@@ -222,7 +297,15 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
             return
         saved, remote = await storage.save_revision(envelope, expected_revision)
         if saved:
-            connection.send_result(msg["id"], {"status": "saved", "envelope": remote})
+            saved_envelope = _validate_stored_revision(remote, document["id"])
+            if saved_envelope is None:
+                connection.send_error(
+                    msg["id"],
+                    "invalid_saved_revision",
+                    "Saved FRAKON Dashboard revision failed validation.",
+                )
+                return
+            connection.send_result(msg["id"], {"status": "saved", "envelope": saved_envelope})
             return
         if not remote:
             connection.send_error(
@@ -231,7 +314,15 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
                 "Dashboard was removed while this client still held an older revision.",
             )
             return
-        connection.send_result(msg["id"], {"status": "conflict", "remote": remote})
+        remote_envelope = _validate_stored_revision(remote, document["id"])
+        if remote_envelope is None:
+            connection.send_error(
+                msg["id"],
+                "invalid_stored_revision",
+                "Stored remote FRAKON Dashboard revision failed validation.",
+            )
+            return
+        connection.send_result(msg["id"], {"status": "conflict", "remote": remote_envelope})
 
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -247,13 +338,21 @@ def register_websocket_commands(hass: HomeAssistant, storage: FrakonDashboardSto
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        removed, remote = await storage.remove_revision(msg["dashboard_id"], msg.get("expectedRevision"))
+        dashboard_id = msg["dashboard_id"]
+        removed, remote = await storage.remove_revision(dashboard_id, msg.get("expectedRevision"))
         if not removed:
-            revision = remote.get("revision") if remote else "unknown"
+            remote_envelope = _validate_stored_revision(remote, dashboard_id)
+            if remote_envelope is None:
+                connection.send_error(
+                    msg["id"],
+                    "invalid_stored_revision",
+                    "Stored FRAKON Dashboard revision failed validation.",
+                )
+                return
             connection.send_error(
                 msg["id"],
                 "revision_conflict",
-                f"Dashboard revision changed; current revision is {revision}.",
+                f"Dashboard revision changed; current revision is {remote_envelope['revision']}.",
             )
             return
         connection.send_result(msg["id"], None)
