@@ -54,8 +54,9 @@ export class FrakonConstraintPreviewOverlay extends LitElement {
     if (!this.source || !this.preview) return [];
     const previewById = new Map(this.preview.items.map((item) => [item.id, item]));
     return this.source.items.filter((item) => {
+      if (item.hidden) return false;
       const next = previewById.get(item.id);
-      return next && (next.x !== item.x || next.y !== item.y || next.w !== item.w || next.h !== item.h);
+      return next && !next.hidden && (next.x !== item.x || next.y !== item.y || next.w !== item.w || next.h !== item.h);
     }).map((item) => item.id);
   }
 
@@ -65,7 +66,7 @@ export class FrakonConstraintPreviewOverlay extends LitElement {
     if (changed.size === 0) return nothing;
     const sourceById = new Map(this.source.items.map((item) => [item.id, item]));
 
-    return html`${this.preview.items.filter((item) => changed.has(item.id)).map((item) => {
+    return html`${this.preview.items.filter((item) => changed.has(item.id) && !item.hidden).map((item) => {
       const source = sourceById.get(item.id);
       const label = typeof item.card.name === 'string' ? item.card.name : item.id;
       const previewStyle = `left:${item.x * COLUMN_WIDTH}px;top:${item.y * this.preview!.rowHeight}px;width:${item.w * COLUMN_WIDTH - this.preview!.gap}px;height:${item.h * this.preview!.rowHeight - this.preview!.gap}px`;
