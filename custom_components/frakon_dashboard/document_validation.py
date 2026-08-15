@@ -143,6 +143,20 @@ def _validate_v1_item(item: Any, columns: int) -> str:
         raise DashboardDocumentValidationError(f"Dashboard item {item_id} has maxW outside the grid.")
     if "minW" in item and item["minW"] > columns:
         raise DashboardDocumentValidationError(f"Dashboard item {item_id} has minW outside the grid.")
+
+    min_width = int(item.get("minW", 1))
+    max_width = int(item.get("maxW", columns))
+    min_height = int(item.get("minH", 1))
+    max_height = int(item["maxH"]) if "maxH" in item else max(min_height, 24)
+    if width < min_width or width > max_width:
+        raise DashboardDocumentValidationError(
+            f"Dashboard item {item_id} width is outside its canonical min/max bounds."
+        )
+    if height < min_height or height > max_height:
+        raise DashboardDocumentValidationError(
+            f"Dashboard item {item_id} height is outside its canonical min/max bounds."
+        )
+
     if not _optional_bool(item, "locked") or not _optional_bool(item, "hidden"):
         raise DashboardDocumentValidationError(
             f"Dashboard item {item_id} has invalid locked/hidden state."
@@ -169,8 +183,8 @@ def _validate_v1(document: dict[str, Any], max_items: int, max_constraints: int)
     gap = document.get("gap")
     if not _positive_integer(columns):
         raise DashboardDocumentValidationError("Version 1 dashboard requires positive integer columns.")
-    if not _positive_integer(row_height):
-        raise DashboardDocumentValidationError("Version 1 dashboard requires positive integer rowHeight.")
+    if not _positive_integer(row_height) or row_height < 24:
+        raise DashboardDocumentValidationError("Version 1 dashboard requires integer rowHeight >= 24.")
     if not _integer_number(gap) or gap < 0:
         raise DashboardDocumentValidationError("Version 1 dashboard requires non-negative integer gap.")
 
