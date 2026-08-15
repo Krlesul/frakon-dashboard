@@ -7,6 +7,20 @@ export interface DashboardKeyboardNudgeResult {
   collisionIds: string[];
 }
 
+export function keyboardNudgeDelta(
+  key: string,
+  largeStep = false,
+): { x: number; y: number } | undefined {
+  const unit = largeStep ? 5 : 1;
+  switch (key) {
+    case 'ArrowLeft': return { x: -unit, y: 0 };
+    case 'ArrowRight': return { x: unit, y: 0 };
+    case 'ArrowUp': return { x: 0, y: -unit };
+    case 'ArrowDown': return { x: 0, y: unit };
+    default: return undefined;
+  }
+}
+
 export function nudgeDashboardSelection(
   document: FrakonDashboardDocument,
   selectedIds: Iterable<string>,
