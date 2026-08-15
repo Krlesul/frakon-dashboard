@@ -30,6 +30,10 @@ export class FrakonFanCard extends LitElement {
   }
 
   getCardSize(): number { return 4; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-fan-card-editor'); }
+  static getStubConfig(): FrakonFanCardConfig {
+    return { type: 'custom:frakon-fan-card', entity: 'fan.example', show_percentage: true };
+  }
 
   private toggle(on: boolean): void {
     if (!this.hass || !this.config) return;
