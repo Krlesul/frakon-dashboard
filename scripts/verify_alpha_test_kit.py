@@ -82,14 +82,27 @@ with zipfile.ZipFile(KIT) as archive:
         build_info_path = f"{prefix}build-info.json"
         manifest_path = f"{prefix}manifest.json"
         validator_path = f"{prefix}document_validation.py"
+        responsive_validator_path = f"{prefix}responsive_bundle_validation.py"
+        responsive_constraint_validator_path = f"{prefix}responsive_constraint_validation.py"
+        responsive_storage_path = f"{prefix}responsive_storage.py"
         bundled_frontend_path = f"{prefix}frontend/frakon-dashboard.js"
         integration_names = set(integration_archive.namelist())
-        for required_path in (build_info_path, manifest_path, validator_path, bundled_frontend_path):
+        for required_path in (
+            build_info_path,
+            manifest_path,
+            validator_path,
+            responsive_validator_path,
+            responsive_constraint_validator_path,
+            responsive_storage_path,
+            bundled_frontend_path,
+        ):
             if required_path not in integration_names:
                 raise SystemExit(f"Embedded integration archive is missing {required_path}")
         build_info = json.loads(integration_archive.read(build_info_path))
         ha_manifest = json.loads(integration_archive.read(manifest_path))
         validator_source = integration_archive.read(validator_path)
+        responsive_validator_source = integration_archive.read(responsive_validator_path)
+        responsive_storage_source = integration_archive.read(responsive_storage_path)
         bundled_frontend = integration_archive.read(bundled_frontend_path)
 
     if ha_manifest.get("domain") != "frakon_dashboard" or ha_manifest.get("version") != VERSION:
@@ -102,6 +115,10 @@ with zipfile.ZipFile(KIT) as archive:
         raise SystemExit("Embedded integration frontend differs from Alpha Test Kit frontend bundle")
     if b"validate_dashboard_document" not in validator_source:
         raise SystemExit("Embedded integration document validator is invalid")
+    if b"validate_responsive_revision_envelope" not in responsive_validator_source:
+        raise SystemExit("Embedded integration responsive bundle validator is invalid")
+    if b"validate_responsive_revision_envelope" not in responsive_storage_source:
+        raise SystemExit("Embedded integration responsive Store is not wired to the shared validator")
 
     test_guide = archive.read("home-assistant-alpha-test.md").decode("utf-8")
     report = archive.read("home-assistant-alpha-test-report-template.md").decode("utf-8")
@@ -117,6 +134,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("migration guide", migration, "## 9. Rollback"),
         ("self-check", self_check, "frontend SHA-256"),
         ("self-check", self_check, "Dashboard document validator: OK"),
+        ("self-check", self_check, "Responsive bundle validator: OK"),
         ("README", readme, "Frontend SHA-256"),
         ("README", readme, "python verify_home_assistant_install.py"),
     ]
