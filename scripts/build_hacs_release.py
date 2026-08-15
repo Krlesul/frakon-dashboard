@@ -24,7 +24,7 @@ frontend_sha256 = sha256(FRONTEND_BUNDLE.read_bytes()).hexdigest()
 
 with tempfile.TemporaryDirectory(prefix="frakon-release-") as temp_dir:
     temp = Path(temp_dir)
-    staged = temp / "custom_components" / "frakon_dashboard"
+    staged = temp / "frakon_dashboard"
     shutil.copytree(
         INTEGRATION_SOURCE,
         staged,
@@ -48,8 +48,12 @@ with tempfile.TemporaryDirectory(prefix="frakon-release-") as temp_dir:
     if OUTPUT.exists():
         OUTPUT.unlink()
     with zipfile.ZipFile(OUTPUT, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for path in sorted(temp.rglob("*")):
+        # HACS zip_release extracts the release archive directly into
+        # /config/custom_components/<domain>. Therefore integration files must
+        # be at the ZIP root; including custom_components/frakon_dashboard here
+        # would create a broken nested installation.
+        for path in sorted(staged.rglob("*")):
             if path.is_file():
-                archive.write(path, path.relative_to(temp).as_posix())
+                archive.write(path, path.relative_to(staged).as_posix())
 
 print(OUTPUT)
