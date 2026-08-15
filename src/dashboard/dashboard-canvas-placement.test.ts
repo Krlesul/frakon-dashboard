@@ -16,16 +16,28 @@ const document: FrakonDashboardDocument = {
   gap: 10,
   items: [
     { id: 'a', x: 1, y: 2, w: 2, h: 3, card: { type: 'custom:a' } },
+    { id: 'hidden', x: 0, y: 8, w: 1, h: 1, hidden: true, card: { type: 'custom:hidden' } },
   ],
 };
 
 describe('dashboard canvas placement projection', () => {
-  it('projects version-1 grid items into exact pixel rectangles', () => {
+  it('projects version-1 visible grid items into exact pixel rectangles', () => {
     const projection = projectDashboardGridToCanvas(document, 430);
     expect(projection.columnWidth).toBe(100);
     expect(projection.columnStep).toBe(110);
     expect(projection.rowStep).toBe(60);
+    expect(projection.items.map((item) => item.id)).toEqual(['a']);
     expect(projection.items[0]).toMatchObject({ x: 110, y: 120, width: 210, height: 170 });
+  });
+
+  it('never produces a render/interact placement for hidden v1 layers', () => {
+    const projection = projectDashboardGridToCanvas(document, 430);
+    expect(projection.items.some((item) => item.id === 'hidden')).toBe(false);
+    expect(document.items.find((item) => item.id === 'hidden')).toMatchObject({
+      x: 0,
+      y: 8,
+      hidden: true,
+    });
   });
 
   it('projects a canvas rectangle back into the legacy grid without changing the document schema', () => {
