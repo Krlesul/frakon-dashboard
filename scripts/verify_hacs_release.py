@@ -87,6 +87,14 @@ with ZipFile(ZIP_PATH) as archive:
         raise SystemExit(
             f"Packaged manifest version {manifest.get('version')!r} does not match package version {package_version!r}"
         )
+    if manifest.get("domain") != "frakon_dashboard":
+        raise SystemExit("Packaged manifest domain must be frakon_dashboard")
+    if manifest.get("integration_type") != "service":
+        raise SystemExit("Packaged manifest must declare integration_type=service")
+    if manifest.get("config_flow") is not True or manifest.get("single_config_entry") is not True:
+        raise SystemExit("Packaged manifest must keep config_flow and single_config_entry enabled")
+    if set(manifest.get("dependencies", [])) != {"http", "lovelace"}:
+        raise SystemExit("Packaged manifest dependencies must remain http + lovelace")
 
     build_info = json.loads(archive.read(f"{PREFIX}build-info.json"))
     source_commit = build_info.get("sourceCommit")
