@@ -22,9 +22,17 @@ export class FrakonRoomCard extends LitElement {
   `;
   setConfig(config: FrakonRoomCardConfig): void {
     if (!config.entity) throw new Error('FRAKON Room Card requires a primary entity.');
-    this.config = { light_entities: [], ...config };
+    const lightEntities = config.light_entities ?? [];
+    if (!Array.isArray(lightEntities) || lightEntities.some((entityId) => typeof entityId !== 'string' || !entityId.startsWith('light.'))) {
+      throw new Error('FRAKON Room Card light_entities must contain only light entities.');
+    }
+    this.config = { ...config, light_entities: [...lightEntities] };
   }
   getCardSize(): number { return 5; }
+  static getConfigElement(): HTMLElement { return document.createElement('frakon-room-card-editor'); }
+  static getStubConfig(): FrakonRoomCardConfig {
+    return { type: 'custom:frakon-room-card', entity: 'sensor.room', light_entities: [] };
+  }
   private value(entityId?: string): string {
     if (!entityId || !this.hass) return '—';
     const entity = this.hass.states[entityId];
