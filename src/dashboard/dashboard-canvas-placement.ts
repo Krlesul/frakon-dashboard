@@ -25,6 +25,11 @@ export interface DashboardCanvasPlacement {
   height: number;
 }
 
+/**
+ * Project only runtime-visible v1 items. Hidden layers keep their canonical grid
+ * geometry in the source document, but the experimental canvas receives no
+ * placement for them and therefore cannot render or interact with them.
+ */
 export function projectDashboardGridToCanvas(
   document: FrakonDashboardDocument,
   containerWidth: number,
@@ -36,14 +41,16 @@ export function projectDashboardGridToCanvas(
     columnWidth,
     columnStep: metrics.columnStep,
     rowStep: metrics.rowStep,
-    items: document.items.map((item) => ({
-      id: item.id,
-      x: item.x * metrics.columnStep,
-      y: item.y * metrics.rowStep,
-      width: item.w * columnWidth + Math.max(0, item.w - 1) * document.gap,
-      height: item.h * document.rowHeight + Math.max(0, item.h - 1) * document.gap,
-      locked: item.locked,
-    })),
+    items: document.items
+      .filter((item) => item.hidden !== true)
+      .map((item) => ({
+        id: item.id,
+        x: item.x * metrics.columnStep,
+        y: item.y * metrics.rowStep,
+        width: item.w * columnWidth + Math.max(0, item.w - 1) * document.gap,
+        height: item.h * document.rowHeight + Math.max(0, item.h - 1) * document.gap,
+        locked: item.locked,
+      })),
   };
 }
 
