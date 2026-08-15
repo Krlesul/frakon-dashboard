@@ -66,11 +66,14 @@ Frontend SHA-256: {frontend_sha256}
 
 7. Confirm the self-check frontend SHA-256 equals the value above and that it reports:
 
+   Home Assistant manifest contract: OK
    Home Assistant brand assets: OK
    Dashboard serialized-byte guard: OK
    Dashboard document validator: OK
    Responsive bundle validator: OK
    Czech config flow: OK
+
+   The manifest contract requires FRAKON Dashboard to be installed as a single-entry `service` integration with the expected Home Assistant dependencies and repository URLs.
 
 8. Confirm FRAKON Dashboard shows its packaged integration icon in Home Assistant on versions that support local custom-integration brand assets.
 9. Record results and the required negative validation evidence in home-assistant-alpha-test-report-template.md, including a dashboard payload larger than 2,000,000 UTF-8 JSON bytes being rejected.
