@@ -29,6 +29,56 @@ describe('DashboardStorageController', () => {
     expect(states.at(-1)).toBe(false);
   });
 
+  it('preserves exact committed geometry, z-order, hidden state and constraints across save/load', async () => {
+    const adapter = new MemoryDashboardStorageAdapter();
+    const controller = new DashboardStorageController(adapter);
+    const exact: FrakonDashboardDocument = {
+      ...dashboard('exact'),
+      items: [
+        { id: 'front', x: 7, y: 8, w: 3, h: 2, card: { type: 'custom:front' } },
+        { id: 'hidden', x: 1, y: 5, w: 2, h: 2, hidden: true, card: { type: 'custom:hidden' } },
+        { id: 'back', x: 0, y: 0, w: 2, h: 2, card: { type: 'custom:back' } },
+      ],
+      constraints: [
+        {
+          id: 'hidden-left-front',
+          kind: 'align-left',
+          sourceId: 'hidden',
+          targetId: 'front',
+          priority: 40,
+        },
+      ],
+    };
+
+    await controller.save(exact);
+    const loaded = await controller.load('exact');
+
+    expect(loaded?.items.map((item) => item.id)).toEqual(['front', 'hidden', 'back']);
+    expect(loaded?.items).toEqual(exact.items);
+    expect(loaded?.constraints).toEqual(exact.constraints);
+  });
+
+  it('does not turn storage load into an implicit compaction pass', async () => {
+    const source: FrakonDashboardDocument = {
+      ...dashboard('spaced'),
+      items: [
+        { id: 'late', x: 8, y: 10, w: 2, h: 2, card: { type: 'custom:late' } },
+        { id: 'early', x: 0, y: 0, w: 2, h: 2, card: { type: 'custom:early' } },
+      ],
+    };
+    const adapter: DashboardStorageAdapter = {
+      kind: 'raw',
+      load: vi.fn(async () => structuredClone(source)),
+      save: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
+    };
+    const controller = new DashboardStorageController(adapter);
+
+    const loaded = await controller.load('spaced');
+
+    expect(loaded?.items).toEqual(source.items);
+  });
+
   it('ignores an older load that resolves after a newer request', async () => {
     const resolvers = new Map<string, (document: FrakonDashboardDocument | undefined) => void>();
     const load = vi.fn((id: string): Promise<FrakonDashboardDocument | undefined> => (
