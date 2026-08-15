@@ -87,7 +87,8 @@ def main() -> None:
             "if RESPONSIVE_CANVAS_V2_KIND not in WRITABLE_RESPONSIVE_BUNDLE_KINDS",
             "_strict_contract_version",
             "_strict_updated_at",
-            "validate_dashboard_document(",
+            "validate_responsive_bundle(",
+            "validate_responsive_revision_envelope(",
             "_validate_stored_responsive_revision",
             "validated_remote = _validate_stored_responsive_revision(remote, dashboard_id)",
             "remote_envelope = _validate_stored_responsive_revision(remote, dashboard_id)",
@@ -204,7 +205,7 @@ def main() -> None:
 
     print(
         "Responsive alpha write lock verified: contract v1, empty write allowlist, admin guarded handlers, "
-        "strict non-coercing metadata, dashboard-id-bound stored/conflict revisions, canonical v2 bundle validation, "
+        "strict non-coercing metadata, dashboard-id-bound stored/conflict revisions, shared canonical v2 bundle validation, "
         "non-mutating dry-run, before/after storage proof, exact-candidate validation receipt, conflict dry-run, "
         "post-save state bridge."
     )
