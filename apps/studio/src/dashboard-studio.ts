@@ -39,6 +39,14 @@ export interface FrakonDashboardStudioChangedDetail {
   selection: SelectionState;
 }
 
+export type FrakonDashboardStudioInteractionKind = 'move' | 'resize';
+export type FrakonDashboardStudioInteractionPhase = 'start' | 'end';
+export interface FrakonDashboardStudioInteractionDetail {
+  kind: FrakonDashboardStudioInteractionKind;
+  phase: FrakonDashboardStudioInteractionPhase;
+  cancelled: boolean;
+}
+
 interface ResizeSession {
   pointerId: number;
   handle: ResizeHandle;
@@ -211,6 +219,18 @@ export class FrakonDashboardStudio extends LitElement {
     }));
   }
 
+  private emitInteraction(
+    kind: FrakonDashboardStudioInteractionKind,
+    phase: FrakonDashboardStudioInteractionPhase,
+    cancelled = false,
+  ): void {
+    this.dispatchEvent(new CustomEvent<FrakonDashboardStudioInteractionDetail>('frakon-dashboard-studio-interaction', {
+      detail: { kind, phase, cancelled },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
   private onSelectionChanged(event: CustomEvent<FrakonStudioSelectionChangedDetail>): void {
     if (this.resizing || this.moving) return;
     this.selection = event.detail.selection;
@@ -327,6 +347,7 @@ export class FrakonDashboardStudio extends LitElement {
     this.moving = true;
     this.collisionIds = [];
     this.guidelines = [];
+    this.emitInteraction('move', 'start');
     window.addEventListener('pointermove', this.windowMove);
     window.addEventListener('pointerup', this.windowMoveEnd);
     window.addEventListener('pointercancel', this.windowMoveEnd);
@@ -383,13 +404,15 @@ export class FrakonDashboardStudio extends LitElement {
     const session = this.moveSession;
     if (!session || session.pointerId !== event.pointerId) return;
     event.preventDefault();
-    if (this.collisionIds.length > 0) this.document = session.sourceDocument;
+    const cancelled = event.type === 'pointercancel' || this.collisionIds.length > 0;
+    if (cancelled) this.document = session.sourceDocument;
     this.moveSession = undefined;
     this.moving = false;
     this.collisionIds = [];
     this.guidelines = [];
     this.removeMoveListeners();
     this.emitChanged();
+    this.emitInteraction('move', 'end', cancelled);
   }
 
   private removeMoveListeners(): void {
@@ -417,6 +440,7 @@ export class FrakonDashboardStudio extends LitElement {
     this.resizing = true;
     this.collisionIds = [];
     this.guidelines = [];
+    this.emitInteraction('resize', 'start');
   }
 
   private continueResize(event: PointerEvent): void {
@@ -463,12 +487,14 @@ export class FrakonDashboardStudio extends LitElement {
     if (!session || session.pointerId !== event.pointerId) return;
     event.preventDefault();
     event.stopPropagation();
-    if (this.collisionIds.length > 0) this.document = session.sourceDocument;
+    const cancelled = event.type === 'pointercancel' || this.collisionIds.length > 0;
+    if (cancelled) this.document = session.sourceDocument;
     this.resizeSession = undefined;
     this.resizing = false;
     this.collisionIds = [];
     this.guidelines = [];
     this.emitChanged();
+    this.emitInteraction('resize', 'end', cancelled);
   }
 
   private renderSelectionBox(document: FrakonDashboardDocument) {
