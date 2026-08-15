@@ -13,7 +13,10 @@ import {
   setDashboardLayerHidden,
   setDashboardLayerLocked,
 } from '../../../src/dashboard/dashboard-layers';
+import { applyDashboardSelectionLayout } from '../../../src/dashboard/dashboard-selection-layout';
 import type { FrakonDashboardDocument, FrakonGridItem } from '../../../src/dashboard/layout-model';
+import type { FrakonSelectionLayoutActionDetail } from './selection-layout-toolbar';
+import './selection-layout-toolbar';
 
 export interface FrakonLayersDocumentChangedDetail {
   document: FrakonDashboardDocument;
@@ -29,6 +32,7 @@ export class FrakonLayersPanel extends LitElement {
   @property({ attribute: false }) selection: SelectionState = { ids: [] };
   @state() private draggedId?: string;
   @state() private dropTargetId?: string;
+  @state() private layoutMessage?: string;
 
   static styles = css`
     :host { display:block; color:inherit; }
@@ -48,6 +52,8 @@ export class FrakonLayersPanel extends LitElement {
     }
     .title { font-size:13px; font-weight:760; letter-spacing:.06em; text-transform:uppercase; }
     .count { font-size:11px; opacity:.56; }
+    .layout-tools { padding:9px; border-bottom:1px solid rgb(255 255 255 / 7%); }
+    .layout-message { padding:0 12px 9px; font-size:10px; color:#ff9aaa; }
     .list { display:grid; }
     .row {
       display:grid;
@@ -145,6 +151,19 @@ export class FrakonLayersPanel extends LitElement {
     if (target instanceof HTMLInputElement || target instanceof HTMLButtonElement) return;
     const additive = event.shiftKey || event.ctrlKey || event.metaKey;
     this.emitSelection(additive ? toggleSelection(this.selection, item.id) : selectOnly(item.id));
+  }
+
+  private layoutSelection(event: CustomEvent<FrakonSelectionLayoutActionDetail>): void {
+    if (!this.document) return;
+    const result = applyDashboardSelectionLayout(this.document, this.selection.ids, event.detail.action);
+    if (result.status === 'committed') {
+      this.layoutMessage = undefined;
+      this.emitDocument(result.document);
+      return;
+    }
+    this.layoutMessage = result.status === 'collision'
+      ? `Layout blocked by collision: ${result.collisionIds.join(', ')}`
+      : undefined;
   }
 
   private rename(item: FrakonGridItem, event: Event): void {
@@ -253,6 +272,14 @@ export class FrakonLayersPanel extends LitElement {
     return html`
       <section class="panel" aria-label="Dashboard layers">
         <div class="head"><span class="title">Layers</span><span class="count">${document.items.length}</span></div>
+        <div class="layout-tools">
+          <frakon-selection-layout-toolbar
+            .document=${document}
+            .selection=${this.selection}
+            @frakon-selection-layout-action=${this.layoutSelection}
+          ></frakon-selection-layout-toolbar>
+        </div>
+        ${this.layoutMessage ? html`<div class="layout-message" role="status">${this.layoutMessage}</div>` : nothing}
         ${visualOrder.length
           ? html`<div class="list">${visualOrder.map((item) => this.renderRow(item))}</div>`
           : html`<div class="empty">No layers yet.</div>`}
