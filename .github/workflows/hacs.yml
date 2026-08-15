@@ -1,0 +1,20 @@
+name: Validate with HACS
+
+# Public HACS publication is tracked separately in issue #12.
+# The repository is intentionally private during Alpha, and HACS cannot validate
+# private repositories. Keep this workflow manual-only until the publication
+# checklist makes the repository public and adds the recommended push/PR/schedule
+# triggers.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  validate-hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
