@@ -46,8 +46,42 @@ export interface FrakonDashboardDocumentV2 {
   items: FrakonCanvasItem[];
 }
 
+const BREAKPOINTS = new Set(['mobile', 'tablet', 'desktop', 'wide']);
+const CONSTRAINT_KINDS = new Set([
+  'align-left',
+  'align-center-x',
+  'align-right',
+  'align-top',
+  'align-center-y',
+  'align-bottom',
+  'below',
+  'right-of',
+  'match-width',
+  'match-height',
+]);
+
 function finite(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
+}
+
+function finiteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function positiveNumber(value: unknown): value is number {
+  return finiteNumber(value) && value > 0;
+}
+
+function optionalPositiveNumber(value: unknown): boolean {
+  return value === undefined || positiveNumber(value);
+}
+
+function optionalBoolean(value: unknown): boolean {
+  return value === undefined || typeof value === 'boolean';
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function optionalPositive(value: number | undefined): number | undefined {
@@ -194,11 +228,64 @@ export function migrateDashboardV1ToV2(
 }
 
 export function isDashboardDocumentV2(value: unknown): value is FrakonDashboardDocumentV2 {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as Partial<FrakonDashboardDocumentV2>;
-  return candidate.version === 2
-    && typeof candidate.id === 'string'
-    && typeof candidate.title === 'string'
-    && candidate.layout?.mode === 'canvas'
-    && Array.isArray(candidate.items);
+  if (!record(value)) return false;
+  if (value.version !== 2) return false;
+  if (typeof value.id !== 'string' || !value.id || value.id.length > 128) return false;
+  if (typeof value.title !== 'string') return false;
+  if (typeof value.breakpoint !== 'string' || !BREAKPOINTS.has(value.breakpoint)) return false;
+  if (!validCanvasLayout(value.layout)) return false;
+  if (!Array.isArray(value.items)) return false;
+
+  const itemIds = new Set<string>();
+  for (const item of value.items) {
+    if (!validCanvasItem(item, value.layout.width)) return false;
+    if (itemIds.has(item.id)) return false;
+    itemIds.add(item.id);
+  }
+  return validConstraints(value.constraints, itemIds);
+}
+
+function validCanvasLayout(value: unknown): value is FrakonCanvasLayout {
+  if (!record(value) || value.mode !== 'canvas') return false;
+  if (!positiveNumber(value.width) || !positiveNumber(value.minHeight)) return false;
+  if (!record(value.snap)) return false;
+  return typeof value.snap.enabled === 'boolean' && positiveNumber(value.snap.size);
+}
+
+function validCanvasItem(value: unknown, canvasWidth: number): value is FrakonCanvasItem {
+  if (!record(value)) return false;
+  if (typeof value.id !== 'string' || !value.id || value.id.length > 128) return false;
+  if (!record(value.card) || typeof value.card.type !== 'string' || !value.card.type) return false;
+  if (!record(value.frame)) return false;
+  if (!finiteNumber(value.frame.x) || value.frame.x < 0) return false;
+  if (!finiteNumber(value.frame.y) || value.frame.y < 0) return false;
+  if (!positiveNumber(value.frame.width) || !positiveNumber(value.frame.height)) return false;
+  if (value.frame.x + value.frame.width > canvasWidth) return false;
+  if (!optionalPositiveNumber(value.minWidth)
+    || !optionalPositiveNumber(value.minHeight)
+    || !optionalPositiveNumber(value.maxWidth)
+    || !optionalPositiveNumber(value.maxHeight)) return false;
+  if (!optionalBoolean(value.locked)) return false;
+  if (positiveNumber(value.minWidth) && positiveNumber(value.maxWidth) && value.minWidth > value.maxWidth) return false;
+  if (positiveNumber(value.minHeight) && positiveNumber(value.maxHeight) && value.minHeight > value.maxHeight) return false;
+  return true;
+}
+
+function validConstraints(value: unknown, itemIds: Set<string>): boolean {
+  if (value === undefined) return true;
+  if (!Array.isArray(value)) return false;
+  const constraintIds = new Set<string>();
+  for (const constraint of value) {
+    if (!record(constraint)) return false;
+    if (typeof constraint.id !== 'string' || !constraint.id || constraintIds.has(constraint.id)) return false;
+    if (typeof constraint.kind !== 'string' || !CONSTRAINT_KINDS.has(constraint.kind)) return false;
+    if (typeof constraint.sourceId !== 'string' || typeof constraint.targetId !== 'string') return false;
+    if (constraint.sourceId === constraint.targetId) return false;
+    if (!itemIds.has(constraint.sourceId) || !itemIds.has(constraint.targetId)) return false;
+    if (constraint.gap !== undefined && !finiteNumber(constraint.gap)) return false;
+    if (constraint.priority !== undefined && !finiteNumber(constraint.priority)) return false;
+    if (!optionalBoolean(constraint.enabled)) return false;
+    constraintIds.add(constraint.id);
+  }
+  return true;
 }
