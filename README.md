@@ -39,7 +39,10 @@ The current Home Assistant alpha includes:
 - non-mutating server-side Dry Run validation before writes
 - exact-candidate validation receipts before responsive persistence
 - real-server proof that Dry Run left responsive storage unchanged
+- strict normal/responsive persistence validation with no silent stored-layout normalization
+- packaged Home Assistant brand icons with source/package/install dimension checks
 - HACS-style integration ZIP packaging with bundled frontend
+- self-contained Alpha Test Kit generation and verification
 - simulated Home Assistant installation verification in CI
 
 Responsive Canvas v2 **reads are enabled**. Responsive Canvas v2 **writes remain deliberately locked** until real Home Assistant round-trip, restart-recovery and multi-device conflict tests are completed.
@@ -106,7 +109,9 @@ The ZIP contains `custom_components/frakon_dashboard/` together with the exact f
 
 ## Alpha installation in Home Assistant
 
-Use the package from a successful GitHub Actions CI artifact. The complete procedure and test matrix are documented in:
+Use the package from a **successful** GitHub Actions CI artifact for the exact commit being tested. A failed workflow that never started its job is not a verified artifact.
+
+The complete procedure and test matrix are documented in:
 
 ```text
 docs/home-assistant-alpha-test.md
@@ -120,11 +125,13 @@ docs/alpha-migration.md
 
 Short version:
 
-1. Download the `frakon-dashboard` workflow artifact from a successful CI run.
-2. Extract `frakon_dashboard.zip` into the Home Assistant config directory so the installed path is `/config/custom_components/frakon_dashboard`.
-3. Restart Home Assistant.
-4. Add **FRAKON Dashboard** from **Settings → Devices & services → Add integration**.
-5. In Lovelace storage mode the integration registers or repairs its bundled JavaScript module resource automatically.
+1. Download `frakon-dashboard-alpha-test-kit.zip` from a successful CI run.
+2. Record its source commit and SHA-256 identities.
+3. Extract the kit and then extract its `frakon_dashboard.zip` into the Home Assistant config directory so the installed path is `/config/custom_components/frakon_dashboard`.
+4. Restart Home Assistant.
+5. Add **FRAKON Dashboard** from **Settings → Devices & services → Add integration**.
+6. In Lovelace storage mode the integration registers or repairs its bundled JavaScript module resource automatically.
+7. Run the kit's `verify_home_assistant_install.py` against the installed Home Assistant config and require the build/hash, brand, normal-validator and responsive-validator checks to pass.
 
 Do **not** separately copy the current bundled frontend into `/config/www`. The integration serves its own versioned frontend resource from:
 
@@ -134,7 +141,14 @@ Do **not** separately copy the current bundled frontend into `/config/www`. The 
 
 In YAML resource mode, add that versioned URL manually as a JavaScript module.
 
-The repository also contains `scripts/verify_home_assistant_install.py` for checking an extracted/installed integration package. Run that script from a FRAKON Dashboard repository/release workspace and point it at the target Home Assistant config directory.
+The installed integration contains local Home Assistant brand assets:
+
+```text
+custom_components/frakon_dashboard/brand/icon.png
+custom_components/frakon_dashboard/brand/icon@2x.png
+```
+
+The self-check verifies them as valid 256×256 and 512×512 PNGs respectively.
 
 ## Native Canvas v2 persistence safety
 
@@ -166,6 +180,8 @@ Before an eventual write unlock, CI also verifies:
 - exact-candidate server validation is required before Save
 - resolved conflicts are dry-run validated before persistence
 - successful Save projects the clean revision state back into the parent Canvas card
+- responsive stored/conflict envelopes stay bound to the requested dashboard ID
+- persistence metadata is rejected rather than coerced
 
 ## Build identity
 
@@ -255,23 +271,36 @@ The repository CI is designed to run:
 - Python syntax validation
 - integration relative-import verification
 - build-info provider verification
+- Home Assistant brand PNG validation
+- strict v1/v2 document validation contract
+- responsive bundle validation contract
 - responsive write-lock and Dry Run invariants
+- persistence-integrity readiness checks
 - alpha release-readiness verification
 - ESLint
 - Vitest
 - TypeScript production build
 - Vite bundle generation
 - HACS release ZIP generation and verification
+- Alpha Test Kit generation and verification
 - simulated Home Assistant installation self-check
 - artifact upload
 
 A separate Hassfest workflow validates Home Assistant integration metadata and translations.
 
+A HACS repository validation workflow is staged at `.github/workflows/hacs.yml` with `category: integration`, but it intentionally remains **manual-only while the repository is private**. Public HACS release work is tracked separately in:
+
+```text
+docs/hacs-publication.md
+```
+
+and GitHub issue #12.
+
 ## Current alpha limitations
 
 - Responsive Canvas v2 server writes are deliberately disabled pending real-device tests.
 - Real-device testing across multiple Home Assistant browsers/devices is still required before the responsive write gate is opened.
-- The repository is currently private, so this is not yet a public HACS distribution flow.
-- A final FRAKON brand asset is still required before public HACS publication.
+- The repository is currently private, so it cannot yet be used through HACS; public HACS publication is a separate post-alpha gate.
+- The staged HACS Action is manual-only until repository visibility/topics and public-release metadata are intentionally enabled.
 - The experimental Canvas should not yet be the sole production control surface for safety-critical functions.
 - Automatic importance scoring does not yet provide the complete planned live contextual AI model.
