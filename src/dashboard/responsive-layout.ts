@@ -28,14 +28,22 @@ export function documentForBreakpoint(
 ): FrakonDashboardDocument {
   const nextColumns = Math.max(1, Math.round(columns[breakpoint]));
   const scale = nextColumns / Math.max(1, document.columns);
+  const visibleIds = new Set(
+    document.items.filter((item) => item.hidden !== true).map((item) => item.id),
+  );
   return {
     ...document,
     breakpoint,
     columns: nextColumns,
-    items: document.items.map((item) => ({
-      ...item,
-      x: Math.max(0, Math.round(item.x * scale)),
-      w: Math.max(1, Math.round(item.w * scale)),
-    })),
+    constraints: document.constraints?.filter(
+      (constraint) => visibleIds.has(constraint.sourceId) && visibleIds.has(constraint.targetId),
+    ),
+    items: document.items
+      .filter((item) => item.hidden !== true)
+      .map((item) => ({
+        ...item,
+        x: Math.max(0, Math.round(item.x * scale)),
+        w: Math.max(1, Math.round(item.w * scale)),
+      })),
   };
 }
