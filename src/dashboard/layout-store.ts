@@ -1,4 +1,5 @@
-import { normalizeDashboard, type FrakonDashboardDocument } from './layout-model';
+import { isDashboardDocumentV1 } from './dashboard-document-codec';
+import { findCollisions, normalizeDashboard, type FrakonDashboardDocument } from './layout-model';
 
 const STORAGE_PREFIX = 'frakon-dashboard:';
 
@@ -13,9 +14,10 @@ export class LocalDashboardStore implements DashboardStore {
     const raw = globalThis.localStorage?.getItem(`${STORAGE_PREFIX}${id}`);
     if (!raw) return undefined;
     try {
-      const parsed = JSON.parse(raw) as FrakonDashboardDocument;
-      if (parsed.version !== 1 || !Array.isArray(parsed.items)) return undefined;
-      return normalizeDashboard(parsed);
+      const parsed: unknown = JSON.parse(raw);
+      return isDashboardDocumentV1(parsed) && parsed.id === id
+        ? normalizeDashboard(parsed)
+        : undefined;
     } catch {
       return undefined;
     }
@@ -35,9 +37,19 @@ export function exportDashboard(document: FrakonDashboardDocument): string {
 }
 
 export function importDashboard(source: string): FrakonDashboardDocument {
-  const parsed = JSON.parse(source) as FrakonDashboardDocument;
-  if (parsed.version !== 1 || !parsed.id || !Array.isArray(parsed.items)) {
-    throw new Error('Unsupported FRAKON dashboard document.');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    throw new Error('Invalid FRAKON dashboard JSON.');
   }
-  return normalizeDashboard(parsed);
+  if (!isDashboardDocumentV1(parsed)) {
+    throw new Error('Invalid FRAKON dashboard payload.');
+  }
+
+  const normalized = normalizeDashboard(parsed);
+  if (findCollisions(normalized.items).length > 0) {
+    throw new Error('Imported FRAKON dashboard contains overlapping items.');
+  }
+  return normalized;
 }
