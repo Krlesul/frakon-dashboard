@@ -65,6 +65,7 @@ The output must include the same source commit and the same frontend SHA-256 as 
 
 ```text
 Home Assistant brand assets: OK
+Dashboard serialized-byte guard: OK
 Dashboard document validator: OK
 Responsive bundle validator: OK
 Czech config flow: OK
@@ -72,19 +73,22 @@ Czech config flow: OK
 
 `Home Assistant brand assets: OK` proves the installed integration contains valid PNG assets at `brand/icon.png` (256×256) and `brand/icon@2x.png` (512×512), rather than merely relying on repository metadata.
 
+`Dashboard serialized-byte guard: OK` proves the installed Python validation boundary includes the same **2,000,000 UTF-8 JSON byte** persistence ceiling used by the TypeScript v1/v2 document guards and by the responsive bundle contract.
+
 The test-kit verifier has already proven the chain:
 
 ```text
 Alpha Test Kit manifest
 → integration ZIP SHA-256
 → Home Assistant manifest + brand assets
+→ document/byte-limit validators
 → build-info.json sourceCommit + frontendSha256
 → bundled frontend bytes
 ```
 
 The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/`, validating both installed brand PNGs and verifying that the installed normal and responsive validation boundaries are wired to the packaged validators.
 
-If any version, source commit, SHA-256, brand or validator marker differs, stop functional testing and correct installation/cache/resource state first.
+If any version, source commit, SHA-256, brand, byte-limit or validator marker differs, stop functional testing and correct installation/cache/resource state first.
 
 ## 3. Record the environment
 
@@ -228,6 +232,11 @@ For stable v1 server-backed storage verify:
 - malformed remote or revision payloads are rejected rather than silently normalized into corrupt state
 - a valid payload stored under/requested as another dashboard ID is rejected rather than substituted
 - explicit `constraints: null` is rejected; omitted `constraints` remains valid
+- a controlled v1 payload whose compact UTF-8 JSON serialization is **exactly 2,000,000 bytes** is accepted when otherwise valid
+- the same payload with one additional ASCII byte is rejected without storage mutation
+- a controlled payload that stays below 2,000,000 Python/JavaScript characters but exceeds **2,000,000 UTF-8 bytes** because of multibyte text is rejected; this proves byte accounting rather than character counting
+
+Use a controlled WebSocket/API test fixture for the byte-limit checks rather than attempting to build a multi-megabyte dashboard manually in the visual editor. Record the response and confirm the previously stored revision is unchanged after every rejected oversized write.
 
 ## 9. Responsive server validation / write lock
 
@@ -240,6 +249,7 @@ Responsive Canvas v2 writes remain intentionally locked in this alpha. Verify:
 - normal responsive Save remains disabled
 - server Dry Run accepts a valid current-revision candidate without storage mutation
 - malformed responsive candidates are rejected, including missing `card.type`, invalid `layout.snap`, invalid frame/min-max geometry, persisted `hidden`, dangling/invalid constraints and explicit `constraints: null`
+- responsive bundle/document payloads over **2,000,000 UTF-8 JSON bytes** are rejected without mutation
 - `updatedAt` and `contractVersion` are strict integers: fractional, boolean and string values are rejected rather than coerced
 - revision timestamps outside the JavaScript safe-integer range are rejected
 - a responsive stored/conflict envelope whose bundle ID does not match the requested dashboard ID is rejected
@@ -274,8 +284,9 @@ Issue #11 can be closed only when:
 
 - the tested Alpha Test Kit came from a successful CI run for the tested commit
 - kit manifest, installed integration/frontend and runtime build identities match
-- install self-check passes with expected source commit + frontend SHA-256 + `Home Assistant brand assets: OK` + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
+- install self-check passes with expected source commit + frontend SHA-256 + `Home Assistant brand assets: OK` + `Dashboard serialized-byte guard: OK` + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
 - packaged FRAKON brand assets have the required dimensions and the integration icon is visually checked where the Home Assistant version supports local custom-integration brand assets
+- the 2,000,000-byte persistence ceiling is verified at the exact boundary, one byte above it and with multibyte UTF-8 content without mutating stored state on rejection
 - mandatory stable Dashboard, Automatic Designer, Canvas v2, storage/conflict and responsive checks were executed
 - strict non-coercing normal/responsive validation boundaries passed the required negative cases
 - responsive write lock remained intact
