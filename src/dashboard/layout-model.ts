@@ -15,6 +15,7 @@ export interface FrakonGridItem {
   maxW?: number;
   maxH?: number;
   locked?: boolean;
+  hidden?: boolean;
   surface?: SurfaceStyle;
 }
 
@@ -155,6 +156,7 @@ export function duplicateGridItem(
     x: source.x,
     y: source.y,
     locked: false,
+    hidden: false,
   };
   return normalizeAndCompactDashboard({ ...document, items: [...document.items, duplicate] });
 }
@@ -173,4 +175,8 @@ export function removeGridItem(document: FrakonDashboardDocument, id: string): F
 
 export function setGridItemLocked(document: FrakonDashboardDocument, id: string, locked: boolean): FrakonDashboardDocument {
   return { ...document, items: document.items.map((item) => item.id === id ? { ...item, locked } : item) };
+}
+
+export function setGridItemHidden(document: FrakonDashboardDocument, id: string, hidden: boolean): FrakonDashboardDocument {
+  return { ...document, items: document.items.map((item) => item.id === id ? { ...item, hidden } : item) };
 }
