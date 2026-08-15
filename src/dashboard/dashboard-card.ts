@@ -605,10 +605,10 @@ export class FrakonDashboardCard extends LitElement {
       ...this.config?.responsive_columns,
     };
     const doc = editMode
-      ? canonical
+      ? { ...canonical, items: canonical.items.filter((item) => item.hidden !== true) }
       : normalizeDashboard(documentForBreakpoint(canonical, breakpoint, responsiveColumns));
     const selected = editMode && this.selection.ids.length === 1
-      ? (this.document ?? canonical).items.find((item) => item.id === this.selection.anchorId)
+      ? (this.document ?? canonical).items.find((item) => item.id === this.selection.anchorId && item.hidden !== true)
       : undefined;
     const style = `grid-template-columns:repeat(${doc.columns},minmax(0,1fr));grid-auto-rows:${doc.rowHeight}px;gap:${doc.gap}px`;
     const storageStatus = resolveDashboardStorageStatus(
