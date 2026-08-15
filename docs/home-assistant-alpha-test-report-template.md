@@ -25,6 +25,7 @@ Identity gate:
 - ☐ Kit frontend SHA-256 = install self-check frontend SHA-256
 - ☐ Kit version = installed Home Assistant manifest/runtime version
 - ☐ `Dashboard document validator: OK` reported
+- ☐ `Responsive bundle validator: OK` reported
 - ☐ Runtime build badge identifies the same build
 - ☐ No stale `/local/frakon-dashboard.js` resource is enabled
 
@@ -60,6 +61,7 @@ If any identity item differs, stop functional testing and fix installation/cache
 - ☐ Install self-check reports `OK`
 - ☐ Self-check frontend SHA-256 matches kit manifest
 - ☐ Dashboard document validator reports `OK`
+- ☐ Responsive bundle validator reports `OK`
 - ☐ Runtime build badge matches package identity
 
 Evidence / notes:
@@ -175,8 +177,11 @@ Evidence / notes:
 - ☐ One-sided layer reorder survives merge
 - ☐ Concurrent incompatible layer reorders surface `itemOrder` conflict
 - ☐ Local/Remote `itemOrder` selection changes order without changing geometry
+- ☐ Independently valid concurrent edits that combine into invalid geometry surface an explicit conflict
 - ☐ Malformed normal remote load is rejected
 - ☐ Malformed revision/conflict envelope is rejected
+- ☐ Wrong-dashboard document/revision substitution is rejected
+- ☐ Explicit `constraints: null` is rejected while omitted `constraints` remains valid
 
 Evidence / notes:
 
@@ -189,10 +194,24 @@ Evidence / notes:
 - ☐ Save Readiness contains `write-disabled`
 - ☐ Save remains disabled
 - ☐ Server dry-run accepts valid current-revision candidate without mutation
-- ☐ Stale-base dry-run returns conflict
+- ☐ Missing `card.type` candidate is rejected
+- ☐ Invalid `layout.snap` candidate is rejected
+- ☐ Invalid frame/min-max geometry is rejected
+- ☐ Persisted Canvas-v2 `hidden` field is rejected
+- ☐ Dangling/invalid responsive constraint is rejected
+- ☐ Explicit responsive `constraints: null` is rejected
+- ☐ Enabled responsive constraint dependency cycle is rejected
+- ☐ Fractional `contractVersion` is rejected rather than coerced
+- ☐ Boolean/string `contractVersion` is rejected rather than coerced
+- ☐ Fractional `updatedAt` is rejected rather than coerced
+- ☐ Boolean/string `updatedAt` is rejected rather than coerced
+- ☐ `updatedAt` above JavaScript safe integer is rejected
+- ☐ Stored responsive envelope with wrong dashboard ID is rejected
+- ☐ Conflict remote envelope with wrong dashboard ID is rejected
+- ☐ Stale-base dry-run returns only a validated ID-matched conflict envelope
 - ☐ Direct save rejected with `unsupported_responsive_write`
 - ☐ Direct remove rejected with `unsupported_responsive_write`
-- ☐ Responsive storage unchanged after rejected writes
+- ☐ Responsive storage unchanged after rejected writes and dry-run
 - ☐ Home Assistant logs contain sanitized audit metadata only
 
 Evidence / notes:
@@ -224,6 +243,7 @@ Relevant log excerpts / timestamps:
 | Canvas v2 | | |
 | Build badge | | |
 | Install self-check identity | | |
+| Responsive validation/write lock | | |
 | Console | | |
 
 ## Defects found
@@ -238,7 +258,10 @@ For every reproducible defect create a separate GitHub issue with reproduction s
 
 - ☐ All mandatory #11 checks passed
 - ☐ Alpha Test Kit / installed frontend / runtime identities match
-- ☐ Dashboard validation boundaries passed
+- ☐ Dashboard document validator identity/negative cases passed
+- ☐ Responsive bundle validator identity/negative cases passed
+- ☐ Strict non-coercing persistence metadata checks passed
+- ☐ Responsive write lock remained intact
 - ☐ No unresolved blocker / critical defect
 - ☐ Browser console and Home Assistant logs reviewed
 - ☐ Required screenshots/evidence attached
