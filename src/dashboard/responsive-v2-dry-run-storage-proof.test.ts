@@ -51,12 +51,15 @@ describe('responsive v2 dry-run storage proof', () => {
   it('treats object key order as irrelevant to the persisted envelope proof', () => {
     const before = loaded('r1');
     const after = loaded('r1');
-    before.envelope.bundle.variants.desktop.items[0].card = {
+    const beforeDesktop = before.status === 'loaded' ? before.envelope.bundle.documents.desktop : undefined;
+    const afterDesktop = after.status === 'loaded' ? after.envelope.bundle.documents.desktop : undefined;
+    if (!beforeDesktop || !afterDesktop) throw new Error('desktop test documents are required');
+    beforeDesktop.items[0].card = {
       type: 'custom:a',
       entity: 'light.kitchen',
       name: 'Kitchen',
     };
-    after.envelope.bundle.variants.desktop.items[0].card = {
+    afterDesktop.items[0].card = {
       name: 'Kitchen',
       entity: 'light.kitchen',
       type: 'custom:a',
