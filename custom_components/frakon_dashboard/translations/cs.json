@@ -3,7 +3,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "FRAKON Dashboard",
+        "title": "Nastavení ukládání dashboardů",
         "description": "Povolit serverové ukládání FRAKON dashboardů v Home Assistantu."
       }
     },
