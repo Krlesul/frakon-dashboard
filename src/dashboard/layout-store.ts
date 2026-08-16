@@ -11,8 +11,10 @@ export interface DashboardStore {
 }
 
 export class LocalDashboardStore implements DashboardStore {
+  constructor(private readonly storage: Storage | undefined = globalThis.localStorage) {}
+
   load(id: string): FrakonDashboardDocument | undefined {
-    const raw = globalThis.localStorage?.getItem(`${STORAGE_PREFIX}${id}`);
+    const raw = this.storage?.getItem(`${STORAGE_PREFIX}${id}`);
     if (!raw) return undefined;
     try {
       const parsed: unknown = JSON.parse(raw);
@@ -27,11 +29,11 @@ export class LocalDashboardStore implements DashboardStore {
   save(document: FrakonDashboardDocument): void {
     if (!isDashboardDocumentV1(document)) throw new Error(INVALID_DOCUMENT_MESSAGE);
     const exact = structuredClone(document);
-    globalThis.localStorage?.setItem(`${STORAGE_PREFIX}${exact.id}`, JSON.stringify(exact));
+    this.storage?.setItem(`${STORAGE_PREFIX}${exact.id}`, JSON.stringify(exact));
   }
 
   remove(id: string): void {
-    globalThis.localStorage?.removeItem(`${STORAGE_PREFIX}${id}`);
+    this.storage?.removeItem(`${STORAGE_PREFIX}${id}`);
   }
 }
 
