@@ -17,7 +17,7 @@ const baseDocument: FrakonDashboardDocument = {
   gap: 12,
   items: [
     { id: 'light', x: 0, y: 0, w: 2, h: 2, card: { type: 'custom:frakon-light-card' } },
-    { id: 'camera', x: 3, y: 0, w: 3, h: 2, card: { type: 'custom:frakon-camera-card' } },
+    { id: 'camera', x: 4, y: 0, w: 3, h: 2, card: { type: 'custom:frakon-camera-card' } },
   ],
 };
 
