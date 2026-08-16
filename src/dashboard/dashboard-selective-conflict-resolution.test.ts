@@ -49,7 +49,7 @@ describe('resolveDashboardConflicts', () => {
   it('resolves each conflicting path independently', () => {
     const base = dashboard('Home', 0, 4);
     const local = dashboard('Local home', 1, 4);
-    const remote = dashboard('Remote home', 3, 4);
+    const remote = dashboard('Remote home', 2, 4);
     const merge = mergeDashboardDocuments(base, local, remote);
 
     const result = resolveDashboardConflicts(merge, {
