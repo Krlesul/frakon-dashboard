@@ -50,6 +50,7 @@ manifest = {
     "frontendBundle": "frakon-dashboard.js",
     "frontendSha256": frontend_sha256,
     "installPath": "/config/custom_components/frakon_dashboard",
+    "integrationArchiveLayout": "integration-files-at-archive-root",
     "frontendResource": f"/frakon-dashboard/frakon-dashboard.js?v={VERSION}",
     "testGuide": "home-assistant-alpha-test.md",
     "reportTemplate": "home-assistant-alpha-test-report-template.md",
@@ -67,7 +68,7 @@ Frontend SHA-256: {frontend_sha256}
 1. Read alpha-migration.md when upgrading an older development install.
 2. Read home-assistant-alpha-test.md before installation.
 3. Record minimum Home Assistant version, source commit and both SHA-256 values in the report template.
-4. Extract frakon_dashboard.zip into the Home Assistant config directory.
+4. Create /config/custom_components/frakon_dashboard and extract frakon_dashboard.zip directly into that directory. The ZIP is a HACS zip_release archive: manifest.json and __init__.py are at the ZIP root and must end up directly under /config/custom_components/frakon_dashboard, not under a nested custom_components/frakon_dashboard directory.
 5. Restart Home Assistant and add the FRAKON Dashboard integration.
 6. From this test-kit directory run:
 
