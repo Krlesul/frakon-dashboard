@@ -13,7 +13,7 @@ const expectedFields: Record<string, string[]> = {
   'custom:frakon-fan-card': ['entity', 'name', 'title', 'show_percentage'],
   'custom:frakon-binary-sensor-card': ['entity', 'name', 'title', 'show_state'],
   'custom:frakon-cover-card': ['entity', 'name', 'title', 'show_position'],
-  'custom:frakon-lock-card': ['entity', 'name', 'title', 'show_state'],
+  'custom:frakon-lock-card': ['entity', 'name', 'title', 'show_state', 'confirm_unlock'],
   'custom:frakon-camera-card': ['entity', 'name', 'title', 'show_state', 'aspect_ratio'],
   'custom:frakon-media-player-card': ['entity', 'name', 'title', 'show_volume'],
   'custom:frakon-energy-card': ['entity', 'name', 'title', 'energy_entity', 'price_entity', 'compact'],
