@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+from typing import Any
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,7 @@ EXPECTED_COMMIT = os.environ.get("GITHUB_SHA", "").strip()
 KIT = DIST / "frakon-dashboard-alpha-test-kit.zip"
 INTEGRATION = DIST / "frakon_dashboard.zip"
 FRONTEND = DIST / "frakon-dashboard.js"
+TRANSLATION_LANGUAGES = ("en", "cs", "de", "sk", "pl")
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 REQUIRED = {
@@ -29,6 +31,36 @@ def png_dimensions(data: bytes, label: str) -> tuple[int, int]:
     if len(data) < 24 or data[:8] != PNG_SIGNATURE or data[12:16] != b"IHDR":
         raise SystemExit(f"{label} is not a valid PNG with an IHDR header")
     return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+
+
+def translation_leaf_paths(value: Any, prefix: tuple[str, ...] = ()) -> set[tuple[str, ...]]:
+    if isinstance(value, dict):
+        paths: set[tuple[str, ...]] = set()
+        for key, child in value.items():
+            if not isinstance(key, str) or not key:
+                raise SystemExit(
+                    f"Embedded integration translation has an invalid key below {'.'.join(prefix) or '<root>'}"
+                )
+            paths.update(translation_leaf_paths(child, (*prefix, key)))
+        return paths
+    if not isinstance(value, str) or not value.strip():
+        raise SystemExit(
+            f"Embedded integration translation value at {'.'.join(prefix)} must be non-empty text"
+        )
+    if "[%key:" in value:
+        raise SystemExit(
+            f"Embedded custom integration translation at {'.'.join(prefix)} contains a Core-only placeholder"
+        )
+    return {prefix}
+
+
+def nested(mapping: object, *keys: str) -> object | None:
+    current = mapping
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
 
 
 if not KIT.is_file():
@@ -52,6 +84,8 @@ with zipfile.ZipFile(KIT) as archive:
         raise SystemExit("Alpha test kit product identity is invalid")
     if manifest.get("version") != VERSION:
         raise SystemExit(f"Alpha test kit version mismatch: {manifest.get('version')!r} != {VERSION!r}")
+    if manifest.get("minimumHomeAssistant") != "2025.1.0":
+        raise SystemExit("Alpha test kit minimumHomeAssistant must remain 2025.1.0")
     if manifest.get("installPath") != "/config/custom_components/frakon_dashboard":
         raise SystemExit("Alpha test kit install path is invalid")
     if manifest.get("frontendResource") != f"/frakon-dashboard/frakon-dashboard.js?v={VERSION}":
@@ -93,18 +127,29 @@ with zipfile.ZipFile(KIT) as archive:
         responsive_websocket_path = f"{prefix}responsive_websocket.py"
         frontend_helper_path = f"{prefix}frontend.py"
         bundled_frontend_path = f"{prefix}frontend/frakon-dashboard.js"
+        translation_paths = {
+            language: f"{prefix}translations/{language}.json"
+            for language in TRANSLATION_LANGUAGES
+        }
         integration_names = set(integration_archive.namelist())
         for required_path in (
             brand_icon_path, brand_icon_2x_path, build_info_path, manifest_path, validator_path,
             responsive_validator_path, responsive_constraint_validator_path, responsive_storage_path,
             responsive_websocket_path, frontend_helper_path, bundled_frontend_path,
+            *translation_paths.values(),
         ):
             if required_path not in integration_names:
                 raise SystemExit(f"Embedded integration archive is missing {required_path}")
+        if f"{prefix}strings.json" in integration_names:
+            raise SystemExit("Embedded custom integration archive must not contain strings.json")
         brand_icon = integration_archive.read(brand_icon_path)
         brand_icon_2x = integration_archive.read(brand_icon_2x_path)
         build_info = json.loads(integration_archive.read(build_info_path))
         ha_manifest = json.loads(integration_archive.read(manifest_path))
+        translations = {
+            language: json.loads(integration_archive.read(path))
+            for language, path in translation_paths.items()
+        }
         validator_source = integration_archive.read(validator_path)
         responsive_validator_source = integration_archive.read(responsive_validator_path)
         responsive_storage_source = integration_archive.read(responsive_storage_path)
@@ -126,6 +171,21 @@ with zipfile.ZipFile(KIT) as archive:
         raise SystemExit("Embedded Home Assistant manifest config entry contract is invalid")
     if set(ha_manifest.get("dependencies", [])) != {"http", "lovelace"}:
         raise SystemExit("Embedded Home Assistant manifest dependencies are invalid")
+
+    english_paths = translation_leaf_paths(translations["en"])
+    for language, translation in translations.items():
+        if not isinstance(translation, dict):
+            raise SystemExit(f"Embedded {language} translation must contain an object")
+        if translation_leaf_paths(translation) != english_paths:
+            raise SystemExit(f"Embedded {language} translation structure differs from en.json")
+        if nested(translation, "title") != "FRAKON Dashboard":
+            raise SystemExit(f"Embedded {language} translation title must remain FRAKON Dashboard")
+        step_title = nested(translation, "config", "step", "user", "title")
+        if not isinstance(step_title, str) or len(step_title.strip()) < 8 or step_title.strip() == "FRAKON Dashboard":
+            raise SystemExit(f"Embedded {language} config-flow step title must describe the setup task")
+    if nested(translations["cs"], "config", "step", "user", "title") != "Nastavení ukládání dashboardů":
+        raise SystemExit("Embedded Czech config-flow step title is not the expected localized setup heading")
+
     if build_info.get("sourceCommit") != source_commit:
         raise SystemExit("Alpha Test Kit sourceCommit differs from embedded integration build-info.json")
     if build_info.get("frontendSha256") != frontend_digest:
@@ -167,6 +227,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("test guide", test_guide, "custom:frakon-dashboard-card"),
         ("test guide", test_guide, "Home Assistant manifest contract: OK"),
         ("test guide", test_guide, "Home Assistant minimum compatibility: OK (2025.1.0+)"),
+        ("test guide", test_guide, "Home Assistant translations: OK (en, cs, de, sk, pl)"),
         ("test guide", test_guide, "iot_class=calculated"),
         ("test guide", test_guide, "Dashboard serialized-byte guard: OK"),
         ("test guide", test_guide, "2,000,000"),
@@ -177,6 +238,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("report template", report, "## Final alpha decision"),
         ("report template", report, "Home Assistant manifest contract: OK"),
         ("report template", report, "Home Assistant minimum compatibility: OK (2025.1.0+)"),
+        ("report template", report, "Home Assistant translations: OK (en, cs, de, sk, pl)"),
         ("report template", report, "iot_class: calculated"),
         ("report template", report, "Dashboard serialized-byte guard: OK"),
         ("report template", report, "2,000,000"),
@@ -188,6 +250,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("self-check", self_check, "frontend SHA-256"),
         ("self-check", self_check, "Home Assistant manifest contract: OK"),
         ("self-check", self_check, "Home Assistant minimum compatibility: OK (2025.1.0+)"),
+        ("self-check", self_check, "Home Assistant translations: OK (en, cs, de, sk, pl)"),
         ("self-check", self_check, "Home Assistant brand assets: OK"),
         ("self-check", self_check, "Dashboard serialized-byte guard: OK"),
         ("self-check", self_check, "Dashboard document validator: OK"),
@@ -198,6 +261,7 @@ with zipfile.ZipFile(KIT) as archive:
         ("README", readme, "python verify_home_assistant_install.py"),
         ("README", readme, "Home Assistant manifest contract: OK"),
         ("README", readme, "Home Assistant minimum compatibility: OK (2025.1.0+)"),
+        ("README", readme, "Home Assistant translations: OK (en, cs, de, sk, pl)"),
         ("README", readme, "iot_class=calculated"),
         ("README", readme, "Home Assistant brand assets: OK"),
         ("README", readme, "Dashboard serialized-byte guard: OK"),
