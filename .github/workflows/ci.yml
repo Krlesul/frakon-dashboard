@@ -23,6 +23,7 @@ jobs:
       - run: python -m compileall -q custom_components/frakon_dashboard
       - run: python scripts/verify_integration_relative_imports.py
       - run: python scripts/verify_build_info_provider.py
+      - run: python scripts/verify_hacs_repository_manifest.py
       - run: python scripts/verify_manifest_contract.py
       - run: python scripts/verify_home_assistant_minimum_compatibility.py
       - run: python scripts/verify_home_assistant_compatibility_release_chain.py
