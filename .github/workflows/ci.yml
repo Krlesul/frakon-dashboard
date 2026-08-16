@@ -42,6 +42,7 @@ jobs:
       - run: python scripts/verify_hacs_release.py
       - run: python scripts/build_alpha_test_kit.py
       - run: python scripts/verify_alpha_test_kit.py
+      - run: python scripts/verify_alpha_test_kit_compatibility_identity.py
       - name: Simulate Home Assistant install from alpha test kit
         run: |
           rm -rf /tmp/frakon-ha-config /tmp/frakon-alpha-kit /tmp/frakon-dashboard.frontend.good.js
