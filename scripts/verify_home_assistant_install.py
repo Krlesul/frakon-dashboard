@@ -9,10 +9,12 @@ import json
 from pathlib import Path
 import re
 import sys
+from typing import Any
 
 DOMAIN = "frakon_dashboard"
 MINIMUM_HOME_ASSISTANT = "2025.1.0"
 MINIMUM_HOME_ASSISTANT_TUPLE = (2025, 1, 0)
+TRANSLATION_LANGUAGES = ("en", "cs", "de", "sk", "pl")
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 REQUIRED_FILES = (
     "__init__.py",
@@ -32,7 +34,11 @@ REQUIRED_FILES = (
     "responsive_websocket.py",
     "storage.py",
     "websocket.py",
+    "translations/en.json",
     "translations/cs.json",
+    "translations/de.json",
+    "translations/sk.json",
+    "translations/pl.json",
     "frontend/frakon-dashboard.js",
 )
 FRONTEND_REGISTRATION_MARKERS = (
@@ -63,6 +69,21 @@ def nested(mapping: object, *keys: str) -> object | None:
             return None
         current = current.get(key)
     return current
+
+
+def translation_leaf_paths(value: Any, prefix: tuple[str, ...] = ()) -> set[tuple[str, ...]]:
+    if isinstance(value, dict):
+        paths: set[tuple[str, ...]] = set()
+        for key, child in value.items():
+            if not isinstance(key, str) or not key:
+                fail(f"invalid translation key below {'.'.join(prefix) or '<root>'}")
+            paths.update(translation_leaf_paths(child, (*prefix, key)))
+        return paths
+    if not isinstance(value, str) or not value.strip():
+        fail(f"translation value at {'.'.join(prefix)} must be non-empty text")
+    if "[%key:" in value:
+        fail(f"custom integration translation at {'.'.join(prefix)} contains a Core-only placeholder")
+    return {prefix}
 
 
 def png_dimensions(path: Path, expected: tuple[int, int]) -> tuple[int, int]:
@@ -119,6 +140,8 @@ def main() -> int:
     missing = [relative for relative in REQUIRED_FILES if not (integration / relative).is_file()]
     if missing:
         fail("missing required files: " + ", ".join(missing))
+    if (integration / "strings.json").exists():
+        fail("custom integration package must not include strings.json; use full translations/*.json files")
 
     icon_dimensions = png_dimensions(integration / "brand" / "icon.png", (256, 256))
     icon_2x_dimensions = png_dimensions(integration / "brand" / "icon@2x.png", (512, 512))
@@ -170,15 +193,33 @@ def main() -> int:
         fail(f"build-info.json frontendSha256 is missing or invalid: {expected_frontend_sha!r}")
     expected_frontend_sha = expected_frontend_sha.lower()
 
-    cs_translation = read_json(integration / "translations" / "cs.json", "Czech translation")
-    if nested(cs_translation, "title") != "FRAKON Dashboard":
-        fail("Czech translation title must be FRAKON Dashboard")
-    cs_description = nested(cs_translation, "config", "step", "user", "description")
-    if not isinstance(cs_description, str) or len(cs_description.strip()) < 20:
-        fail("Czech config-flow description is missing or unexpectedly short")
-    cs_abort = nested(cs_translation, "config", "abort", "already_configured")
-    if not isinstance(cs_abort, str) or not cs_abort.strip():
-        fail("Czech already-configured message is missing")
+    translation_documents: dict[str, dict[str, Any]] = {}
+    for language in TRANSLATION_LANGUAGES:
+        document = read_json(integration / "translations" / f"{language}.json", f"{language} translation")
+        if not isinstance(document, dict):
+            fail(f"{language} translation must contain an object")
+        translation_documents[language] = document
+
+    english_paths = translation_leaf_paths(translation_documents["en"])
+    for language, document in translation_documents.items():
+        paths = translation_leaf_paths(document)
+        if paths != english_paths:
+            fail(f"{language} translation structure differs from translations/en.json")
+        if nested(document, "title") != "FRAKON Dashboard":
+            fail(f"{language} translation title must be FRAKON Dashboard")
+        step_title = nested(document, "config", "step", "user", "title")
+        if not isinstance(step_title, str) or len(step_title.strip()) < 8 or step_title.strip() == "FRAKON Dashboard":
+            fail(f"{language} config-flow step title must describe the setup task")
+        description = nested(document, "config", "step", "user", "description")
+        if not isinstance(description, str) or len(description.strip()) < 20:
+            fail(f"{language} config-flow description is missing or unexpectedly short")
+        already_configured = nested(document, "config", "abort", "already_configured")
+        if not isinstance(already_configured, str) or not already_configured.strip():
+            fail(f"{language} already-configured message is missing")
+
+    cs_title = nested(translation_documents["cs"], "config", "step", "user", "title")
+    if cs_title != "Nastavení ukládání dashboardů":
+        fail(f"Czech config-flow step title is unexpected: {cs_title!r}")
 
     validator_source = (integration / "document_validation.py").read_text(encoding="utf-8")
     for marker in (
@@ -252,6 +293,7 @@ def main() -> int:
     print(f"brand icon @2x: {icon_2x_dimensions[0]}x{icon_2x_dimensions[1]}")
     print("Home Assistant manifest contract: OK")
     print("Home Assistant minimum compatibility: OK (2025.1.0+)")
+    print("Home Assistant translations: OK (en, cs, de, sk, pl)")
     print("Home Assistant brand assets: OK")
     print("Dashboard serialized-byte guard: OK")
     print("Dashboard document validator: OK")
