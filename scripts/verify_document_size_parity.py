@@ -109,7 +109,7 @@ require(
     "docs/home-assistant-alpha-test.md",
     "Dashboard serialized-byte guard: OK",
     "2,000,000",
-    "2,000,001",
+    "one additional ASCII byte",
     "multibyte",
 )
 require(
