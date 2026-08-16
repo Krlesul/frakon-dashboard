@@ -11,6 +11,8 @@ import re
 import sys
 
 DOMAIN = "frakon_dashboard"
+MINIMUM_HOME_ASSISTANT = "2025.1.0"
+MINIMUM_HOME_ASSISTANT_TUPLE = (2025, 1, 0)
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 REQUIRED_FILES = (
     "__init__.py",
@@ -76,12 +78,40 @@ def png_dimensions(path: Path, expected: tuple[int, int]) -> tuple[int, int]:
     return dimensions
 
 
+def home_assistant_version_tuple(value: str) -> tuple[int, int, int] | None:
+    """Parse the numeric Home Assistant YYYY.M.P prefix without extra dependencies."""
+    match = re.match(r"^\s*(\d+)\.(\d+)(?:\.(\d+))?", value)
+    if not match:
+        return None
+    return (
+        int(match.group(1)),
+        int(match.group(2)),
+        int(match.group(3) or 0),
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=Path, help="Home Assistant config directory, e.g. /config")
     args = parser.parse_args()
 
     root = args.config.expanduser().resolve()
+    version_file = root / ".HA_VERSION"
+    if not version_file.is_file():
+        fail(
+            "missing Home Assistant .HA_VERSION in the config directory; "
+            "run this self-check against the real Home Assistant config root"
+        )
+    home_assistant_version = version_file.read_text(encoding="utf-8").strip()
+    parsed_home_assistant_version = home_assistant_version_tuple(home_assistant_version)
+    if parsed_home_assistant_version is None:
+        fail(f"cannot parse Home Assistant Core version from .HA_VERSION: {home_assistant_version!r}")
+    if parsed_home_assistant_version < MINIMUM_HOME_ASSISTANT_TUPLE:
+        fail(
+            f"Home Assistant Core {home_assistant_version} is below the FRAKON minimum "
+            f"{MINIMUM_HOME_ASSISTANT}"
+        )
+
     integration = root / "custom_components" / DOMAIN
     if not integration.is_dir():
         fail(f"missing integration directory: {integration}")
@@ -210,6 +240,8 @@ def main() -> int:
     resource_url = f"/frakon-dashboard/frakon-dashboard.js?v={installed_version}"
     print("FRAKON Dashboard install self-check: OK")
     print(f"config: {root}")
+    print(f"Home Assistant Core version: {home_assistant_version}")
+    print(f"minimum Home Assistant Core: {MINIMUM_HOME_ASSISTANT}")
     print(f"integration: {integration}")
     print(f"version: {installed_version}")
     print(f"source commit: {source_commit}")
