@@ -76,8 +76,18 @@ require(
 )
 require(
     "scripts/build_alpha_test_kit.py",
+    'MINIMUM_HOME_ASSISTANT = str(HACS.get("homeassistant", ""))',
+    '"minimumHomeAssistant": MINIMUM_HOME_ASSISTANT',
+    "Minimum Home Assistant Core: {MINIMUM_HOME_ASSISTANT}",
     EXPECTED_MARKER,
     "Home Assistant 2025.1 dictionary shape",
+)
+require(
+    "scripts/verify_alpha_test_kit_compatibility_identity.py",
+    'EXPECTED_MINIMUM = "2025.1.0"',
+    'manifest.get("minimumHomeAssistant")',
+    "Minimum Home Assistant Core: {EXPECTED_MINIMUM}",
+    "Alpha Test Kit Home Assistant compatibility identity: OK",
 )
 require(
     "docs/home-assistant-alpha-test.md",
@@ -92,9 +102,16 @@ require(
     "iot_class: calculated",
 )
 require(
+    "README.md",
+    "declared minimum supported Home Assistant Core version is **2025.1.0**",
+    EXPECTED_MARKER,
+    "iot_class=calculated",
+)
+require(
     ".github/workflows/ci.yml",
     "python scripts/verify_home_assistant_minimum_compatibility.py",
     "python scripts/verify_home_assistant_compatibility_release_chain.py",
+    "python scripts/verify_alpha_test_kit_compatibility_identity.py",
 )
 
 print("Home Assistant compatibility release chain: OK")
