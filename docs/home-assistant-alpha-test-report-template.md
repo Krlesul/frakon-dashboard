@@ -25,7 +25,9 @@ Identity gate:
 - ☐ Kit frontend SHA-256 = install self-check frontend SHA-256
 - ☐ Kit version = installed Home Assistant manifest/runtime version
 - ☐ `Home Assistant manifest contract: OK` reported
+- ☐ `Home Assistant minimum compatibility: OK (2025.1.0+)` reported
 - ☐ Installed manifest declares `integration_type: service`
+- ☐ Installed manifest declares `iot_class: calculated`
 - ☐ Installed manifest keeps `single_config_entry: true`
 - ☐ `Home Assistant brand assets: OK` reported
 - ☐ Installed `brand/icon.png` verified as 256×256 PNG
@@ -41,7 +43,7 @@ If any identity item differs, stop functional testing and fix installation/cache
 
 ## Home Assistant environment
 
-- Home Assistant Core version:
+- Home Assistant Core version (must be 2025.1.0 or newer):
 - Installation type (HA OS / Supervised / Container / Core):
 - Host hardware:
 - Frontend version (if different):
@@ -61,10 +63,13 @@ If any identity item differs, stop functional testing and fix installation/cache
 
 - ☐ Alpha Test Kit came from a successful CI run for the tested commit
 - ☐ Kit identity values recorded before installation
+- ☐ Home Assistant Core is 2025.1.0 or newer
 - ☐ `frakon_dashboard.zip` extracted to `/config/custom_components/frakon_dashboard`
 - ☐ Home Assistant restarted successfully
 - ☐ FRAKON Dashboard integration added
 - ☐ Home Assistant manifest contract reports `OK`
+- ☐ Home Assistant minimum compatibility reports `OK (2025.1.0+)`
+- ☐ Installed manifest has `integration_type: service` and `iot_class: calculated`
 - ☐ FRAKON integration icon displayed where supported
 - ☐ Versioned `/frakon-dashboard/frakon-dashboard.js?v=…` module loaded
 - ☐ No legacy duplicate `/local/frakon-dashboard.js` resource remains
@@ -261,7 +266,7 @@ Relevant log excerpts / timestamps:
 | Automatic Designer | | |
 | Canvas v2 | | |
 | Build badge | | |
-| Install self-check identity | | |
+| Install self-check identity | | Manifest, minimum-version, hashes and validator markers |
 | 2,000,000-byte boundary | | Exact byte-limit acceptance/rejection evidence |
 | Responsive validation/write lock | | |
 | Console | | |
@@ -278,7 +283,9 @@ For every reproducible defect create a separate GitHub issue with reproduction s
 
 - ☐ All mandatory #11 checks passed
 - ☐ Alpha Test Kit / installed frontend / runtime identities match
-- ☐ Home Assistant manifest contract passed (`integration_type=service`, single config entry, expected dependencies/URLs)
+- ☐ Home Assistant Core is 2025.1.0 or newer
+- ☐ Home Assistant minimum compatibility marker passed
+- ☐ Home Assistant manifest contract passed (`integration_type=service`, `iot_class=calculated`, single config entry, expected dependencies/URLs)
 - ☐ Home Assistant brand asset dimensions/self-check passed
 - ☐ FRAKON integration icon visually checked where supported
 - ☐ Dashboard serialized-byte guard identity/exact-boundary/UTF-8 cases passed
