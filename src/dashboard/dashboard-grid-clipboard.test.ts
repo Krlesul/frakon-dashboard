@@ -22,7 +22,7 @@ function doc(): FrakonDashboardDocument {
       { id: 'locked', x: 6, y: 0, w: 1, h: 1, locked: true, card: { type: 'custom:locked' } },
     ],
     constraints: [
-      { id: 'a-left-b', kind: 'left-of', sourceId: 'a', targetId: 'b', gap: 1, priority: 50 },
+      { id: 'a-left-b', kind: 'right-of', sourceId: 'b', targetId: 'a', gap: 1, priority: 50 },
       { id: 'a-above-hidden', kind: 'align-left', sourceId: 'hidden', targetId: 'a', priority: 30 },
     ],
   };
@@ -48,8 +48,8 @@ describe('grid dashboard clipboard', () => {
     expect(result.selectedIds).toEqual(['a-copy', 'b-copy']);
     expect(result.document.items).toHaveLength(6);
     expect(result.document.constraints).toContainEqual(expect.objectContaining({
-      sourceId: 'a-copy',
-      targetId: 'b-copy',
+      sourceId: 'b-copy',
+      targetId: 'a-copy',
     }));
 
     const pasted = result.document.items.find((item) => item.id === 'a-copy');
@@ -101,7 +101,7 @@ describe('grid dashboard clipboard', () => {
     expect(deleted.status).toBe('committed');
     expect(deleted.document.items.some((item) => item.id === 'a')).toBe(false);
     expect(deleted.document.items.some((item) => item.id === 'hidden')).toBe(false);
-    expect(deleted.document.constraints.some((constraint) => constraint.id === 'a-above-hidden')).toBe(false);
+    expect((deleted.document.constraints ?? []).some((constraint) => constraint.id === 'a-above-hidden')).toBe(false);
 
     const pasted = pasteDashboardGridClipboard(deleted.document, payload);
     expect(pasted.status).toBe('committed');
