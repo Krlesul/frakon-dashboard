@@ -35,11 +35,21 @@ If upgrading an older FRAKON development install, read `alpha-migration.md` firs
 
 The declared minimum supported Home Assistant Core version is **2025.1.0**. The packaged frontend registration code is verified against both the HA 2025.1 Lovelace dict shape and the modern `LovelaceData` / `HassKey` shape before an Alpha artifact is accepted.
 
-Extract the kit, then extract its `frakon_dashboard.zip` into the Home Assistant config directory. The final path must be:
+`frakon_dashboard.zip` is a HACS `zip_release` archive whose integration files are stored at the ZIP root. For a manual Alpha install:
+
+1. extract the Alpha Test Kit,
+2. create the target directory `/config/custom_components/frakon_dashboard`,
+3. extract `frakon_dashboard.zip` **directly into that target directory**.
+
+After extraction these files must exist directly at:
 
 ```text
-/config/custom_components/frakon_dashboard
+/config/custom_components/frakon_dashboard/manifest.json
+/config/custom_components/frakon_dashboard/__init__.py
+/config/custom_components/frakon_dashboard/frontend/frakon-dashboard.js
 ```
+
+Do **not** extract `frakon_dashboard.zip` directly into `/config`; that would place `manifest.json` and the other integration files in the wrong directory. Also do not create a second nested `/config/custom_components/frakon_dashboard/custom_components/frakon_dashboard` tree.
 
 Do **not** copy `frakon-dashboard.js` to `/config/www` and do not keep a legacy `/local/frakon-dashboard.js` Lovelace resource enabled. The integration serves its own cache-busted module:
 
@@ -95,6 +105,7 @@ The test-kit verifier has already proven the chain:
 ```text
 Alpha Test Kit manifest
 → integration ZIP SHA-256
+→ root-layout install path contract
 → Home Assistant manifest + minimum-version compatibility
 → multilingual custom-integration translations
 → brand assets + document/byte-limit validators
@@ -104,7 +115,7 @@ Alpha Test Kit manifest
 
 The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/`, validating the real Home Assistant Core version, installed manifest, HA 2025.1+ compatibility markers, all five installed translation files, both brand PNGs and the installed normal/responsive validation boundaries.
 
-If any version, source commit, SHA-256, manifest, compatibility, translation, brand, byte-limit or validator marker differs, stop functional testing and correct installation/cache/resource state first.
+If any version, source commit, SHA-256, install layout, manifest, compatibility, translation, brand, byte-limit or validator marker differs, stop functional testing and correct installation/cache/resource state first.
 
 ## 3. Record the environment
 
@@ -302,6 +313,7 @@ Issue #11 can be closed only when:
 - the tested Alpha Test Kit came from a successful CI run for the tested commit
 - `alpha-test-kit.json.minimumHomeAssistant` is `2025.1.0`
 - the real test runs on Home Assistant Core 2025.1.0 or newer
+- `frakon_dashboard.zip` was extracted directly into `/config/custom_components/frakon_dashboard` and no nested integration directory exists
 - kit manifest, installed integration/frontend and runtime build identities match
 - install self-check passes with expected source commit + frontend SHA-256 + `Home Assistant manifest contract: OK` + `Home Assistant minimum compatibility: OK (2025.1.0+)` + `Home Assistant translations: OK (en, cs, de, sk, pl)` + `Home Assistant brand assets: OK` + `Dashboard serialized-byte guard: OK` + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
 - installed manifest still declares the intended single-entry `service` contract with `iot_class=calculated`
