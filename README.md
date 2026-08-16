@@ -33,7 +33,8 @@ The current Home Assistant alpha includes:
 - Dashboard / Card defaults / Selection surface styling
 - responsive persistence diagnostics and Alpha Readiness status
 - server build identity and frontend/backend mismatch detection
-- explicit Home Assistant single-entry `service` integration contract
+- explicit Home Assistant single-entry `service` integration contract with `iot_class=calculated`
+- declared Home Assistant Core minimum **2025.1.0**, with the real frontend registration path tested against both the HA 2025.1 Lovelace dict and modern `LovelaceData` / `HassKey` shapes
 - revision-aware multi-device synchronization and optimistic concurrency
 - isolated responsive bundle storage
 - breakpoint-aware Local / Remote conflict resolution
@@ -112,6 +113,8 @@ The ZIP contains `custom_components/frakon_dashboard/` together with the exact f
 
 ## Alpha installation in Home Assistant
 
+The declared minimum supported Home Assistant Core version is **2025.1.0**.
+
 Use the package from a **successful** GitHub Actions CI artifact for the exact commit being tested. A failed workflow that never started its job is not a verified artifact.
 
 The complete procedure and test matrix are documented in:
@@ -138,6 +141,7 @@ Short version:
 
 ```text
 Home Assistant manifest contract: OK
+Home Assistant minimum compatibility: OK (2025.1.0+)
 Home Assistant brand assets: OK
 Dashboard serialized-byte guard: OK
 Dashboard document validator: OK
@@ -145,7 +149,7 @@ Responsive bundle validator: OK
 Czech config flow: OK
 ```
 
-The manifest contract requires the installed integration to remain a single-entry `service` integration with the expected Home Assistant dependencies and repository identity. The serialized-byte guard requires the installed backend to carry the same 2,000,000-byte persistence ceiling as the frontend guards.
+The manifest contract requires the installed integration to remain a single-entry `service` integration with `iot_class=calculated`, the expected Home Assistant dependencies and repository identity. The minimum-compatibility contract verifies that the packaged Lovelace resource helper supports both the HA 2025.1 dictionary model and modern `LovelaceData` / `HassKey` without importing the newer-only `LOVELACE_DATA` symbol. The serialized-byte guard requires the installed backend to carry the same 2,000,000-byte persistence ceiling as the frontend guards.
 
 Do **not** separately copy the current bundled frontend into `/config/www`. The integration serves its own versioned frontend resource from:
 
@@ -298,7 +302,9 @@ The repository CI is designed to run:
 - Python syntax validation
 - integration relative-import verification
 - build-info provider verification
-- Home Assistant manifest contract/release-chain verification
+- Home Assistant manifest contract verification
+- Home Assistant Core 2025.1+ frontend-registration compatibility contract
+- Home Assistant compatibility source/package/kit/install release-chain verification
 - Home Assistant brand PNG validation
 - Home Assistant brand package/install release-chain verification
 - strict v1/v2 document validation contract
