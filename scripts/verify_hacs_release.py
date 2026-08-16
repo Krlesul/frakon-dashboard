@@ -57,11 +57,22 @@ if not ZIP_PATH.is_file():
     raise SystemExit(f"Missing HACS release archive: {ZIP_PATH}")
 
 hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
-if hacs.get("homeassistant") != EXPECTED_MINIMUM_HOME_ASSISTANT:
-    raise SystemExit(
-        "HACS minimum Home Assistant version drifted: "
-        f"{hacs.get('homeassistant')!r} != {EXPECTED_MINIMUM_HOME_ASSISTANT!r}"
-    )
+expected_hacs = {
+    "name": "FRAKON Dashboard",
+    "content_in_root": False,
+    "zip_release": True,
+    "hide_default_branch": True,
+    "filename": "frakon_dashboard.zip",
+    "render_readme": True,
+    "homeassistant": EXPECTED_MINIMUM_HOME_ASSISTANT,
+}
+for key, expected in expected_hacs.items():
+    if hacs.get(key) != expected:
+        raise SystemExit(
+            f"HACS repository manifest {key!r} is {hacs.get(key)!r}, expected {expected!r}"
+        )
+if not str(hacs.get("filename", "")).endswith(".zip"):
+    raise SystemExit("HACS zip_release filename must end with .zip")
 
 with ZipFile(ZIP_PATH) as archive:
     names = set(archive.namelist())
