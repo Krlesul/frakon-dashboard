@@ -50,7 +50,7 @@ export class FrakonItemGeometryControls extends LitElement {
     return this.document.items.find((item) => item.id === this.selection.ids[0]);
   }
 
-  private update(field: 'x' | 'y' | 'w' | 'h', event: Event): void {
+  private updateGeometry(field: 'x' | 'y' | 'w' | 'h', event: Event): void {
     const document = this.document;
     const item = this.selectedItem();
     if (!document || !item || item.locked || item.hidden) return;
@@ -96,7 +96,7 @@ export class FrakonItemGeometryControls extends LitElement {
           max=${maximum ?? nothing}
           .value=${String(item[key])}
           ?disabled=${item.locked || item.hidden}
-          @change=${(event: Event) => this.update(key, event)}
+          @change=${(event: Event) => this.updateGeometry(key, event)}
           aria-label=${`${label} for ${item.id}`}
         >
       </label>
