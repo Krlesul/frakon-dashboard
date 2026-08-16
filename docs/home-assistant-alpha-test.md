@@ -16,15 +16,18 @@ The kit contains:
 - `home-assistant-alpha-test.md` — this checklist
 - `home-assistant-alpha-test-report-template.md` — evidence report
 - `alpha-migration.md` — upgrade and rollback instructions
-- `alpha-test-kit.json` — version, source commit, integration SHA-256, frontend SHA-256 and install identity
+- `alpha-test-kit.json` — version, minimum Home Assistant version, source commit, integration SHA-256, frontend SHA-256 and install identity
 - `README.txt` — short install sequence
 
 Before installation, record these immutable identity values from `alpha-test-kit.json` in the report:
 
 - `version`
+- `minimumHomeAssistant`
 - `sourceCommit`
 - `integrationSha256`
 - `frontendSha256`
+
+`minimumHomeAssistant` must be `2025.1.0` for the current Alpha contract.
 
 If upgrading an older FRAKON development install, read `alpha-migration.md` first.
 
@@ -49,9 +52,10 @@ Then:
 1. restart Home Assistant,
 2. open **Settings → Devices & services → Add integration**,
 3. add **FRAKON Dashboard**,
-4. confirm the packaged FRAKON integration icon is shown when the installed Home Assistant version supports local custom-integration brand assets,
-5. confirm the versioned module is registered/loaded,
-6. from the extracted Alpha Test Kit directory run:
+4. confirm the Czech setup step is headed **Nastavení ukládání dashboardů** when Home Assistant is using Czech,
+5. confirm the packaged FRAKON integration icon is shown when the installed Home Assistant version supports local custom-integration brand assets,
+6. confirm the versioned module is registered/loaded,
+7. from the extracted Alpha Test Kit directory run:
 
 ```bash
 python verify_home_assistant_install.py /path/to/home-assistant/config
@@ -68,6 +72,7 @@ The output must include the same source commit and the same frontend SHA-256 as 
 ```text
 Home Assistant manifest contract: OK
 Home Assistant minimum compatibility: OK (2025.1.0+)
+Home Assistant translations: OK (en, cs, de, sk, pl)
 Home Assistant brand assets: OK
 Dashboard serialized-byte guard: OK
 Dashboard document validator: OK
@@ -77,7 +82,9 @@ Czech config flow: OK
 
 `Home Assistant manifest contract: OK` proves the installed manifest still identifies FRAKON Dashboard as a single-entry `service` integration with `iot_class=calculated`, the expected dependencies, documentation and issue-tracker identity.
 
-`Home Assistant minimum compatibility: OK (2025.1.0+)` proves the installed `frontend.py` avoids the newer-only `LOVELACE_DATA` import and retains the compatibility adapter required for the HA 2025.1 Lovelace dict plus modern `LovelaceData` resource shapes.
+`Home Assistant minimum compatibility: OK (2025.1.0+)` proves the installed `frontend.py` avoids the newer-only `LOVELACE_DATA` import and retains the compatibility adapter required for the HA 2025.1 Lovelace dict plus modern `LovelaceData` resource shapes. The self-check also reads the real Home Assistant config-root `.HA_VERSION` and rejects Core versions below 2025.1.0.
+
+`Home Assistant translations: OK (en, cs, de, sk, pl)` proves the installed custom integration contains complete English, Czech, German, Slovak and Polish translation files with the same key structure, non-empty text, task-specific config-flow headings and no Core-only `strings.json` / translation-placeholder model. The Czech config-flow title is additionally checked against **Nastavení ukládání dashboardů**.
 
 `Home Assistant brand assets: OK` proves the installed integration contains valid PNG assets at `brand/icon.png` (256×256) and `brand/icon@2x.png` (512×512), rather than merely relying on repository metadata.
 
@@ -88,15 +95,16 @@ The test-kit verifier has already proven the chain:
 ```text
 Alpha Test Kit manifest
 → integration ZIP SHA-256
-→ Home Assistant manifest + minimum-version compatibility + brand assets
-→ document/byte-limit validators
+→ Home Assistant manifest + minimum-version compatibility
+→ multilingual custom-integration translations
+→ brand assets + document/byte-limit validators
 → build-info.json sourceCommit + frontendSha256
 → bundled frontend bytes
 ```
 
-The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/`, validating the installed manifest, HA 2025.1+ compatibility markers, both brand PNGs and the installed normal/responsive validation boundaries.
+The install self-check completes that chain by hashing the frontend actually installed under `/config/custom_components/frakon_dashboard/frontend/`, validating the real Home Assistant Core version, installed manifest, HA 2025.1+ compatibility markers, all five installed translation files, both brand PNGs and the installed normal/responsive validation boundaries.
 
-If any version, source commit, SHA-256, manifest, compatibility, brand, byte-limit or validator marker differs, stop functional testing and correct installation/cache/resource state first.
+If any version, source commit, SHA-256, manifest, compatibility, translation, brand, byte-limit or validator marker differs, stop functional testing and correct installation/cache/resource state first.
 
 ## 3. Record the environment
 
@@ -108,6 +116,7 @@ Use `home-assistant-alpha-test-report-template.md` from the same kit. Record at 
 - client device and OS
 - viewport size/class
 - FRAKON version and source commit
+- `minimumHomeAssistant`
 - integration/frontend SHA-256 values
 - Lovelace mode
 - FRAKON storage mode
@@ -291,10 +300,12 @@ For every reproducible defect, create a separate issue with exact source commit,
 Issue #11 can be closed only when:
 
 - the tested Alpha Test Kit came from a successful CI run for the tested commit
+- `alpha-test-kit.json.minimumHomeAssistant` is `2025.1.0`
 - the real test runs on Home Assistant Core 2025.1.0 or newer
 - kit manifest, installed integration/frontend and runtime build identities match
-- install self-check passes with expected source commit + frontend SHA-256 + `Home Assistant manifest contract: OK` + `Home Assistant minimum compatibility: OK (2025.1.0+)` + `Home Assistant brand assets: OK` + `Dashboard serialized-byte guard: OK` + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
+- install self-check passes with expected source commit + frontend SHA-256 + `Home Assistant manifest contract: OK` + `Home Assistant minimum compatibility: OK (2025.1.0+)` + `Home Assistant translations: OK (en, cs, de, sk, pl)` + `Home Assistant brand assets: OK` + `Dashboard serialized-byte guard: OK` + `Dashboard document validator: OK` + `Responsive bundle validator: OK`
 - installed manifest still declares the intended single-entry `service` contract with `iot_class=calculated`
+- the Czech config-flow step heading is `Nastavení ukládání dashboardů` and installed EN/CS/DE/SK/PL translations remain structurally complete
 - packaged FRAKON brand assets have the required dimensions and the integration icon is visually checked where the Home Assistant version supports local custom-integration brand assets
 - the 2,000,000-byte persistence ceiling is verified at the exact boundary, one byte above it and with multibyte UTF-8 content without mutating stored state on rejection
 - mandatory stable Dashboard, Automatic Designer, Canvas v2, storage/conflict and responsive checks were executed
