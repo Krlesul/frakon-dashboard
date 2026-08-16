@@ -77,6 +77,7 @@ Frontend SHA-256: {frontend_sha256}
 
    Home Assistant manifest contract: OK
    Home Assistant minimum compatibility: OK (2025.1.0+)
+   Home Assistant translations: OK (en, cs, de, sk, pl)
    Home Assistant brand assets: OK
    Dashboard serialized-byte guard: OK
    Dashboard document validator: OK
@@ -85,6 +86,7 @@ Frontend SHA-256: {frontend_sha256}
 
    The manifest contract requires FRAKON Dashboard to be installed as a single-entry `service` integration with `iot_class=calculated`, the expected Home Assistant dependencies and repository URLs.
    The minimum compatibility contract verifies that the packaged Lovelace resource helper supports both the Home Assistant 2025.1 dictionary shape and the modern LovelaceData/HassKey shape without importing the newer-only LOVELACE_DATA symbol.
+   The translation contract verifies that the installed custom integration contains complete, structurally matching English, Czech, German, Slovak and Polish translation files and no Core-only strings.json/placeholder model.
 
 8. Confirm FRAKON Dashboard shows its packaged integration icon in Home Assistant on versions that support local custom-integration brand assets.
 9. Record results and the required negative validation evidence in home-assistant-alpha-test-report-template.md, including a dashboard payload larger than 2,000,000 UTF-8 JSON bytes being rejected.
