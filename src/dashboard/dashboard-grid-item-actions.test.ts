@@ -75,14 +75,14 @@ describe('grid dashboard item actions', () => {
     const result = applyDashboardGridItemAction(doc(), ['hidden'], 'delete');
     expect(result.status).toBe('committed');
     expect(result.document.items.map((item) => item.id)).toEqual(['a', 'b', 'locked']);
-    expect(result.document.constraints.map((constraint) => constraint.id)).toEqual(['b-right-a']);
+    expect((result.document.constraints ?? []).map((constraint) => constraint.id)).toEqual(['b-right-a']);
   });
 
   it('deletes unlocked selected items and removes their constraints', () => {
     const result = applyDashboardGridItemAction(doc(), ['b'], 'delete');
     expect(result.status).toBe('committed');
     expect(result.document.items.map((item) => item.id)).toEqual(['a', 'hidden', 'locked']);
-    expect(result.document.constraints.map((constraint) => constraint.id)).toEqual(['hidden-left-a']);
+    expect((result.document.constraints ?? []).map((constraint) => constraint.id)).toEqual(['hidden-left-a']);
   });
 
   it('keeps locked peers when deleting a mixed selection', () => {
