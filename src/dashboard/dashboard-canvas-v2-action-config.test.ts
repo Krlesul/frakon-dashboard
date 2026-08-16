@@ -30,8 +30,14 @@ describe('native v2 action card config', () => {
   });
 
   it('accepts supported action domains', () => {
-    for (const entity of ['button.restart', 'input_button.good_night', 'script.movie', 'scene.evening']) {
-      expect(patchDashboardCanvasV2CardConfig(document(), 'action', { entity }).status).toBe('committed');
+    const cases = [
+      ['button.restart', 'unchanged'],
+      ['input_button.good_night', 'committed'],
+      ['script.movie', 'committed'],
+      ['scene.evening', 'committed'],
+    ] as const;
+    for (const [entity, status] of cases) {
+      expect(patchDashboardCanvasV2CardConfig(document(), 'action', { entity }).status).toBe(status);
     }
   });
 
