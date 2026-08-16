@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ZIP_PATH = ROOT / "dist" / "frakon_dashboard.zip"
 PREFIX = "custom_components/frakon_dashboard/"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+EXPECTED_MINIMUM_HOME_ASSISTANT = "2025.1.0"
 
 required = {
     f"{PREFIX}__init__.py",
@@ -55,6 +56,13 @@ def png_dimensions(data: bytes, label: str) -> tuple[int, int]:
 if not ZIP_PATH.is_file():
     raise SystemExit(f"Missing HACS release archive: {ZIP_PATH}")
 
+hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
+if hacs.get("homeassistant") != EXPECTED_MINIMUM_HOME_ASSISTANT:
+    raise SystemExit(
+        "HACS minimum Home Assistant version drifted: "
+        f"{hacs.get('homeassistant')!r} != {EXPECTED_MINIMUM_HOME_ASSISTANT!r}"
+    )
+
 with ZipFile(ZIP_PATH) as archive:
     names = set(archive.namelist())
     missing = sorted(required - names)
@@ -95,6 +103,22 @@ with ZipFile(ZIP_PATH) as archive:
         raise SystemExit(
             f"Packaged sourceCommit {source_commit!r} does not match GITHUB_SHA {expected_commit!r}"
         )
+
+    frontend_helper_source = archive.read(f"{PREFIX}frontend.py")
+    if b"LOVELACE_DATA" in frontend_helper_source:
+        raise SystemExit(
+            "Packaged frontend helper uses LOVELACE_DATA, which is unavailable on the declared HA 2025.1 minimum"
+        )
+    for marker in (
+        b"DOMAIN as LOVELACE_DOMAIN",
+        b"def _lovelace_resource_state",
+        b"HA 2025.1 minimum",
+        b"await collection.async_get_info()",
+    ):
+        if marker not in frontend_helper_source:
+            raise SystemExit(
+                f"Packaged frontend helper is missing HA 2025.1 compatibility marker {marker.decode()}"
+            )
 
     frontend = archive.read(f"{PREFIX}frontend/frakon-dashboard.js")
     if len(frontend) < 10_000:
