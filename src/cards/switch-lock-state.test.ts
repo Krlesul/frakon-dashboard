@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { frakonLockActionForState } from './lock/lock-card';
-import { frakonSwitchActionForState } from './switch/switch-card';
+import { frakonLockActionForState } from './lock/lock-card-state';
+import { frakonSwitchActionForState } from './switch/switch-card-state';
 
 describe('FRAKON Switch and Lock action guards', () => {
   it('maps only stable switch states to the opposite service', () => {
