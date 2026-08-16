@@ -9,31 +9,33 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 ZIP_PATH = ROOT / "dist" / "frakon_dashboard.zip"
-PREFIX = "custom_components/frakon_dashboard/"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 EXPECTED_MINIMUM_HOME_ASSISTANT = "2025.1.0"
 TRANSLATION_LANGUAGES = ("en", "cs", "de", "sk", "pl")
 
+# HACS zip_release extracts the archive directly into
+# /config/custom_components/<domain>. Integration files therefore belong at
+# the ZIP root, not under custom_components/frakon_dashboard/.
 required = {
-    f"{PREFIX}__init__.py",
-    f"{PREFIX}brand/icon.png",
-    f"{PREFIX}brand/icon@2x.png",
-    f"{PREFIX}build_info.py",
-    f"{PREFIX}build-info.json",
-    f"{PREFIX}build_websocket.py",
-    f"{PREFIX}config_flow.py",
-    f"{PREFIX}const.py",
-    f"{PREFIX}document_validation.py",
-    f"{PREFIX}frontend.py",
-    f"{PREFIX}frontend/frakon-dashboard.js",
-    f"{PREFIX}manifest.json",
-    f"{PREFIX}responsive_bundle_validation.py",
-    f"{PREFIX}responsive_constraint_validation.py",
-    f"{PREFIX}responsive_storage.py",
-    f"{PREFIX}responsive_websocket.py",
-    f"{PREFIX}storage.py",
-    f"{PREFIX}websocket.py",
-    *(f"{PREFIX}translations/{language}.json" for language in TRANSLATION_LANGUAGES),
+    "__init__.py",
+    "brand/icon.png",
+    "brand/icon@2x.png",
+    "build_info.py",
+    "build-info.json",
+    "build_websocket.py",
+    "config_flow.py",
+    "const.py",
+    "document_validation.py",
+    "frontend.py",
+    "frontend/frakon-dashboard.js",
+    "manifest.json",
+    "responsive_bundle_validation.py",
+    "responsive_constraint_validation.py",
+    "responsive_storage.py",
+    "responsive_websocket.py",
+    "storage.py",
+    "websocket.py",
+    *(f"translations/{language}.json" for language in TRANSLATION_LANGUAGES),
 }
 
 required_frontend_markers = {
@@ -105,12 +107,18 @@ with ZipFile(ZIP_PATH) as archive:
     missing = sorted(required - names)
     if missing:
         raise SystemExit("HACS release archive is incomplete:\n- " + "\n- ".join(missing))
-    if f"{PREFIX}strings.json" in names:
+    nested_layout = sorted(name for name in names if name.startswith("custom_components/"))
+    if nested_layout:
+        raise SystemExit(
+            "HACS zip_release must contain integration files at the archive root, not under custom_components/:\n- "
+            + "\n- ".join(nested_layout[:20])
+        )
+    if "strings.json" in names:
         raise SystemExit("Packaged custom integration must not include strings.json")
 
     translations: dict[str, dict[str, Any]] = {}
     for language in TRANSLATION_LANGUAGES:
-        path = f"{PREFIX}translations/{language}.json"
+        path = f"translations/{language}.json"
         document = json.loads(archive.read(path))
         if not isinstance(document, dict):
             raise SystemExit(f"Packaged {language} translation must contain an object")
@@ -131,14 +139,14 @@ with ZipFile(ZIP_PATH) as archive:
     if nested(translations["cs"], "config", "step", "user", "title") != "Nastavení ukládání dashboardů":
         raise SystemExit("Packaged Czech config-flow step title is not the expected localized setup heading")
 
-    brand_icon = archive.read(f"{PREFIX}brand/icon.png")
-    brand_icon_2x = archive.read(f"{PREFIX}brand/icon@2x.png")
+    brand_icon = archive.read("brand/icon.png")
+    brand_icon_2x = archive.read("brand/icon@2x.png")
     if png_dimensions(brand_icon, "brand/icon.png") != (256, 256):
         raise SystemExit("Packaged brand/icon.png must be exactly 256x256 pixels")
     if png_dimensions(brand_icon_2x, "brand/icon@2x.png") != (512, 512):
         raise SystemExit("Packaged brand/icon@2x.png must be exactly 512x512 pixels")
 
-    manifest = json.loads(archive.read(f"{PREFIX}manifest.json"))
+    manifest = json.loads(archive.read("manifest.json"))
     package = json.loads((ROOT / "package.json").read_text())
     package_version = package.get("version")
     if manifest.get("version") != package_version:
@@ -156,7 +164,7 @@ with ZipFile(ZIP_PATH) as archive:
     if set(manifest.get("dependencies", [])) != {"http", "lovelace"}:
         raise SystemExit("Packaged manifest dependencies must remain http + lovelace")
 
-    build_info = json.loads(archive.read(f"{PREFIX}build-info.json"))
+    build_info = json.loads(archive.read("build-info.json"))
     source_commit = build_info.get("sourceCommit")
     if not isinstance(source_commit, str) or not source_commit.strip():
         raise SystemExit("Packaged build-info.json is missing sourceCommit")
@@ -166,7 +174,7 @@ with ZipFile(ZIP_PATH) as archive:
             f"Packaged sourceCommit {source_commit!r} does not match GITHUB_SHA {expected_commit!r}"
         )
 
-    frontend_helper_source = archive.read(f"{PREFIX}frontend.py")
+    frontend_helper_source = archive.read("frontend.py")
     if b"LOVELACE_DATA" in frontend_helper_source:
         raise SystemExit(
             "Packaged frontend helper uses LOVELACE_DATA, which is unavailable on the declared HA 2025.1 minimum"
@@ -182,7 +190,7 @@ with ZipFile(ZIP_PATH) as archive:
                 f"Packaged frontend helper is missing HA 2025.1 compatibility marker {marker.decode()}"
             )
 
-    frontend = archive.read(f"{PREFIX}frontend/frakon-dashboard.js")
+    frontend = archive.read("frontend/frakon-dashboard.js")
     if len(frontend) < 10_000:
         raise SystemExit(f"Packaged frontend bundle is unexpectedly small: {len(frontend)} bytes")
     frontend_digest = sha256(frontend).hexdigest()
@@ -191,7 +199,7 @@ with ZipFile(ZIP_PATH) as archive:
     if frontend != (ROOT / "dist" / "frakon-dashboard.js").read_bytes():
         raise SystemExit("Packaged frontend differs from dist/frakon-dashboard.js")
 
-    validator_source = archive.read(f"{PREFIX}document_validation.py")
+    validator_source = archive.read("document_validation.py")
     for marker in (
         b"validate_dashboard_document",
         b"DASHBOARD_MAX_SERIALIZED_BYTES = 2_000_000",
@@ -200,7 +208,7 @@ with ZipFile(ZIP_PATH) as archive:
     ):
         if marker not in validator_source:
             raise SystemExit(f"Packaged document validator is missing {marker.decode()}")
-    responsive_validator_source = archive.read(f"{PREFIX}responsive_bundle_validation.py")
+    responsive_validator_source = archive.read("responsive_bundle_validation.py")
     for marker in (
         b"validate_responsive_revision_envelope",
         b"dashboard_serialized_bytes",
@@ -217,4 +225,4 @@ with ZipFile(ZIP_PATH) as archive:
     if source_commit != "development" and source_commit.encode() not in frontend:
         raise SystemExit("Packaged frontend does not contain the embedded source commit")
 
-print(f"HACS release archive verified: {ZIP_PATH.name} ({ZIP_PATH.stat().st_size} bytes)")
+print(f"HACS release archive verified: {ZIP_PATH.name} ({ZIP_PATH.stat().st_size} bytes, root-layout OK)")
