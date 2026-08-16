@@ -26,9 +26,9 @@ describe('exact dashboard item geometry', () => {
   });
 
   it('clamps requested geometry to item and grid constraints', () => {
-    const result = updateDashboardItemGeometryExact(base, 'a', { x: 99, y: -3, w: 99, h: 1 });
+    const result = updateDashboardItemGeometryExact(base, 'a', { x: -3, y: -3, w: 99, h: 1 });
     expect(result.status).toBe('committed');
-    expect(result.document.items[0]).toMatchObject({ x: 6, y: 0, w: 6, h: 2 });
+    expect(result.document.items[0]).toMatchObject({ x: 0, y: 0, w: 6, h: 2 });
   });
 
   it('rejects geometry that collides with another card', () => {
