@@ -85,18 +85,18 @@ describe('loadDashboardV2ReadOnly', () => {
     expect(transport.requests.at(-1)?.payload).toEqual({ dashboard_id: 'home' });
   });
 
-  it('loads and normalizes a valid v2 revision envelope', async () => {
+  it('loads a valid v2 revision envelope without silently normalizing stored geometry', async () => {
     const transport = new Transport();
     transport.responses.set('frakon/dashboard/capabilities', capabilities([1, 2]));
     transport.responses.set('frakon/dashboard/load_revision', {
-      document: { ...v2, layout: { ...v2.layout, width: 0 } },
+      document: structuredClone(v2),
       revision: 'rev-2', updatedAt: 100, clientId: 'desktop',
     });
     const result = await loadDashboardV2ReadOnly(transport, 'home');
     expect(result.status).toBe('loaded');
     if (result.status === 'loaded') {
       expect(result.envelope.revision).toBe('rev-2');
-      expect(result.envelope.document.layout.width).toBe(1);
+      expect(result.envelope.document.layout.width).toBe(1000);
       expect(result.envelope.document.items[0].id).toBe('a');
     }
   });
