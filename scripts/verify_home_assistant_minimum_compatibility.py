@@ -11,6 +11,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "custom_components/frakon_dashboard/frontend.py"
+MANIFEST = json.loads(
+    (ROOT / "custom_components/frakon_dashboard/manifest.json").read_text(encoding="utf-8")
+)
 HACS = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
 EXPECTED_MINIMUM = "2025.1.0"
 PACKAGE = "frakon_dashboard_minimum_compat"
@@ -19,6 +22,26 @@ if HACS.get("homeassistant") != EXPECTED_MINIMUM:
     raise SystemExit(
         "Home Assistant minimum compatibility failed: "
         f"hacs.json declares {HACS.get('homeassistant')!r}, expected {EXPECTED_MINIMUM!r}"
+    )
+
+# Home Assistant 2025.1 hassfest already accepts service integrations,
+# iot_class=calculated and single_config_entry. Keep the current manifest inside
+# that minimum-version contract instead of relying only on today's hassfest.
+if MANIFEST.get("integration_type") != "service":
+    raise SystemExit(
+        "Home Assistant minimum compatibility failed: integration_type must remain service"
+    )
+if MANIFEST.get("iot_class") != "calculated":
+    raise SystemExit(
+        "Home Assistant minimum compatibility failed: iot_class must remain calculated"
+    )
+if MANIFEST.get("single_config_entry") is not True:
+    raise SystemExit(
+        "Home Assistant minimum compatibility failed: single_config_entry must remain true"
+    )
+if set(MANIFEST.get("dependencies", [])) != {"http", "lovelace"}:
+    raise SystemExit(
+        "Home Assistant minimum compatibility failed: dependencies must remain http + lovelace"
     )
 
 source = FRONTEND.read_text(encoding="utf-8")
