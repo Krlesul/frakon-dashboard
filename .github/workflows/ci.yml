@@ -49,9 +49,12 @@ jobs:
       - name: Simulate Home Assistant install from alpha test kit
         run: |
           rm -rf /tmp/frakon-ha-config /tmp/frakon-alpha-kit /tmp/frakon-dashboard.frontend.good.js
-          mkdir -p /tmp/frakon-ha-config /tmp/frakon-alpha-kit
+          mkdir -p /tmp/frakon-ha-config/custom_components/frakon_dashboard /tmp/frakon-alpha-kit
           unzip -q dist/frakon-dashboard-alpha-test-kit.zip -d /tmp/frakon-alpha-kit
-          unzip -q /tmp/frakon-alpha-kit/frakon_dashboard.zip -d /tmp/frakon-ha-config
+          unzip -q /tmp/frakon-alpha-kit/frakon_dashboard.zip -d /tmp/frakon-ha-config/custom_components/frakon_dashboard
+
+          test -f /tmp/frakon-ha-config/custom_components/frakon_dashboard/manifest.json
+          test ! -e /tmp/frakon-ha-config/custom_components/frakon_dashboard/custom_components
 
           printf '2024.12.5\n' > /tmp/frakon-ha-config/.HA_VERSION
           if python /tmp/frakon-alpha-kit/verify_home_assistant_install.py /tmp/frakon-ha-config; then
