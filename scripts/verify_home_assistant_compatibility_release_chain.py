@@ -56,7 +56,7 @@ require(
     "Home Assistant 2025.1 Lovelace dict shape is not supported",
     "Modern Home Assistant LovelaceData/HassKey shape is not supported",
     "HA 2025.1 storage-mode frontend registration did not succeed",
-    EXPECTED_MARKER,
+    'print(f"Home Assistant minimum compatibility: OK ({EXPECTED_MINIMUM}+)"',
 )
 require(
     "scripts/verify_hacs_release.py",
