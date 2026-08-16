@@ -47,9 +47,9 @@ function canonicalDocument(): FrakonDashboardDocument {
     constraints: [
       {
         id: 'sensor-left-camera',
-        kind: 'left-of',
-        sourceId: 'back-sensor',
-        targetId: 'front-camera',
+        kind: 'right-of',
+        sourceId: 'front-camera',
+        targetId: 'back-sensor',
         gap: 1,
         priority: 30,
       },
