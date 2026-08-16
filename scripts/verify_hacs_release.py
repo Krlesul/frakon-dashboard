@@ -4,6 +4,7 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
+from typing import Any
 from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +12,7 @@ ZIP_PATH = ROOT / "dist" / "frakon_dashboard.zip"
 PREFIX = "custom_components/frakon_dashboard/"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 EXPECTED_MINIMUM_HOME_ASSISTANT = "2025.1.0"
+TRANSLATION_LANGUAGES = ("en", "cs", "de", "sk", "pl")
 
 required = {
     f"{PREFIX}__init__.py",
@@ -31,11 +33,7 @@ required = {
     f"{PREFIX}responsive_websocket.py",
     f"{PREFIX}storage.py",
     f"{PREFIX}websocket.py",
-    f"{PREFIX}translations/en.json",
-    f"{PREFIX}translations/cs.json",
-    f"{PREFIX}translations/de.json",
-    f"{PREFIX}translations/sk.json",
-    f"{PREFIX}translations/pl.json",
+    *(f"{PREFIX}translations/{language}.json" for language in TRANSLATION_LANGUAGES),
 }
 
 required_frontend_markers = {
@@ -51,6 +49,34 @@ def png_dimensions(data: bytes, label: str) -> tuple[int, int]:
     if len(data) < 24 or data[:8] != PNG_SIGNATURE or data[12:16] != b"IHDR":
         raise SystemExit(f"Packaged {label} is not a valid PNG with an IHDR header")
     return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+
+
+def translation_leaf_paths(value: Any, prefix: tuple[str, ...] = ()) -> set[tuple[str, ...]]:
+    if isinstance(value, dict):
+        paths: set[tuple[str, ...]] = set()
+        for key, child in value.items():
+            if not isinstance(key, str) or not key:
+                raise SystemExit(
+                    f"Packaged translation has an invalid key below {'.'.join(prefix) or '<root>'}"
+                )
+            paths.update(translation_leaf_paths(child, (*prefix, key)))
+        return paths
+    if not isinstance(value, str) or not value.strip():
+        raise SystemExit(f"Packaged translation value at {'.'.join(prefix)} must be non-empty text")
+    if "[%key:" in value:
+        raise SystemExit(
+            f"Packaged custom integration translation at {'.'.join(prefix)} contains a Core-only placeholder"
+        )
+    return {prefix}
+
+
+def nested(mapping: object, *keys: str) -> object | None:
+    current = mapping
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
 
 
 if not ZIP_PATH.is_file():
@@ -79,6 +105,31 @@ with ZipFile(ZIP_PATH) as archive:
     missing = sorted(required - names)
     if missing:
         raise SystemExit("HACS release archive is incomplete:\n- " + "\n- ".join(missing))
+    if f"{PREFIX}strings.json" in names:
+        raise SystemExit("Packaged custom integration must not include strings.json")
+
+    translations: dict[str, dict[str, Any]] = {}
+    for language in TRANSLATION_LANGUAGES:
+        path = f"{PREFIX}translations/{language}.json"
+        document = json.loads(archive.read(path))
+        if not isinstance(document, dict):
+            raise SystemExit(f"Packaged {language} translation must contain an object")
+        translations[language] = document
+
+    english_paths = translation_leaf_paths(translations["en"])
+    for language, translation in translations.items():
+        if translation_leaf_paths(translation) != english_paths:
+            raise SystemExit(f"Packaged {language} translation structure differs from en.json")
+        if nested(translation, "title") != "FRAKON Dashboard":
+            raise SystemExit(f"Packaged {language} translation title must remain FRAKON Dashboard")
+        step_title = nested(translation, "config", "step", "user", "title")
+        if not isinstance(step_title, str) or len(step_title.strip()) < 8 or step_title.strip() == "FRAKON Dashboard":
+            raise SystemExit(f"Packaged {language} config-flow step title must describe the setup task")
+        description = nested(translation, "config", "step", "user", "description")
+        if not isinstance(description, str) or len(description.strip()) < 20:
+            raise SystemExit(f"Packaged {language} config-flow description is missing or too short")
+    if nested(translations["cs"], "config", "step", "user", "title") != "Nastavení ukládání dashboardů":
+        raise SystemExit("Packaged Czech config-flow step title is not the expected localized setup heading")
 
     brand_icon = archive.read(f"{PREFIX}brand/icon.png")
     brand_icon_2x = archive.read(f"{PREFIX}brand/icon@2x.png")
