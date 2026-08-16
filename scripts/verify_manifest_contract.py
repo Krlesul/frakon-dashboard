@@ -42,6 +42,19 @@ missing = sorted(required - manifest.keys())
 if missing:
     raise SystemExit("Home Assistant manifest contract failed; missing keys:\n- " + "\n- ".join(missing))
 
+# Mirror hassfest ordering: domain, name, then every remaining key alphabetically.
+manifest_keys = list(manifest)
+expected_key_order = [
+    "domain",
+    "name",
+    *sorted(key for key in manifest_keys if key not in {"domain", "name"}),
+]
+if manifest_keys != expected_key_order:
+    raise SystemExit(
+        "Home Assistant manifest keys must follow hassfest ordering: "
+        + ", ".join(expected_key_order)
+    )
+
 if manifest.get("domain") != "frakon_dashboard":
     raise SystemExit("Home Assistant manifest domain must be frakon_dashboard")
 if manifest.get("name") != "FRAKON Dashboard":
