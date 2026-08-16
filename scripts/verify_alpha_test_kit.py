@@ -115,7 +115,9 @@ with zipfile.ZipFile(KIT) as archive:
         raise SystemExit("Alpha test kit frontendSha256 does not match embedded frontend bundle")
 
     with zipfile.ZipFile(BytesIO(integration_bytes)) as integration_archive:
-        prefix = "custom_components/frakon_dashboard/"
+        # HACS zip_release extracts directly into /config/custom_components/<domain>,
+        # so the embedded integration ZIP must have integration files at its root.
+        prefix = ""
         brand_icon_path = f"{prefix}brand/icon.png"
         brand_icon_2x_path = f"{prefix}brand/icon@2x.png"
         build_info_path = f"{prefix}build-info.json"
@@ -140,6 +142,11 @@ with zipfile.ZipFile(KIT) as archive:
         ):
             if required_path not in integration_names:
                 raise SystemExit(f"Embedded integration archive is missing {required_path}")
+        nested_layout = sorted(name for name in integration_names if name.startswith("custom_components/"))
+        if nested_layout:
+            raise SystemExit(
+                "Embedded HACS integration ZIP must use archive-root integration files, not custom_components/ nesting"
+            )
         if f"{prefix}strings.json" in integration_names:
             raise SystemExit("Embedded custom integration archive must not contain strings.json")
         brand_icon = integration_archive.read(brand_icon_path)
@@ -274,4 +281,4 @@ with zipfile.ZipFile(KIT) as archive:
         if marker not in content:
             raise SystemExit(f"Alpha test kit {label} is missing required marker {marker!r}")
 
-print(f"Alpha test kit verification OK: {KIT} ({VERSION})")
+print(f"Alpha test kit verification OK: {KIT} ({VERSION}; root-layout integration ZIP)")
