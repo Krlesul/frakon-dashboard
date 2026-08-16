@@ -90,6 +90,11 @@ for language, document in translations.items():
         )
     if paths[("title",)] != "FRAKON Dashboard":
         raise SystemExit(f"Custom translation contract failed: {language}.json title must remain FRAKON Dashboard")
+    step_title = paths[("config", "step", "user", "title")].strip()
+    if len(step_title) < 8 or step_title == paths[("title",)]:
+        raise SystemExit(
+            f"Custom translation contract failed: {language}.json user step title must describe the setup task instead of repeating the integration name"
+        )
     if len(paths[("config", "step", "user", "description")].strip()) < 20:
         raise SystemExit(f"Custom translation contract failed: {language}.json user description is too short")
 
