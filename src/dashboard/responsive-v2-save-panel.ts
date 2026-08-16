@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { SupportedLanguage } from '../i18n';
+import type { ResponsiveV2DryRunStorageInvariant } from './responsive-v2-dry-run-storage-proof';
 import type { ResponsiveCanvasV2SavePreview } from './responsive-v2-save-preview';
 import { responsiveV2SaveTranslate } from './responsive-v2-save-i18n';
 import { responsiveV2ServerValidationReceipt } from './responsive-v2-server-validation-receipt';
@@ -10,6 +11,7 @@ export class FrakonResponsiveV2SavePanel extends LitElement {
   @property({ attribute: false }) preview?: ResponsiveCanvasV2SavePreview;
   @property({ attribute: false }) language: SupportedLanguage = 'en';
   @property({ attribute: false }) serverValidatedRevision?: string;
+  @property({ attribute: false }) serverStorageInvariant: ResponsiveV2DryRunStorageInvariant = 'unverifiable';
 
   static styles = css`
     :host { display: block; }
@@ -37,6 +39,7 @@ export class FrakonResponsiveV2SavePanel extends LitElement {
     return responsiveV2ServerValidationReceipt(
       this.preview?.candidate.revision ?? '',
       this.serverValidatedRevision,
+      this.serverStorageInvariant,
     );
   }
 
