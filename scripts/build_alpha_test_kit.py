@@ -10,7 +10,9 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 PACKAGE = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+HACS = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
 VERSION = str(PACKAGE.get("version", ""))
+MINIMUM_HOME_ASSISTANT = str(HACS.get("homeassistant", ""))
 SOURCE_COMMIT = os.environ.get("GITHUB_SHA", "development").strip() or "development"
 OUTPUT = DIST / "frakon-dashboard-alpha-test-kit.zip"
 
@@ -28,6 +30,11 @@ if missing:
     raise SystemExit("Cannot build alpha test kit; missing files:\n- " + "\n- ".join(missing))
 if not VERSION:
     raise SystemExit("package.json version is missing")
+if MINIMUM_HOME_ASSISTANT != "2025.1.0":
+    raise SystemExit(
+        "Cannot build alpha test kit; Home Assistant minimum must remain 2025.1.0 "
+        f"for the current compatibility contract, got {MINIMUM_HOME_ASSISTANT!r}"
+    )
 
 integration_sha256 = sha256(FILES["frakon_dashboard.zip"].read_bytes()).hexdigest()
 frontend_sha256 = sha256(FILES["frakon-dashboard.js"].read_bytes()).hexdigest()
@@ -36,6 +43,7 @@ manifest = {
     "format": 1,
     "product": "FRAKON Dashboard",
     "version": VERSION,
+    "minimumHomeAssistant": MINIMUM_HOME_ASSISTANT,
     "sourceCommit": SOURCE_COMMIT,
     "integrationArchive": "frakon_dashboard.zip",
     "integrationSha256": integration_sha256,
@@ -51,13 +59,14 @@ manifest = {
 
 readme = f"""FRAKON Dashboard {VERSION} — Home Assistant Alpha Test Kit
 
+Minimum Home Assistant Core: {MINIMUM_HOME_ASSISTANT}
 Source commit: {SOURCE_COMMIT}
 Integration ZIP SHA-256: {integration_sha256}
 Frontend SHA-256: {frontend_sha256}
 
 1. Read alpha-migration.md when upgrading an older development install.
 2. Read home-assistant-alpha-test.md before installation.
-3. Record source commit and both SHA-256 values in the report template.
+3. Record minimum Home Assistant version, source commit and both SHA-256 values in the report template.
 4. Extract frakon_dashboard.zip into the Home Assistant config directory.
 5. Restart Home Assistant and add the FRAKON Dashboard integration.
 6. From this test-kit directory run:
