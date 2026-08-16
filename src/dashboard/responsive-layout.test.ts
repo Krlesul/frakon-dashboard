@@ -17,7 +17,7 @@ const base: FrakonDashboardDocument = {
   ],
   constraints: [
     { id: 'visible-hidden', kind: 'align-left', sourceId: 'visible', targetId: 'hidden', priority: 40 },
-    { id: 'visible-peer', kind: 'left-of', sourceId: 'visible', targetId: 'peer', gap: 1, priority: 30 },
+    { id: 'visible-peer', kind: 'right-of', sourceId: 'peer', targetId: 'visible', gap: 1, priority: 30 },
   ],
 };
 
