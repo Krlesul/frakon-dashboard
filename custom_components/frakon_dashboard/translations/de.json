@@ -3,7 +3,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "FRAKON Dashboard",
+        "title": "Dashboard-Speicher einrichten",
         "description": "Aktiviert die serverseitige Speicherung von FRAKON-Dashboards in Home Assistant."
       }
     },
