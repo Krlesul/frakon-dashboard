@@ -66,6 +66,10 @@ require(
 )
 require(
     "scripts/verify_home_assistant_install.py",
+    'MINIMUM_HOME_ASSISTANT = "2025.1.0"',
+    'version_file = root / ".HA_VERSION"',
+    "parsed_home_assistant_version < MINIMUM_HOME_ASSISTANT_TUPLE",
+    "Home Assistant Core version:",
     "frontend helper uses a Lovelace symbol unavailable on the declared HA 2025.1 minimum",
     EXPECTED_MARKER,
 )
@@ -112,6 +116,9 @@ require(
     "python scripts/verify_home_assistant_minimum_compatibility.py",
     "python scripts/verify_home_assistant_compatibility_release_chain.py",
     "python scripts/verify_alpha_test_kit_compatibility_identity.py",
+    "2024.12.5",
+    "2026.8.0",
+    "install self-check accepted Home Assistant below the declared minimum",
 )
 
 print("Home Assistant compatibility release chain: OK")
