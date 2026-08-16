@@ -9,7 +9,7 @@ import {
 } from './layout-model';
 
 function constraint(id: string, sourceId: string, targetId: string): LayoutConstraint {
-  return { id, sourceId, targetId } as unknown as LayoutConstraint;
+  return { id, kind: 'right-of', sourceId, targetId } as LayoutConstraint;
 }
 
 function fixture(): FrakonDashboardDocument {
@@ -21,7 +21,7 @@ function fixture(): FrakonDashboardDocument {
     columns: 12,
     rowHeight: 48,
     gap: 12,
-    constraints: [constraint('visible-hidden', 'visible', 'hidden')],
+    constraints: [constraint('visible-hidden', 'hidden', 'visible')],
     items: [
       { id: 'visible', card: { type: 'custom:frakon-card', name: 'Visible' }, x: 0, y: 0, w: 4, h: 3 },
       { id: 'hidden', card: { type: 'custom:frakon-room-card', name: 'Hidden' }, x: 4, y: 0, w: 4, h: 3, hidden: true },
