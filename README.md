@@ -109,7 +109,7 @@ The verified Home Assistant integration package is generated as:
 dist/frakon_dashboard.zip
 ```
 
-The ZIP contains `custom_components/frakon_dashboard/` together with the exact frontend bundle built from the same source revision.
+`frakon_dashboard.zip` is a HACS `zip_release` archive: the integration files (`manifest.json`, `__init__.py`, `frontend/`, `translations/`, and the rest of the component) are stored at the **ZIP root** together with the exact frontend bundle built from the same source revision. HACS extracts those root files into `/config/custom_components/frakon_dashboard`.
 
 ## Alpha installation in Home Assistant
 
@@ -132,8 +132,8 @@ docs/alpha-migration.md
 Short version:
 
 1. Download `frakon-dashboard-alpha-test-kit.zip` from a successful CI run.
-2. Record its source commit and SHA-256 identities.
-3. Extract the kit and then extract its `frakon_dashboard.zip` into the Home Assistant config directory so the installed path is `/config/custom_components/frakon_dashboard`.
+2. Record its minimum Home Assistant version, source commit and SHA-256 identities.
+3. Extract the kit. For a manual install, create `/config/custom_components/frakon_dashboard` and extract `frakon_dashboard.zip` **directly into that directory**. Because the ZIP is root-layout, `/config/custom_components/frakon_dashboard/manifest.json` and `/config/custom_components/frakon_dashboard/__init__.py` must exist directly after extraction; do not extract the ZIP into `/config` and do not create a second nested `custom_components/frakon_dashboard` directory.
 4. Restart Home Assistant.
 5. Add **FRAKON Dashboard** from **Settings → Devices & services → Add integration**.
 6. In Lovelace storage mode the integration registers or repairs its bundled JavaScript module resource automatically.
@@ -142,6 +142,7 @@ Short version:
 ```text
 Home Assistant manifest contract: OK
 Home Assistant minimum compatibility: OK (2025.1.0+)
+Home Assistant translations: OK (en, cs, de, sk, pl)
 Home Assistant brand assets: OK
 Dashboard serialized-byte guard: OK
 Dashboard document validator: OK
@@ -149,7 +150,7 @@ Responsive bundle validator: OK
 Czech config flow: OK
 ```
 
-The manifest contract requires the installed integration to remain a single-entry `service` integration with `iot_class=calculated`, the expected Home Assistant dependencies and repository identity. The minimum-compatibility contract verifies that the packaged Lovelace resource helper supports both the HA 2025.1 dictionary model and modern `LovelaceData` / `HassKey` without importing the newer-only `LOVELACE_DATA` symbol. The serialized-byte guard requires the installed backend to carry the same 2,000,000-byte persistence ceiling as the frontend guards.
+The manifest contract requires the installed integration to remain a single-entry `service` integration with `iot_class=calculated`, the expected Home Assistant dependencies and repository identity. The minimum-compatibility contract verifies that the packaged Lovelace resource helper supports both the HA 2025.1 dictionary model and modern `LovelaceData` / `HassKey` without importing the newer-only `LOVELACE_DATA` symbol. The translation contract requires complete, structurally equivalent EN/CS/DE/SK/PL custom-integration translations. The serialized-byte guard requires the installed backend to carry the same 2,000,000-byte persistence ceiling as the frontend guards.
 
 Do **not** separately copy the current bundled frontend into `/config/www`. The integration serves its own versioned frontend resource from:
 
@@ -305,6 +306,7 @@ The repository CI is designed to run:
 - Home Assistant manifest contract verification
 - Home Assistant Core 2025.1+ frontend-registration compatibility contract
 - Home Assistant compatibility source/package/kit/install release-chain verification
+- Home Assistant custom translation contract and source/package/kit/install translation release-chain verification
 - Home Assistant brand PNG validation
 - Home Assistant brand package/install release-chain verification
 - strict v1/v2 document validation contract
@@ -317,9 +319,9 @@ The repository CI is designed to run:
 - Vitest
 - TypeScript production build
 - Vite bundle generation
-- HACS release ZIP generation and verification
+- HACS root-layout release ZIP generation and verification
 - Alpha Test Kit generation and verification
-- simulated Home Assistant installation self-check
+- simulated Home Assistant installation self-check, including below-minimum version rejection and frontend tamper detection
 - artifact upload
 
 A separate Hassfest workflow validates Home Assistant integration metadata and translations.
