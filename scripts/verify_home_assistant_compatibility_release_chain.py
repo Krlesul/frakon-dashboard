@@ -53,6 +53,9 @@ for marker in (
 require(
     "scripts/verify_home_assistant_minimum_compatibility.py",
     'EXPECTED_MINIMUM = "2025.1.0"',
+    'MANIFEST.get("integration_type") != "service"',
+    'MANIFEST.get("iot_class") != "calculated"',
+    'MANIFEST.get("single_config_entry") is not True',
     "Home Assistant 2025.1 Lovelace dict shape is not supported",
     "Modern Home Assistant LovelaceData/HassKey shape is not supported",
     "HA 2025.1 storage-mode frontend registration did not succeed",
