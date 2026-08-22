@@ -15,9 +15,20 @@ At the time this checklist was updated:
 - root `hacs.json`: present
 - integration manifest: `custom_components/frakon_dashboard/manifest.json`
 - manifest integration type: `service`
+- manifest IoT class: `calculated`
 - local Home Assistant/HACS brand assets: present under `custom_components/frakon_dashboard/brand/`
-- hassfest workflow: present
+- hassfest workflow: present and green for the current Alpha candidate
+- FRAKON CI: present and green for the current Alpha candidate
 - HACS validation workflow: **staged as manual-only** in `.github/workflows/hacs.yml`
+
+Current verified Alpha candidate:
+
+- development head: `f810495fd94353a1db72b43aeecb0f64dd8d31bf`
+- CI **#3242 — success** (`run_id 31943690989`)
+- hassfest **#1242 — success** (`run_id 31943691122`)
+- Vitest: **208 files / 928 tests passed**
+- Actions artifact: `frakon-dashboard`, ID `9262721808`
+- artifact digest: `sha256:9d6de629af3e9c76461d0c735236e8b95e8e04fa8f853fc312180cea5ef26db0`
 
 HACS cannot use private GitHub repositories at all. The private visibility and missing topics are deliberate publication gates, not FRAKON Dashboard runtime defects. Do not attempt to validate or distribute the current private repository through HACS; use the verified Alpha Test Kit / manual Home Assistant installation path for issue #11.
 
@@ -49,6 +60,8 @@ custom_components/frakon_dashboard/
 
 All runtime files required by the Home Assistant integration must be contained there. Release packaging may additionally ship the generated `frakon_dashboard.zip` artifact configured by root `hacs.json`.
 
+The generated HACS ZIP uses the **HACS root layout**: `manifest.json`, `__init__.py` and the remaining integration files are at the ZIP root. HACS extracts that archive into its integration directory. Manual installation must therefore create `/config/custom_components/frakon_dashboard` and extract the ZIP directly into that directory rather than extracting it into `/config` or creating another nested `custom_components/` tree.
+
 ## 3. Home Assistant manifest
 
 `custom_components/frakon_dashboard/manifest.json` must include the HACS identity keys and the explicit FRAKON runtime contract:
@@ -60,6 +73,7 @@ All runtime files required by the Home Assistant integration must be contained t
 - `issue_tracker`
 - `codeowners`
 - `integration_type: service`
+- `iot_class: calculated`
 - `config_flow: true`
 - `single_config_entry: true`
 - dependencies `http` + `lovelace`
@@ -135,26 +149,37 @@ Publication checklist:
 
 Do not ignore the `description`, `issues` or `topics` checks just to obtain a green result. Fix the repository metadata instead.
 
-## 6. Required automated validation
+## 6. Automated validation
 
-Before a public release candidate is announced, require successful execution of:
+The current Alpha candidate already proves the complete private-repository preflight:
 
-- [ ] FRAKON CI
-- [ ] hassfest
-- [ ] HACS validation Action
-- [ ] `scripts/verify_manifest_contract.py`
-- [ ] `scripts/verify_brand_assets.py`
-- [ ] `scripts/verify_brand_release_chain.py`
-- [ ] `scripts/verify_dashboard_document_validation.py`
-- [ ] `scripts/verify_document_size_parity.py`
-- [ ] `scripts/verify_responsive_bundle_validation.py`
-- [ ] `scripts/verify_responsive_write_lock.py`
-- [ ] `scripts/verify_persistence_integrity_readiness.py`
-- [ ] HACS release build and verification
-- [ ] Alpha Test Kit build and verification
-- [ ] simulated Home Assistant installation self-check
+- [x] FRAKON CI — #3242
+- [x] hassfest — #1242
+- [x] `scripts/verify_manifest_contract.py`
+- [x] `scripts/verify_brand_assets.py`
+- [x] `scripts/verify_brand_release_chain.py`
+- [x] `scripts/verify_dashboard_document_validation.py`
+- [x] `scripts/verify_document_size_parity.py`
+- [x] `scripts/verify_responsive_bundle_validation.py`
+- [x] `scripts/verify_responsive_write_lock.py`
+- [x] `scripts/verify_persistence_integrity_readiness.py`
+- [x] HACS release build and verification
+- [x] Alpha Test Kit build and verification
+- [x] Home Assistant compatibility/manual-install layout verification
+- [x] simulated Home Assistant installation self-check
+- [x] below-minimum Home Assistant rejection probe
+- [x] frontend tamper rejection/restoration probe
 
-A workflow that never starts because of GitHub billing/spending status is not a successful validation run.
+Still required for the later **public publication candidate**:
+
+- [ ] #11 real Home Assistant installation evidence is complete
+- [ ] repository publication decision has been made and visibility is public
+- [ ] repository topics are present
+- [ ] HACS validation Action passes on the public repository
+- [ ] CI and hassfest are re-run on the exact public release commit if that commit differs from the verified Alpha candidate
+- [ ] release ZIP is rebuilt/verified from the exact public release commit
+
+The historical billing/spending-limit blocker is resolved. A future workflow that fails to execute still must never be counted as successful validation.
 
 ## 7. GitHub release
 
