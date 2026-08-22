@@ -17,18 +17,11 @@ At the time this checklist was updated:
 - manifest integration type: `service`
 - manifest IoT class: `calculated`
 - local Home Assistant/HACS brand assets: present under `custom_components/frakon_dashboard/brand/`
-- hassfest workflow: present and green for the current Alpha candidate
-- FRAKON CI: present and green for the current Alpha candidate
+- hassfest workflow: present
+- FRAKON CI: present
 - HACS validation workflow: **staged as manual-only** in `.github/workflows/hacs.yml`
 
-Current verified Alpha candidate:
-
-- development head: `f810495fd94353a1db72b43aeecb0f64dd8d31bf`
-- CI **#3242 — success** (`run_id 31943690989`)
-- hassfest **#1242 — success** (`run_id 31943691122`)
-- Vitest: **208 files / 928 tests passed**
-- Actions artifact: `frakon-dashboard`, ID `9262721808`
-- artifact digest: `sha256:9d6de629af3e9c76461d0c735236e8b95e8e04fa8f853fc312180cea5ef26db0`
+The exact current verified Alpha head, workflow run IDs, artifact ID, artifact digest and packaged source/frontend hashes are intentionally **not pinned in this version-controlled checklist**. A documentation-only commit changes the branch head and therefore changes the build identity of the next artifact. Use issue #11 and PR #1 as the live evidence record for the exact Alpha artifact selected for real-install testing.
 
 HACS cannot use private GitHub repositories at all. The private visibility and missing topics are deliberate publication gates, not FRAKON Dashboard runtime defects. Do not attempt to validate or distribute the current private repository through HACS; use the verified Alpha Test Kit / manual Home Assistant installation path for issue #11.
 
@@ -151,24 +144,26 @@ Do not ignore the `description`, `issues` or `topics` checks just to obtain a gr
 
 ## 6. Automated validation
 
-The current Alpha candidate already proves the complete private-repository preflight:
+A verified Alpha candidate must pass the complete private-repository preflight before #11 uses its artifact:
 
-- [x] FRAKON CI — #3242
-- [x] hassfest — #1242
-- [x] `scripts/verify_manifest_contract.py`
-- [x] `scripts/verify_brand_assets.py`
-- [x] `scripts/verify_brand_release_chain.py`
-- [x] `scripts/verify_dashboard_document_validation.py`
-- [x] `scripts/verify_document_size_parity.py`
-- [x] `scripts/verify_responsive_bundle_validation.py`
-- [x] `scripts/verify_responsive_write_lock.py`
-- [x] `scripts/verify_persistence_integrity_readiness.py`
-- [x] HACS release build and verification
-- [x] Alpha Test Kit build and verification
-- [x] Home Assistant compatibility/manual-install layout verification
-- [x] simulated Home Assistant installation self-check
-- [x] below-minimum Home Assistant rejection probe
-- [x] frontend tamper rejection/restoration probe
+- [ ] FRAKON CI
+- [ ] hassfest
+- [ ] `scripts/verify_manifest_contract.py`
+- [ ] `scripts/verify_brand_assets.py`
+- [ ] `scripts/verify_brand_release_chain.py`
+- [ ] `scripts/verify_dashboard_document_validation.py`
+- [ ] `scripts/verify_document_size_parity.py`
+- [ ] `scripts/verify_responsive_bundle_validation.py`
+- [ ] `scripts/verify_responsive_write_lock.py`
+- [ ] `scripts/verify_persistence_integrity_readiness.py`
+- [ ] HACS release build and verification
+- [ ] Alpha Test Kit build and verification
+- [ ] Home Assistant compatibility/manual-install layout verification
+- [ ] simulated Home Assistant installation self-check
+- [ ] below-minimum Home Assistant rejection probe
+- [ ] frontend tamper rejection/restoration probe
+
+The live #11/PR evidence may mark this set complete for a specific immutable artifact. The checkboxes above remain intentionally generic because a later commit or public-release candidate must run them again for its own exact build identity.
 
 Still required for the later **public publication candidate**:
 
@@ -176,7 +171,7 @@ Still required for the later **public publication candidate**:
 - [ ] repository publication decision has been made and visibility is public
 - [ ] repository topics are present
 - [ ] HACS validation Action passes on the public repository
-- [ ] CI and hassfest are re-run on the exact public release commit if that commit differs from the verified Alpha candidate
+- [ ] CI and hassfest pass on the exact public release commit
 - [ ] release ZIP is rebuilt/verified from the exact public release commit
 
 The historical billing/spending-limit blocker is resolved. A future workflow that fails to execute still must never be counted as successful validation.
