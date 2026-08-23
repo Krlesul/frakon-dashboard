@@ -10,11 +10,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "studio:dev": "vite --config vite.studio.config.ts",
+    "studio:build": "vite build --config vite.studio.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "check": "npm run lint && npm run test && npm run build"
+    "check": "npm run lint && npm run test && npm run build && npm run studio:build"
   },
   "dependencies": {
     "lit": "^3.3.1"
