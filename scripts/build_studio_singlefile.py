@@ -31,12 +31,9 @@ def main() -> None:
     javascript = script_path.read_text(encoding="utf-8")
     javascript = re.sub(r"\n?//# sourceMappingURL=.*?\s*$", "\n", javascript)
     javascript = javascript.replace("</script>", "<\\/script>")
+    inline_script = f'<script type="module">\n{javascript}\n</script>'
 
-    single_file = SCRIPT_PATTERN.sub(
-        f'<script type="module">\n{javascript}\n</script>',
-        html,
-        count=1,
-    )
+    single_file = SCRIPT_PATTERN.sub(lambda _match: inline_script, html, count=1)
     OUTPUT.write_text(single_file, encoding="utf-8")
 
     if "./assets/" in single_file:
