@@ -1,5 +1,9 @@
-import './studio-app-v2';
+import { installStudioLocalization } from './studio-localization';
 
-if (!window.document.querySelector('frakon-studio-app-v2')) {
-  window.document.body.append(window.document.createElement('frakon-studio-app-v2'));
-}
+installStudioLocalization();
+
+void import('./studio-app-v2').then(() => {
+  if (!window.document.querySelector('frakon-studio-app-v2')) {
+    window.document.body.append(window.document.createElement('frakon-studio-app-v2'));
+  }
+});
