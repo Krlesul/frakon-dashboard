@@ -3,6 +3,8 @@ name: Validate with HACS
 on:
   push:
   pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
