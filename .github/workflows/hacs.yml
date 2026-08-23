@@ -19,3 +19,6 @@ jobs:
         uses: hacs/action@main
         with:
           category: integration
+          # The custom-repository Alpha ships its own local brand assets.
+          # home-assistant/brands registration is a later default-catalog gate.
+          ignore: brands
