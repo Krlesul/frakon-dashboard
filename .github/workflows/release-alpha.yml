@@ -1,0 +1,107 @@
+name: Publish verified Alpha release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified CI artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: frakon-dashboard
+          path: release-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Verify release asset and derive version
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          ASSET="$(find release-artifact -type f -name frakon_dashboard.zip -print -quit)"
+          test -n "$ASSET"
+          test -f "$ASSET"
+
+          python - "$ASSET" <<'PY'
+          import json
+          import sys
+          import zipfile
+
+          archive = sys.argv[1]
+          with zipfile.ZipFile(archive) as zf:
+              names = set(zf.namelist())
+              required = {
+                  "manifest.json",
+                  "__init__.py",
+                  "build-info.json",
+                  "frontend/frakon-dashboard.js",
+              }
+              missing = sorted(required - names)
+              if missing:
+                  raise SystemExit(f"release asset missing required files: {missing}")
+              manifest = json.loads(zf.read("manifest.json"))
+              version = manifest.get("version")
+              if not isinstance(version, str) or not version:
+                  raise SystemExit("manifest.json does not contain a valid version")
+              print(version)
+          PY
+
+          VERSION="$(python - "$ASSET" <<'PY'
+          import json
+          import sys
+          import zipfile
+          with zipfile.ZipFile(sys.argv[1]) as zf:
+              print(json.loads(zf.read("manifest.json"))["version"])
+          PY
+          )"
+          SHA256="$(sha256sum "$ASSET" | awk '{print $1}')"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Publish immutable prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+          ASSET: ${{ steps.package.outputs.asset }}
+          VERSION: ${{ steps.package.outputs.version }}
+          TAG: ${{ steps.package.outputs.tag }}
+          ASSET_SHA256: ${{ steps.package.outputs.sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing to replace an immutable version."
+            exit 0
+          fi
+
+          NOTES=$(cat <<EOF
+          FRAKON Dashboard $VERSION verified Alpha package.
+
+          Source commit: $TARGET_SHA
+          frakon_dashboard.zip SHA-256: $ASSET_SHA256
+
+          This is an Alpha prerelease intended for the real Home Assistant / HACS installation gate.
+          EOF
+          )
+
+          gh release create "$TAG" "$ASSET#frakon_dashboard.zip" \
+            --repo "$REPO" \
+            --target "$TARGET_SHA" \
+            --title "FRAKON Dashboard $VERSION" \
+            --notes "$NOTES" \
+            --prerelease

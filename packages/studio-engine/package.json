@@ -1,0 +1,10 @@
+{
+  "name": "@frakon/studio-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Platform-neutral canvas, viewport, selection, transform, snapping and history engine for FRAKON Dashboard Studio.",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

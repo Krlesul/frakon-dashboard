@@ -1,0 +1,10 @@
+{
+  "name": "@frakon/studio-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone FRAKON Dashboard Studio shell consuming the platform-neutral Studio engine.",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

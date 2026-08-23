@@ -1,0 +1,14 @@
+{
+  "title": "FRAKON Dashboard",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Dashboard-Speicher einrichten",
+        "description": "Aktiviert die serverseitige Speicherung von FRAKON-Dashboards in Home Assistant."
+      }
+    },
+    "abort": {
+      "already_configured": "FRAKON Dashboard ist bereits eingerichtet."
+    }
+  }
+}

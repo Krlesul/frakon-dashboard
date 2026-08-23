@@ -1,0 +1,7 @@
+{
+  "name": "@frakon/design-system",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FRAKON design tokens, visual primitives, themes and motion contracts."
+}

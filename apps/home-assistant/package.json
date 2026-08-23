@@ -1,0 +1,7 @@
+{
+  "name": "@frakon/home-assistant-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Home Assistant distribution shell for FRAKON Dashboard. Runtime remains in the root src directory during the compatibility migration."
+}

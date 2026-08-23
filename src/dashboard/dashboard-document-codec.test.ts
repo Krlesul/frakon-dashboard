@@ -1,0 +1,201 @@
+import { describe, expect, it } from 'vitest';
+import { decodeDashboardDocument, encodeDashboardDocument } from './dashboard-document-codec';
+import { migrateDashboardV1ToV2 } from './layout-model-v2';
+import type { FrakonDashboardDocument } from './layout-model';
+
+const v1: FrakonDashboardDocument = {
+  version: 1,
+  id: 'home',
+  title: 'Home',
+  breakpoint: 'desktop',
+  columns: 4,
+  rowHeight: 50,
+  gap: 10,
+  items: [
+    { id: 'front', x: 2, y: 4, w: 1, h: 1, card: { type: 'custom:front' } },
+    { id: 'hidden', x: 0, y: 2, w: 1, h: 1, hidden: true, card: { type: 'custom:hidden' } },
+  ],
+  constraints: [
+    { id: 'hidden-left-front', kind: 'align-left', sourceId: 'hidden', targetId: 'front', priority: 40 },
+  ],
+};
+
+function failureReason(source: string): string | undefined {
+  const decoded = decodeDashboardDocument(source);
+  return decoded.ok ? undefined : decoded.reason;
+}
+
+describe('dashboard document codec', () => {
+  it('round-trips version 1 z-order, hidden state, exact geometry and constraints', () => {
+    const encoded = encodeDashboardDocument(v1);
+    expect(JSON.parse(encoded)).toEqual(v1);
+    const decoded = decodeDashboardDocument(encoded);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok || decoded.document.version !== 1) return;
+    expect(decoded.document.items.map((item) => item.id)).toEqual(['front', 'hidden']);
+    expect(decoded.document.items).toEqual(v1.items);
+    expect(decoded.document.constraints).toEqual(v1.constraints);
+  });
+
+  it('round-trips canonical version 2 canvas documents without normalization', () => {
+    const v2 = migrateDashboardV1ToV2(v1, 430);
+    const encoded = encodeDashboardDocument(v2);
+    expect(JSON.parse(encoded)).toEqual(v2);
+    const decoded = decodeDashboardDocument(encoded);
+    expect(decoded.ok).toBe(true);
+    if (decoded.ok) {
+      expect(decoded.document).toEqual(v2);
+      expect(decoded.document.version).toBe(2);
+      expect(decoded.document.items[0].id).toBe('front');
+    }
+  });
+
+  it('fails closed when asked to encode a non-canonical typed v1 document', () => {
+    const invalid = { ...structuredClone(v1), rowHeight: 8 };
+    const before = structuredClone(invalid);
+    expect(() => encodeDashboardDocument(invalid)).toThrow(/invalid or non-canonical/i);
+    expect(invalid).toEqual(before);
+  });
+
+  it('fails closed when asked to encode an unsupported persisted v2 hidden field', () => {
+    const invalid = migrateDashboardV1ToV2(v1, 430) as unknown as ReturnType<typeof migrateDashboardV1ToV2> & {
+      items: Array<Record<string, unknown>>;
+    };
+    invalid.items[0].hidden = false;
+    const before = structuredClone(invalid);
+    expect(() => encodeDashboardDocument(invalid)).toThrow(/invalid or non-canonical/i);
+    expect(invalid).toEqual(before);
+  });
+
+  it('distinguishes invalid JSON from unsupported versions', () => {
+    expect(failureReason('{')).toBe('invalid-json');
+    expect(failureReason(JSON.stringify({ version: 99, id: 'x', items: [] }))).toBe('unsupported-version');
+  });
+
+  it('rejects malformed documents for recognized versions', () => {
+    expect(failureReason(JSON.stringify({ version: 1, id: '', title: 'x', items: [] }))).toBe('invalid-document');
+    expect(failureReason(JSON.stringify({ version: 2, id: 'x', title: 'x', layout: { mode: 'canvas' } }))).toBe('invalid-document');
+  });
+
+  it('rejects version 1 items with missing or invalid geometry/card data', () => {
+    const malformed = structuredClone(v1) as unknown as Record<string, unknown>;
+    malformed.items = [{ id: 'bad', card: {}, x: 0, y: 0, w: null, h: 2 }];
+    expect(failureReason(JSON.stringify(malformed))).toBe('invalid-document');
+
+    const invalidWidth = structuredClone(v1) as unknown as { items: Array<Record<string, unknown>> };
+    invalidWidth.items[0].w = 'not-a-number';
+    expect(failureReason(JSON.stringify(invalidWidth))).toBe('invalid-document');
+  });
+
+  it('rejects non-positive or out-of-grid v1 geometry before normalization can move it', () => {
+    const negative = structuredClone(v1);
+    negative.items[0].x = -1;
+    expect(failureReason(JSON.stringify(negative))).toBe('invalid-document');
+
+    const zeroWidth = structuredClone(v1);
+    zeroWidth.items[0].w = 0;
+    expect(failureReason(JSON.stringify(zeroWidth))).toBe('invalid-document');
+
+    const outside = structuredClone(v1);
+    outside.items[0].x = 3;
+    outside.items[0].w = 2;
+    expect(failureReason(JSON.stringify(outside))).toBe('invalid-document');
+  });
+
+  it('rejects fractional v1 grid values instead of normalizing persisted geometry', () => {
+    const fractionalX = structuredClone(v1);
+    fractionalX.items[0].x = 2.5;
+    expect(failureReason(JSON.stringify(fractionalX))).toBe('invalid-document');
+
+    const fractionalRowHeight = structuredClone(v1);
+    fractionalRowHeight.rowHeight = 50.5;
+    expect(failureReason(JSON.stringify(fractionalRowHeight))).toBe('invalid-document');
+
+    const fractionalGap = structuredClone(v1);
+    fractionalGap.gap = 10.25;
+    expect(failureReason(JSON.stringify(fractionalGap))).toBe('invalid-document');
+  });
+
+  it('rejects overlapping v1 cards because hidden and visible geometry reserve real grid space', () => {
+    const overlapping = structuredClone(v1);
+    overlapping.items[1].x = 2;
+    overlapping.items[1].y = 4;
+    expect(failureReason(JSON.stringify(overlapping))).toBe('invalid-document');
+  });
+
+  it('rejects invalid optional size limits with the same policy as the Home Assistant boundary', () => {
+    const nullMin = structuredClone(v1) as unknown as { items: Array<Record<string, unknown>> };
+    nullMin.items[0].minW = null;
+    expect(failureReason(JSON.stringify(nullMin))).toBe('invalid-document');
+
+    const inverted = structuredClone(v1);
+    inverted.items[0].minW = 3;
+    inverted.items[0].maxW = 2;
+    expect(failureReason(JSON.stringify(inverted))).toBe('invalid-document');
+
+    const fractionalMin = structuredClone(v1);
+    fractionalMin.items[0].minW = 1.5;
+    expect(failureReason(JSON.stringify(fractionalMin))).toBe('invalid-document');
+
+    const outsideMax = structuredClone(v1);
+    outsideMax.items[0].maxW = 5;
+    expect(failureReason(JSON.stringify(outsideMax))).toBe('invalid-document');
+  });
+
+  it('rejects overlong dashboard, item and constraint identities', () => {
+    const dashboardId = structuredClone(v1);
+    dashboardId.id = 'd'.repeat(129);
+    expect(failureReason(JSON.stringify(dashboardId))).toBe('invalid-document');
+
+    const itemId = structuredClone(v1);
+    itemId.items[0].id = 'i'.repeat(129);
+    expect(failureReason(JSON.stringify(itemId))).toBe('invalid-document');
+
+    const constraintId = structuredClone(v1);
+    if (!constraintId.constraints?.[0]) throw new Error('Missing test constraint.');
+    constraintId.constraints[0].id = 'c'.repeat(257);
+    expect(failureReason(JSON.stringify(constraintId))).toBe('invalid-document');
+  });
+
+  it('rejects duplicate item ids instead of silently creating ambiguous layer identity', () => {
+    const duplicate = structuredClone(v1);
+    duplicate.items.push({ ...structuredClone(duplicate.items[0]) });
+    expect(failureReason(JSON.stringify(duplicate))).toBe('invalid-document');
+  });
+
+  it('rejects dangling, duplicate and self-referential constraints', () => {
+    const dangling = structuredClone(v1);
+    dangling.constraints = [
+      { id: 'dangling', kind: 'align-left', sourceId: 'hidden', targetId: 'missing', priority: 10 },
+    ];
+    expect(failureReason(JSON.stringify(dangling))).toBe('invalid-document');
+
+    const duplicate = structuredClone(v1);
+    const existing = structuredClone(v1.constraints?.[0]);
+    if (!existing) throw new Error('Missing test constraint.');
+    duplicate.constraints = [existing, structuredClone(existing)];
+    expect(failureReason(JSON.stringify(duplicate))).toBe('invalid-document');
+
+    const self = structuredClone(v1);
+    self.constraints = [
+      { id: 'self', kind: 'align-left', sourceId: 'hidden', targetId: 'hidden', priority: 10 },
+    ];
+    expect(failureReason(JSON.stringify(self))).toBe('invalid-document');
+  });
+
+  it('rejects persisted hidden state in Canvas v2 until the v2 schema supports it natively', () => {
+    const v2 = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
+    v2.items[0].hidden = false;
+    expect(failureReason(JSON.stringify(v2))).toBe('invalid-document');
+  });
+
+  it('rejects non-canonical Canvas v2 min/max bounds at decode time', () => {
+    const belowMin = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
+    belowMin.items[0].minWidth = 999;
+    expect(failureReason(JSON.stringify(belowMin))).toBe('invalid-document');
+
+    const aboveMax = migrateDashboardV1ToV2(v1, 430) as unknown as { items: Array<Record<string, unknown>> };
+    aboveMax.items[0].maxHeight = 1;
+    expect(failureReason(JSON.stringify(aboveMax))).toBe('invalid-document');
+  });
+});

@@ -1,0 +1,7 @@
+{
+  "name": "@frakon/localization",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared language resolution, translation catalogs and formatting contracts for FRAKON UI surfaces."
+}

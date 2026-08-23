@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'agent/**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m compileall -q custom_components/frakon_dashboard
+      - run: python scripts/verify_integration_relative_imports.py
+      - run: python scripts/verify_build_info_provider.py
+      - run: python scripts/verify_hacs_repository_manifest.py
+      - run: python scripts/verify_manifest_contract.py
+      - run: python scripts/verify_custom_translation_contract.py
+      - run: python scripts/verify_translation_release_chain.py
+      - run: python scripts/verify_home_assistant_minimum_compatibility.py
+      - run: python scripts/verify_home_assistant_compatibility_release_chain.py
+      - run: python scripts/verify_brand_assets.py
+      - run: python scripts/verify_brand_release_chain.py
+      - run: python scripts/verify_dashboard_document_validation.py
+      - run: python scripts/verify_document_size_parity.py
+      - run: python scripts/verify_responsive_bundle_validation.py
+      - run: python scripts/verify_responsive_write_lock.py
+      - run: python scripts/verify_persistence_integrity_readiness.py
+      - run: python scripts/verify_alpha_release_readiness.py
+      - run: npm install
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: python scripts/build_hacs_release.py
+      - run: python scripts/verify_hacs_release.py
+      - run: python scripts/build_alpha_test_kit.py
+      - run: python scripts/verify_alpha_test_kit.py
+      - run: python scripts/verify_alpha_test_kit_compatibility_identity.py
+      - run: python scripts/verify_manual_install_layout.py
+      - name: Simulate Home Assistant install from alpha test kit
+        run: |
+          rm -rf /tmp/frakon-ha-config /tmp/frakon-alpha-kit /tmp/frakon-dashboard.frontend.good.js
+          mkdir -p /tmp/frakon-ha-config/custom_components/frakon_dashboard /tmp/frakon-alpha-kit
+          unzip -q dist/frakon-dashboard-alpha-test-kit.zip -d /tmp/frakon-alpha-kit
+          unzip -q /tmp/frakon-alpha-kit/frakon_dashboard.zip -d /tmp/frakon-ha-config/custom_components/frakon_dashboard
+
+          test -f /tmp/frakon-ha-config/custom_components/frakon_dashboard/manifest.json
+          test ! -e /tmp/frakon-ha-config/custom_components/frakon_dashboard/custom_components
+
+          printf '2024.12.5\n' > /tmp/frakon-ha-config/.HA_VERSION
+          if python /tmp/frakon-alpha-kit/verify_home_assistant_install.py /tmp/frakon-ha-config; then
+            echo "ERROR: install self-check accepted Home Assistant below the declared minimum"
+            exit 1
+          fi
+
+          printf '2026.8.0\n' > /tmp/frakon-ha-config/.HA_VERSION
+          python /tmp/frakon-alpha-kit/verify_home_assistant_install.py /tmp/frakon-ha-config
+
+          FRONTEND=/tmp/frakon-ha-config/custom_components/frakon_dashboard/frontend/frakon-dashboard.js
+          cp "$FRONTEND" /tmp/frakon-dashboard.frontend.good.js
+          printf '\n// CI identity tamper probe\n' >> "$FRONTEND"
+          if python /tmp/frakon-alpha-kit/verify_home_assistant_install.py /tmp/frakon-ha-config; then
+            echo "ERROR: install self-check accepted a tampered frontend bundle"
+            exit 1
+          fi
+          mv /tmp/frakon-dashboard.frontend.good.js "$FRONTEND"
+          python /tmp/frakon-alpha-kit/verify_home_assistant_install.py /tmp/frakon-ha-config
+      - uses: actions/upload-artifact@v7
+        with:
+          name: frakon-dashboard
+          path: |
+            dist/frakon-dashboard.js
+            dist/frakon_dashboard.zip
+            dist/frakon-dashboard-alpha-test-kit.zip

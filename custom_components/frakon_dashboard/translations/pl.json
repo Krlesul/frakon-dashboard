@@ -1,0 +1,14 @@
+{
+  "title": "FRAKON Dashboard",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfiguracja przechowywania dashboardów",
+        "description": "Włącza przechowywanie dashboardów FRAKON po stronie Home Assistanta."
+      }
+    },
+    "abort": {
+      "already_configured": "FRAKON Dashboard jest już skonfigurowany."
+    }
+  }
+}
