@@ -8,6 +8,7 @@ on:
 permissions:
   actions: read
   contents: write
+  issues: write
 
 jobs:
   publish:
@@ -92,8 +93,9 @@ jobs:
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
 
-      - name: Publish immutable prerelease
+      - name: Publish or verify immutable prerelease
         if: steps.freshness.outputs.publish == 'true'
+        id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -105,12 +107,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; refusing to replace an immutable version."
-            exit 0
-          fi
 
-          NOTES=$(cat <<EOF
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
+            rm -rf existing-release
+            mkdir -p existing-release
+            gh release download "$TAG" --repo "$REPO" --pattern frakon_dashboard.zip --dir existing-release
+            EXISTING_SHA256="$(sha256sum existing-release/frakon_dashboard.zip | awk '{print $1}')"
+
+            if [[ "$TAG_SHA" != "$TARGET_SHA" || "$EXISTING_SHA256" != "$ASSET_SHA256" ]]; then
+              gh issue comment 12 --repo "$REPO" --body "⚠️ HACS Alpha release conflict: existing \`$TAG\` does not match current verified main artifact. Existing tag SHA: \`$TAG_SHA\`; expected: \`$TARGET_SHA\`. Existing asset SHA-256: \`$EXISTING_SHA256\`; expected: \`$ASSET_SHA256\`. Release was not overwritten."
+              echo "Existing immutable release does not match current verified artifact."
+              exit 1
+            fi
+
+            echo "Release $TAG already exists and exactly matches the current verified artifact."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+          else
+            NOTES=$(cat <<EOF
           FRAKON Dashboard $VERSION verified Alpha package.
 
           Source commit: $TARGET_SHA
@@ -118,11 +132,15 @@ jobs:
 
           This is an Alpha prerelease intended for the real Home Assistant / HACS installation gate.
           EOF
-          )
+            )
 
-          gh release create "$TAG" "$ASSET#frakon_dashboard.zip" \
-            --repo "$REPO" \
-            --target "$TARGET_SHA" \
-            --title "FRAKON Dashboard $VERSION" \
-            --notes "$NOTES" \
-            --prerelease
+            gh release create "$TAG" "$ASSET#frakon_dashboard.zip" \
+              --repo "$REPO" \
+              --target "$TARGET_SHA" \
+              --title "FRAKON Dashboard $VERSION" \
+              --notes "$NOTES" \
+              --prerelease
+            echo "created=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          gh issue comment 12 --repo "$REPO" --body "✅ Verified HACS Alpha release: \`$TAG\`. Source commit: \`$TARGET_SHA\`. \`frakon_dashboard.zip\` SHA-256: \`$ASSET_SHA256\`. Artifact came directly from successful CI run #${{ github.event.workflow_run.run_number }} (run ID \`${{ github.event.workflow_run.id }}\`) for the current main head."
