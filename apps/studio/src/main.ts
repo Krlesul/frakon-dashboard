@@ -1,5 +1,5 @@
-import './studio-app';
+import './studio-app-v2';
 
-if (!window.document.querySelector('frakon-studio-app')) {
-  window.document.body.append(window.document.createElement('frakon-studio-app'));
+if (!window.document.querySelector('frakon-studio-app-v2')) {
+  window.document.body.append(window.document.createElement('frakon-studio-app-v2'));
 }
