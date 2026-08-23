@@ -41,6 +41,8 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - run: npm run studio:build
+      - run: test -f dist/studio/index.html
       - run: python scripts/build_hacs_release.py
       - run: python scripts/verify_hacs_release.py
       - run: python scripts/build_alpha_test_kit.py
@@ -82,3 +84,4 @@ jobs:
             dist/frakon-dashboard.js
             dist/frakon_dashboard.zip
             dist/frakon-dashboard-alpha-test-kit.zip
+            dist/studio

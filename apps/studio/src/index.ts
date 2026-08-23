@@ -22,3 +22,5 @@ export * from './dashboard-intelligence-live-panel';
 export * from './dashboard-interaction-observer';
 export * from './history-toolbar';
 export * from './guideline-overlay';
+export * from './home-assistant-connection';
+export * from './studio-app';
