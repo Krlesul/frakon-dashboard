@@ -29,14 +29,14 @@ type StudioViewport = 'mobile' | 'tablet' | 'desktop' | 'wide';
 type ConnectionState = 'offline' | 'connecting' | 'connected' | 'error';
 type PaletteCategory = FrakonCardCategory | 'all';
 
-const TEXT = {
+const TEXT: Record<StudioLanguage, Record<string, string>> = {
   en: {
     cards: 'Components', entities: 'Entities', searchCards: 'Search components', searchEntities: 'Search entities',
     all: 'All', connect: 'Connect Home Assistant', connected: 'Home Assistant connected', offline: 'Offline workspace',
     new: 'New', import: 'Import', export: 'Export', load: 'Load from HA', publish: 'Publish to HA',
     document: 'Dashboard', dashboardId: 'Dashboard ID', title: 'Title', localSaved: 'Saved locally',
     selected: 'Selected card', noSelection: 'Select a card on the canvas to edit its entity.', entity: 'Entity',
-    add: 'Add', noEntities: 'Connect Home Assistant to browse live entities.', connectionTitle: 'Home Assistant connection',
+    noEntities: 'Connect Home Assistant to browse live entities.', connectionTitle: 'Home Assistant connection',
     url: 'Home Assistant URL', token: 'Long-lived access token', tokenHint: 'The token is kept only in memory and is never stored by FRAKON Studio.',
     close: 'Close', connecting: 'Connecting…', disconnect: 'Disconnect', ready: 'Studio ready',
     emptyHa: 'No FRAKON dashboard with this ID exists in Home Assistant yet.', loaded: 'Dashboard loaded from Home Assistant.',
@@ -51,7 +51,7 @@ const TEXT = {
     new: 'Nový', import: 'Importovat', export: 'Exportovat', load: 'Načíst z HA', publish: 'Publikovat do HA',
     document: 'Dashboard', dashboardId: 'ID dashboardu', title: 'Název', localSaved: 'Uloženo lokálně',
     selected: 'Vybraná karta', noSelection: 'Vyber kartu na plátně a zde změníš její entitu.', entity: 'Entita',
-    add: 'Přidat', noEntities: 'Připoj Home Assistant a zobrazí se skutečné entity.', connectionTitle: 'Připojení Home Assistant',
+    noEntities: 'Připoj Home Assistant a zobrazí se skutečné entity.', connectionTitle: 'Připojení Home Assistant',
     url: 'Adresa Home Assistantu', token: 'Long-lived access token', tokenHint: 'Token FRAKON Studio neukládá. Zůstává pouze v paměti otevřené stránky.',
     close: 'Zavřít', connecting: 'Připojuji…', disconnect: 'Odpojit', ready: 'Studio připraveno',
     emptyHa: 'V Home Assistantu zatím neexistuje FRAKON dashboard s tímto ID.', loaded: 'Dashboard načten z Home Assistantu.',
@@ -60,17 +60,16 @@ const TEXT = {
     integrationMissing: 'Home Assistant je připojen, ale FRAKON Dashboard API není dostupné.',
     writeLocked: 'Tato instalace Home Assistantu nepovoluje zápis dashboardu v1.',
   },
-} as const;
+};
 
 function initialLanguage(): StudioLanguage {
   return navigator.language.toLocaleLowerCase().startsWith('cs') ? 'cs' : 'en';
 }
 
 function createBlankDashboard(): FrakonDashboardDocument {
-  const suffix = Date.now().toString(36);
   return {
     version: 1,
-    id: `studio-${suffix}`,
+    id: `studio-${Date.now().toString(36)}`,
     title: 'FRAKON Dashboard',
     breakpoint: 'desktop',
     columns: 12,
@@ -96,8 +95,7 @@ function parseDashboard(value: unknown): FrakonDashboardDocument | undefined {
 function loadWorkspace(): FrakonDashboardDocument {
   try {
     const raw = localStorage.getItem(WORKSPACE_KEY);
-    if (!raw) return createBlankDashboard();
-    return parseDashboard(JSON.parse(raw)) ?? createBlankDashboard();
+    return raw ? parseDashboard(JSON.parse(raw)) ?? createBlankDashboard() : createBlankDashboard();
   } catch {
     return createBlankDashboard();
   }
@@ -144,99 +142,59 @@ export class FrakonStudioApp extends LitElement {
   @state() private preferredEntityId = '';
   @state() private connectionState: ConnectionState = 'offline';
   @state() private connectionDialogOpen = false;
-  @state() private haUrl = localStorage.getItem(HA_URL_KEY) ?? 'http://homeassistant.local:8123';
+  @state() private haUrl: string = localStorage.getItem(HA_URL_KEY) ?? 'http://homeassistant.local:8123';
   @state() private accessToken = '';
   @state() private capabilities?: FrakonDashboardCapabilities;
-  @state() private message = TEXT[initialLanguage()].ready;
-  @state() private errorMessage = '';
+  @state() private message: string = TEXT[initialLanguage()].ready;
+  @state() private errorMessage: string = '';
 
   private readonly ha = new HomeAssistantStudioConnection();
   private saveTimer?: ReturnType<typeof setTimeout>;
 
   static styles = css`
-    :host {
-      display:block;
-      min-height:100vh;
-      color:#eef4ff;
-      background:#070b12;
-      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      --primary-color:#69a7ff;
-      --primary-text-color:#eef4ff;
-      --card-background-color:#111824;
-      --divider-color:rgb(255 255 255 / 10%);
-    }
+    :host { display:block; min-height:100vh; color:#eef4ff; background:#070b12; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; --primary-color:#69a7ff; --primary-text-color:#eef4ff; --card-background-color:#111824; --divider-color:rgb(255 255 255 / 10%); }
     * { box-sizing:border-box; }
     button,input,select { font:inherit; }
     button { color:inherit; }
     .app { min-height:100vh; display:grid; grid-template-rows:auto auto 1fr; }
-    .topbar {
-      position:sticky; top:0; z-index:100;
-      display:flex; align-items:center; justify-content:space-between; gap:16px;
-      min-height:72px; padding:12px 18px;
-      border-bottom:1px solid rgb(255 255 255 / 8%);
-      background:rgb(7 11 18 / 92%); backdrop-filter:blur(18px);
-    }
+    .topbar { position:sticky; top:0; z-index:100; display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:72px; padding:12px 18px; border-bottom:1px solid rgb(255 255 255 / 8%); background:rgb(7 11 18 / 92%); backdrop-filter:blur(18px); }
     .brand { display:flex; align-items:center; gap:12px; min-width:220px; }
-    .mark {
-      width:42px; height:42px; display:grid; place-items:center; border-radius:13px;
-      border:1px solid rgb(105 167 255 / 34%); background:linear-gradient(145deg,#101a2a,#0b111b);
-      color:#7db4ff; font-weight:900; font-size:24px; box-shadow:0 12px 40px rgb(0 0 0 / 24%);
-    }
+    .mark { width:42px; height:42px; display:grid; place-items:center; border-radius:13px; border:1px solid rgb(105 167 255 / 34%); background:linear-gradient(145deg,#101a2a,#0b111b); color:#7db4ff; font-weight:900; font-size:24px; box-shadow:0 12px 40px rgb(0 0 0 / 24%); }
     .brand-title { font-weight:800; letter-spacing:.01em; }
     .brand-sub { margin-top:2px; font-size:11px; opacity:.5; letter-spacing:.12em; text-transform:uppercase; }
     .toolbar { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
-    .button,.file-button {
-      min-height:38px; display:inline-flex; align-items:center; justify-content:center; gap:7px;
-      border:1px solid rgb(255 255 255 / 10%); border-radius:11px; padding:0 12px;
-      background:rgb(255 255 255 / 5%); cursor:pointer; white-space:nowrap;
-    }
+    .button,.file-button { min-height:38px; display:inline-flex; align-items:center; justify-content:center; gap:7px; border:1px solid rgb(255 255 255 / 10%); border-radius:11px; padding:0 12px; background:rgb(255 255 255 / 5%); cursor:pointer; white-space:nowrap; }
     .button:hover,.file-button:hover { border-color:rgb(105 167 255 / 42%); background:rgb(105 167 255 / 10%); }
     .button.primary { border-color:rgb(105 167 255 / 46%); background:#276ec8; }
     .button.good { border-color:rgb(83 209 155 / 34%); background:rgb(83 209 155 / 12%); }
     .button:disabled { opacity:.36; cursor:not-allowed; }
     .file-button input { display:none; }
-    .statusbar {
-      display:flex; align-items:center; justify-content:space-between; gap:14px; padding:8px 18px;
-      border-bottom:1px solid rgb(255 255 255 / 6%); background:#0a1019; font-size:12px;
-    }
+    .statusbar { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:8px 18px; border-bottom:1px solid rgb(255 255 255 / 6%); background:#0a1019; font-size:12px; }
     .status { display:flex; align-items:center; gap:8px; min-width:0; }
     .dot { width:8px; height:8px; border-radius:50%; background:#697386; flex:none; }
     .dot.connected { background:#53d19b; box-shadow:0 0 12px rgb(83 209 155 / 55%); }
     .dot.error { background:#ff647c; }
     .message { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:.72; }
     .workspace { display:grid; grid-template-columns:290px minmax(0,1fr); min-height:0; }
-    .sidebar {
-      height:calc(100vh - 113px); position:sticky; top:113px; overflow:auto;
-      border-right:1px solid rgb(255 255 255 / 8%); background:#0b111b; padding:14px;
-    }
+    .sidebar { height:calc(100vh - 113px); position:sticky; top:113px; overflow:auto; border-right:1px solid rgb(255 255 255 / 8%); background:#0b111b; padding:14px; }
     .section { display:grid; gap:10px; padding:12px 0 16px; border-bottom:1px solid rgb(255 255 255 / 7%); }
     .section:last-child { border-bottom:0; }
     .section-title { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px; font-weight:750; letter-spacing:.08em; text-transform:uppercase; opacity:.72; }
     .field { display:grid; gap:6px; }
     .field label { font-size:11px; opacity:.56; }
-    input,select {
-      width:100%; min-height:38px; border:1px solid rgb(255 255 255 / 10%); border-radius:10px;
-      padding:0 10px; color:inherit; background:#0e1723; outline:none;
-    }
+    input,select { width:100%; min-height:38px; border:1px solid rgb(255 255 255 / 10%); border-radius:10px; padding:0 10px; color:inherit; background:#0e1723; outline:none; }
     input:focus,select:focus { border-color:#69a7ff; box-shadow:0 0 0 3px rgb(105 167 255 / 10%); }
     .category-row { display:flex; gap:6px; overflow:auto; padding-bottom:2px; }
     .chip { border:1px solid rgb(255 255 255 / 8%); border-radius:999px; padding:5px 8px; background:transparent; cursor:pointer; font-size:11px; white-space:nowrap; }
     .chip.active { border-color:rgb(105 167 255 / 42%); background:rgb(105 167 255 / 15%); }
     .library { display:grid; gap:7px; }
-    .library-card {
-      display:grid; grid-template-columns:minmax(0,1fr) auto; gap:9px; align-items:center;
-      width:100%; border:1px solid rgb(255 255 255 / 8%); border-radius:12px; padding:10px;
-      color:inherit; background:rgb(255 255 255 / 3%); text-align:left; cursor:pointer;
-    }
+    .library-card { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:9px; align-items:center; width:100%; border:1px solid rgb(255 255 255 / 8%); border-radius:12px; padding:10px; color:inherit; background:rgb(255 255 255 / 3%); text-align:left; cursor:pointer; }
     .library-card:hover { border-color:rgb(105 167 255 / 38%); transform:translateY(-1px); }
-    .library-name { font-size:13px; font-weight:700; }
-    .library-meta { margin-top:3px; font-size:10px; opacity:.48; }
+    .library-name { display:block; font-size:13px; font-weight:700; }
+    .library-meta { display:block; margin-top:3px; font-size:10px; opacity:.48; }
     .plus { width:28px; height:28px; display:grid; place-items:center; border-radius:8px; background:rgb(105 167 255 / 16%); color:#8fc0ff; font-size:18px; }
     .entity-list { display:grid; gap:5px; max-height:250px; overflow:auto; }
-    .entity-row {
-      width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center;
-      border:0; border-radius:9px; padding:8px 9px; background:transparent; text-align:left; cursor:pointer;
-    }
+    .entity-row { width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; border:0; border-radius:9px; padding:8px 9px; background:transparent; text-align:left; cursor:pointer; }
     .entity-row:hover,.entity-row.active { background:rgb(105 167 255 / 10%); }
     .entity-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
     .entity-id { margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:9px; opacity:.43; }
@@ -260,12 +218,7 @@ export class FrakonStudioApp extends LitElement {
     .dialog h2 { margin:0; font-size:20px; }
     .dialog-actions { display:flex; justify-content:flex-end; gap:8px; }
     .connection-summary { padding:10px 12px; border:1px solid rgb(83 209 155 / 20%); border-radius:10px; background:rgb(83 209 155 / 7%); font-size:12px; line-height:1.5; }
-    @media (max-width:900px) {
-      .topbar { align-items:flex-start; }
-      .brand { min-width:0; }
-      .workspace { grid-template-columns:1fr; }
-      .sidebar { position:relative; top:auto; height:auto; border-right:0; border-bottom:1px solid rgb(255 255 255 / 8%); }
-    }
+    @media (max-width:900px) { .topbar { align-items:flex-start; } .brand { min-width:0; } .workspace { grid-template-columns:1fr; } .sidebar { position:relative; top:auto; height:auto; border-right:0; border-bottom:1px solid rgb(255 255 255 / 8%); } }
   `;
 
   disconnectedCallback(): void {
@@ -274,8 +227,8 @@ export class FrakonStudioApp extends LitElement {
     super.disconnectedCallback();
   }
 
-  private t<K extends keyof typeof TEXT.en>(key: K): (typeof TEXT.en)[K] | (typeof TEXT.cs)[K] {
-    return TEXT[this.language][key];
+  private t(key: string): string {
+    return TEXT[this.language][key] ?? key;
   }
 
   private persistSoon(): void {
@@ -304,9 +257,9 @@ export class FrakonStudioApp extends LitElement {
   }
 
   private updateDashboardIdentity(field: 'id' | 'title', value: string): void {
-    const trimmed = field === 'id' ? value.trim().slice(0, 128) : value;
-    if (field === 'id' && !trimmed) return;
-    this.dashboard = { ...this.dashboard, [field]: trimmed };
+    const nextValue = field === 'id' ? value.trim().slice(0, 128) : value;
+    if (field === 'id' && !nextValue) return;
+    this.dashboard = { ...this.dashboard, [field]: nextValue };
     this.persistSoon();
   }
 
@@ -317,7 +270,7 @@ export class FrakonStudioApp extends LitElement {
   private exportDashboard(): void {
     const blob = new Blob([`${JSON.stringify(this.dashboard, null, 2)}\n`], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const link = window.document.createElement('a');
+    const link = document.createElement('a');
     link.href = url;
     link.download = `${this.dashboard.id}.frakon-dashboard.json`;
     link.click();
@@ -329,8 +282,7 @@ export class FrakonStudioApp extends LitElement {
     const file = input.files?.[0];
     if (!file) return;
     try {
-      const parsed: unknown = JSON.parse(await file.text());
-      const dashboard = parseDashboard(parsed);
+      const dashboard = parseDashboard(JSON.parse(await file.text()));
       if (!dashboard) throw new Error(this.t('invalidImport'));
       this.replaceDashboard(dashboard, this.t('imported'));
     } catch (error) {
@@ -359,14 +311,12 @@ export class FrakonStudioApp extends LitElement {
   }
 
   private entityForTemplate(template: FrakonCardTemplate): string | undefined {
-    const expected = expectedDomain(template.type);
-    if (this.preferredEntityId && (!expected || entityDomain(this.preferredEntityId) === expected)) return this.preferredEntityId;
-    const first = this.matchingEntities(expected)[0];
-    return first?.entity_id;
+    const domain = expectedDomain(template.type);
+    if (this.preferredEntityId && (!domain || entityDomain(this.preferredEntityId) === domain)) return this.preferredEntityId;
+    return this.matchingEntities(domain)[0]?.entity_id;
   }
 
   private addTemplate(template: FrakonCardTemplate): void {
-    const entityId = this.entityForTemplate(template);
     const id = `${template.name.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString(36)}`;
     const y = this.dashboard.items.reduce((maximum, item) => Math.max(maximum, item.y + item.h), 0);
     const item: FrakonGridItem = {
@@ -375,7 +325,7 @@ export class FrakonStudioApp extends LitElement {
       y,
       w: Math.min(template.defaultWidth, this.dashboard.columns),
       h: template.defaultHeight,
-      card: template.createConfig(entityId),
+      card: template.createConfig(this.entityForTemplate(template)),
     };
     this.replaceDashboard(addGridItem(this.dashboard, item), this.t('added'));
   }
@@ -477,28 +427,14 @@ export class FrakonStudioApp extends LitElement {
     return html`
       <div class="dialog-backdrop" @click=${() => { this.connectionDialogOpen = false; }}>
         <section class="dialog" @click=${(event: Event) => event.stopPropagation()}>
-          <div class="dialog-head">
-            <h2>${this.t('connectionTitle')}</h2>
-            <button class="button" @click=${() => { this.connectionDialogOpen = false; }}>${this.t('close')}</button>
-          </div>
-          <div class="field">
-            <label>${this.t('url')}</label>
-            <input .value=${this.haUrl} @input=${(event: Event) => { this.haUrl = (event.target as HTMLInputElement).value; }} placeholder="http://homeassistant.local:8123">
-          </div>
-          <div class="field">
-            <label>${this.t('token')}</label>
-            <input type="password" autocomplete="off" .value=${this.accessToken} @input=${(event: Event) => { this.accessToken = (event.target as HTMLInputElement).value; }}>
-            <div class="hint">${this.t('tokenHint')}</div>
-          </div>
-          ${this.connectionState === 'connected' ? html`
-            <div class="connection-summary">${this.t('connected')} · ${this.entities.length} entities · API v${this.capabilities?.readableDocumentVersions.join(', ') ?? '?'}</div>
-          ` : nothing}
+          <div class="dialog-head"><h2>${this.t('connectionTitle')}</h2><button class="button" @click=${() => { this.connectionDialogOpen = false; }}>${this.t('close')}</button></div>
+          <div class="field"><label>${this.t('url')}</label><input .value=${this.haUrl} @input=${(event: Event) => { this.haUrl = (event.target as HTMLInputElement).value; }} placeholder="http://homeassistant.local:8123"></div>
+          <div class="field"><label>${this.t('token')}</label><input type="password" autocomplete="off" .value=${this.accessToken} @input=${(event: Event) => { this.accessToken = (event.target as HTMLInputElement).value; }}><div class="hint">${this.t('tokenHint')}</div></div>
+          ${this.connectionState === 'connected' ? html`<div class="connection-summary">${this.t('connected')} · ${this.entities.length} entities · API v${this.capabilities?.readableDocumentVersions.join(', ') ?? '?'}</div>` : nothing}
           ${this.errorMessage ? html`<div class="error-banner">${this.errorMessage}</div>` : nothing}
-          <div class="dialog-actions">
-            ${this.connectionState === 'connected'
-              ? html`<button class="button" @click=${this.disconnectHomeAssistant}>${this.t('disconnect')}</button>`
-              : html`<button class="button primary" ?disabled=${this.connectionState === 'connecting'} @click=${this.connectHomeAssistant}>${this.connectionState === 'connecting' ? this.t('connecting') : this.t('connect')}</button>`}
-          </div>
+          <div class="dialog-actions">${this.connectionState === 'connected'
+            ? html`<button class="button" @click=${this.disconnectHomeAssistant}>${this.t('disconnect')}</button>`
+            : html`<button class="button primary" ?disabled=${this.connectionState === 'connecting'} @click=${this.connectHomeAssistant}>${this.connectionState === 'connecting' ? this.t('connecting') : this.t('connect')}</button>`}</div>
         </section>
       </div>
     `;
@@ -516,43 +452,27 @@ export class FrakonStudioApp extends LitElement {
           <div class="field"><label>${this.t('title')}</label><input .value=${this.dashboard.title} @change=${(event: Event) => this.updateDashboardIdentity('title', (event.target as HTMLInputElement).value)}></div>
           <div class="field"><label>${this.t('dashboardId')}</label><input .value=${this.dashboard.id} @change=${(event: Event) => this.updateDashboardIdentity('id', (event.target as HTMLInputElement).value)}></div>
         </section>
-
         <section class="section">
           <div class="section-title"><span>${this.t('cards')}</span><span>${this.matchingTemplates().length}</span></div>
           <input placeholder=${this.t('searchCards')} .value=${this.cardQuery} @input=${(event: Event) => { this.cardQuery = (event.target as HTMLInputElement).value; }}>
-          <div class="category-row">
-            ${categories.map((category) => html`<button class="chip ${this.paletteCategory === category ? 'active' : ''}" @click=${() => { this.paletteCategory = category; }}>${category === 'all' ? this.t('all') : category}</button>`)}
-          </div>
-          <div class="library">
-            ${this.matchingTemplates().map((template) => html`
-              <button class="library-card" @click=${() => this.addTemplate(template)}>
-                <span><span class="library-name">${template.name}</span><span class="library-meta">${template.category} · ${template.defaultWidth}×${template.defaultHeight}</span></span>
-                <span class="plus">+</span>
-              </button>
-            `)}
-          </div>
+          <div class="category-row">${categories.map((category) => html`<button class="chip ${this.paletteCategory === category ? 'active' : ''}" @click=${() => { this.paletteCategory = category; }}>${category === 'all' ? this.t('all') : category}</button>`)}</div>
+          <div class="library">${this.matchingTemplates().map((template) => html`
+            <button class="library-card" @click=${() => this.addTemplate(template)}>
+              <span><span class="library-name">${template.name}</span><span class="library-meta">${template.category} · ${template.defaultWidth}×${template.defaultHeight}</span></span><span class="plus">+</span>
+            </button>`)}</div>
         </section>
-
         <section class="section">
           <div class="section-title"><span>${this.t('selected')}</span><span>${selected?.id ?? '—'}</span></div>
-          ${selected ? html`
-            <div class="field"><label>${this.t('entity')}</label><input .value=${selectedEntity} @change=${(event: Event) => this.updateSelectedEntity((event.target as HTMLInputElement).value.trim())}></div>
-          ` : html`<div class="hint">${this.t('noSelection')}</div>`}
+          ${selected ? html`<div class="field"><label>${this.t('entity')}</label><input .value=${selectedEntity} @change=${(event: Event) => this.updateSelectedEntity((event.target as HTMLInputElement).value.trim())}></div>` : html`<div class="hint">${this.t('noSelection')}</div>`}
         </section>
-
         <section class="section">
           <div class="section-title"><span>${this.t('entities')}</span><span>${this.entities.length || '—'}</span></div>
           <input placeholder=${this.t('searchEntities')} .value=${this.entityQuery} @input=${(event: Event) => { this.entityQuery = (event.target as HTMLInputElement).value; }}>
           ${this.connectionState !== 'connected' ? html`<div class="hint">${this.t('noEntities')}</div>` : html`
-            <div class="entity-list">
-              ${this.matchingEntities(selectedDomain).map((entity) => html`
-                <button class="entity-row ${entity.entity_id === (selectedEntity || this.preferredEntityId) ? 'active' : ''}" @click=${() => this.choosePreferredEntity(entity.entity_id)}>
-                  <span><div class="entity-name">${entityFriendlyName(entity)}</div><div class="entity-id">${entity.entity_id}</div></span>
-                  <span class="entity-state">${entity.state}</span>
-                </button>
-              `)}
-            </div>
-          `}
+            <div class="entity-list">${this.matchingEntities(selectedDomain).map((entity) => html`
+              <button class="entity-row ${entity.entity_id === (selectedEntity || this.preferredEntityId) ? 'active' : ''}" @click=${() => this.choosePreferredEntity(entity.entity_id)}>
+                <span><div class="entity-name">${entityFriendlyName(entity)}</div><div class="entity-id">${entity.entity_id}</div></span><span class="entity-state">${entity.state}</span>
+              </button>`)}</div>`}
         </section>
       </aside>
     `;
@@ -575,29 +495,16 @@ export class FrakonStudioApp extends LitElement {
             <select aria-label="Language" .value=${this.language} @change=${(event: Event) => { this.language = (event.target as HTMLSelectElement).value as StudioLanguage; }}><option value="en">EN</option><option value="cs">CZ</option></select>
           </div>
         </header>
-        <div class="statusbar">
-          <div class="status"><span class="dot ${this.connectionState}"></span><span>${connected ? this.t('connected') : this.t('offline')}</span></div>
-          <div class="message">${this.errorMessage || this.message}</div>
-        </div>
+        <div class="statusbar"><div class="status"><span class="dot ${this.connectionState}"></span><span>${connected ? this.t('connected') : this.t('offline')}</span></div><div class="message">${this.errorMessage || this.message}</div></div>
         <div class="workspace">
           ${this.renderSidebar()}
           <main class="main">
             <div class="workbar">
               <div><strong>${this.dashboard.title}</strong> <span class="hint">· ${this.dashboard.columns} columns · ${this.dashboard.items.length} cards</span></div>
-              <div class="viewport-switch">
-                ${viewportOptions.map((viewport) => html`<button class=${this.viewport === viewport ? 'active' : ''} @click=${() => { this.viewport = viewport; }}>${viewport}</button>`)}
-              </div>
+              <div class="viewport-switch">${viewportOptions.map((viewport) => html`<button class=${this.viewport === viewport ? 'active' : ''} @click=${() => { this.viewport = viewport; }}>${viewport}</button>`)}</div>
             </div>
             ${this.errorMessage ? html`<div class="error-banner" style="max-width:1500px;margin:0 auto 12px">${this.errorMessage}</div>` : nothing}
-            <div class="canvas-stage ${this.viewport}">
-              <div class="canvas-frame">
-                <frakon-dashboard-studio-history
-                  .document=${this.dashboard}
-                  @frakon-history-studio-changed=${this.onHistoryChanged}
-                  @frakon-dashboard-studio-changed=${this.onStudioChanged}
-                ></frakon-dashboard-studio-history>
-              </div>
-            </div>
+            <div class="canvas-stage ${this.viewport}"><div class="canvas-frame"><frakon-dashboard-studio-history .document=${this.dashboard} @frakon-history-studio-changed=${this.onHistoryChanged} @frakon-dashboard-studio-changed=${this.onStudioChanged}></frakon-dashboard-studio-history></div></div>
           </main>
         </div>
       </div>
