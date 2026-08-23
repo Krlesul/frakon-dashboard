@@ -16,7 +16,26 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     steps:
+      - name: Require current main head
+        id: freshness
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT_MAIN="$(gh api "repos/$REPO/commits/main" --jq '.sha')"
+          if [[ "$TARGET_SHA" == "$CURRENT_MAIN" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "CI artifact belongs to current main head: $TARGET_SHA"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping stale successful CI artifact: $TARGET_SHA (current main: $CURRENT_MAIN)"
+          fi
+
       - name: Download verified CI artifact
+        if: steps.freshness.outputs.publish == 'true'
         uses: actions/download-artifact@v7
         with:
           name: frakon-dashboard
@@ -26,6 +45,7 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: Verify release asset and derive version
+        if: steps.freshness.outputs.publish == 'true'
         id: package
         shell: bash
         run: |
@@ -73,6 +93,7 @@ jobs:
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Publish immutable prerelease
+        if: steps.freshness.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
